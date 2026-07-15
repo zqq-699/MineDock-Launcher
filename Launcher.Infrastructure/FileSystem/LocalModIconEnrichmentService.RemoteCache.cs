@@ -20,7 +20,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using Launcher.Application.Services;
@@ -33,7 +32,7 @@ namespace Launcher.Infrastructure.FileSystem;
 
 public sealed partial class LocalModIconEnrichmentService
 {
-private async Task<string?> TryCacheRemoteIconAsync(
+    private async Task<string?> TryCacheRemoteIconAsync(
         ModIconLookupCandidate lookup,
         RemoteIconCandidate icon,
         CancellationToken cancellationToken)
@@ -65,41 +64,15 @@ private async Task<string?> TryCacheRemoteIconAsync(
         RemoteIconCandidate icon,
         CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(icon.IconUrl, UriKind.Absolute, out var iconUri))
+        if (!Uri.TryCreate(icon.IconUrl, UriKind.Absolute, out _))
             return null;
 
         byte[] imageBytes;
         try
         {
-            using var response = await httpClient.GetAsync(iconUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            imageBytes = await thumbnailDownloader
+                .DownloadAsync(icon.IconUrl, MaxIconBytes, cancellationToken)
                 .ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning(
-                    "Remote local mod icon download was rejected. Source={Source} ProjectId={ProjectId} StatusCode={StatusCode}",
-                    icon.Source,
-                    icon.ProjectId,
-                    response.StatusCode);
-                return null;
-            }
-
-            var contentLength = response.Content.Headers.ContentLength;
-            if (contentLength > MaxIconBytes)
-            {
-                logger.LogWarning(
-                    "Remote local mod icon is too large. Source={Source} ProjectId={ProjectId} SizeBytes={SizeBytes}",
-                    icon.Source,
-                    icon.ProjectId,
-                    contentLength);
-                return null;
-            }
-
-            await using var remoteStream = await response.Content.ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-            imageBytes = await RemoteIconImageEncoder.ReadLimitedAsync(
-                remoteStream,
-                MaxIconBytes,
-                cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

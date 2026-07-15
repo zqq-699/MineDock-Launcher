@@ -312,10 +312,10 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         try
         {
             // 版本文件留在私有沙箱；共享运行库通过分离路径直接复用真实 Minecraft 缓存。
-            using var composeDownloadOperation = new MinecraftDownloadOperationContext(sandboxMinecraftDirectory);
             var installLayout = MinecraftInstallPathLayout.Create(
                 sandboxMinecraftDirectory,
                 target.MinecraftDirectory);
+            using var composeDownloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(installLayout.Path);
             var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
                 token => composeAsync(sandboxMinecraftDirectory, composeDownloadOperation, token),
                 (versionName, token) => finalVersionInstaller.InstallAsync(

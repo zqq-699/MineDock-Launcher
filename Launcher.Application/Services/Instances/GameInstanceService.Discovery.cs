@@ -66,7 +66,6 @@ private List<GameInstance> SynchronizeInstalledInstances(
             }
 
             changed |= ApplyInstalledVersion(instance, installedVersion);
-            repository.CreateInstanceDirectories(installedVersion.Directory);
             syncedInstances.Add(instance);
         }
 
@@ -78,7 +77,6 @@ private List<GameInstance> SynchronizeInstalledInstances(
                 continue;
             }
 
-            repository.CreateInstanceDirectories(installedVersion.Directory);
             syncedInstances.Add(CreateDiscoveredInstance(installedVersion, settings));
             changed = true;
         }

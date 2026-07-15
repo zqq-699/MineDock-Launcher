@@ -19,10 +19,11 @@
 
 using Launcher.App.Resources;
 using Launcher.Domain.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Launcher.App.ViewModels.Resources;
 
-public sealed class ResourcesModProjectItemViewModel
+public sealed partial class ResourcesModProjectItemViewModel : ObservableObject
 {
     private static readonly string[] LoaderDisplayOrder =
     [
@@ -43,6 +44,7 @@ public sealed class ResourcesModProjectItemViewModel
         Project = project;
         this.minecraftReleaseVersionOrder = minecraftReleaseVersionOrder;
         this.fallbackIconKey = fallbackIconKey;
+        iconSource = project.IconUrl;
     }
 
     public ResourceProject Project { get; }
@@ -72,13 +74,20 @@ public sealed class ResourcesModProjectItemViewModel
 
     public string DownloadsText => FormatDownloads(Project.Downloads);
 
-    public string? IconSource => Project.IconUrl;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IconKey))]
+    private string? iconSource;
 
     public bool ShowsLoaders => Project.Kind is ResourceProjectKind.Mod;
 
-    public string IconKey => string.IsNullOrWhiteSpace(Project.IconUrl)
+    public string IconKey => string.IsNullOrWhiteSpace(IconSource)
         ? fallbackIconKey
         : string.Empty;
+
+    internal void SetManagedIconSource(string? source)
+    {
+        IconSource = source;
+    }
 
     private static string FormatLoaders(IReadOnlyList<string> loaders)
     {

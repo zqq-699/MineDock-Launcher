@@ -72,6 +72,38 @@ public sealed class ResourcesProjectListViewModelTests
         Assert.Equal("new", Assert.Single(viewModel.VisibleProjects).Title);
     }
 
+    [Fact]
+    public async Task ManagedThumbnailUsesCacheImmediatelyThenPublishesBackgroundRefresh()
+    {
+        var service = new ThumbnailCatalogService();
+        using var viewModel = CreateViewModel(service);
+
+        await viewModel.RefreshAsync();
+
+        var item = Assert.Single(viewModel.VisibleProjects);
+        Assert.Equal("file:///cached.png?v=1", item.IconSource);
+        Assert.True(service.ThumbnailRequested.Task.IsCompleted);
+
+        service.ThumbnailCompletion.SetResult("file:///cached.png?v=2");
+        await WaitUntilAsync(() => item.IconSource == "file:///cached.png?v=2");
+
+        Assert.Equal(string.Empty, item.IconKey);
+    }
+
+    [Fact]
+    public async Task ManagedThumbnailDoesNotExposeRemoteUrlWhileBackgroundDownloadIsPending()
+    {
+        var service = new ThumbnailCatalogService { CachedSource = null };
+        using var viewModel = CreateViewModel(service);
+
+        await viewModel.RefreshAsync();
+
+        var item = Assert.Single(viewModel.VisibleProjects);
+        Assert.Null(item.IconSource);
+        Assert.Equal("mod", item.IconKey);
+        Assert.True(service.ThumbnailRequested.Task.IsCompleted);
+    }
+
     private static ResourcesProjectListViewModel CreateViewModel(IResourceCatalogService service) =>
         new(CreateOptions(), service, null, ImmediateUiDispatcher.Instance, null);
 
@@ -181,6 +213,46 @@ public sealed class ResourcesProjectListViewModelTests
             var search = new ControlledSearch();
             Searches.Add(search);
             return search.Completion.Task;
+        }
+    }
+
+    private sealed class ThumbnailCatalogService : RecordingCatalogService, IResourceThumbnailService
+    {
+        public string? CachedSource { get; init; } = "file:///cached.png?v=1";
+        public TaskCompletionSource ThumbnailRequested { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<string?> ThumbnailCompletion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override Task<ResourceCatalogSearchResult> SearchProjectsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new ResourceCatalogSearchResult
+            {
+                Projects =
+                [
+                    new ResourceProject
+                    {
+                        ProjectId = "managed",
+                        Title = "Managed",
+                        Kind = ResourceProjectKind.Mod,
+                        Source = ResourceProjectSource.Modrinth,
+                        IconUrl = "https://cdn.example.com/icon.png"
+                    }
+                ]
+            });
+        }
+
+        public string? TryGetCachedThumbnailSource(ResourceProject project) => CachedSource;
+
+        public Task<string?> GetOrCreateThumbnailSourceAsync(
+            ResourceProject project,
+            CancellationToken cancellationToken = default)
+        {
+            ThumbnailRequested.TrySetResult();
+            return ThumbnailCompletion.Task.WaitAsync(cancellationToken);
         }
     }
 

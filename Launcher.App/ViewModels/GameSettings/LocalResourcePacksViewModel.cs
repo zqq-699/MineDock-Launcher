@@ -67,14 +67,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
-    public void ResumeWatcherAfterInstanceRename() => refreshCoordinator.ResumeAfterRename();
-
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
-    {
-        SetSelectedInstance(instance);
-        SetWatcherEnabled(true);
-        return RefreshResourcePacksAsync();
-    }
+    public void ResumeWatcherAfterInstanceRename(bool restart = true) => refreshCoordinator.ResumeAfterRename(restart);
 
     public Task<bool> RefreshResourcePacksAsync() => refreshCoordinator.RefreshAsync();
 

@@ -52,6 +52,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private bool isSectionActive;
     private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
+    private bool needsRefreshOnActivation = true;
+    private long lifecycleGeneration;
 
     // 以下属性是 XAML 所需的派生页面状态，不是第二份业务数据源。
     [ObservableProperty]
@@ -164,7 +166,9 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         // 切换监听目标时会触发集合清空事件；暂时抑制回调，最后由本方法一次性重置页面。
+        Interlocked.Increment(ref lifecycleGeneration);
         selectedInstance = instance;
+        needsRefreshOnActivation = true;
         loadTask = null;
         hasPendingVisualRefresh = false;
         isVisibleRefreshQueued = false;
@@ -203,7 +207,14 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     public override void OnSectionDeactivated()
     {
+        if (!isSectionActive)
+            return;
+
         isSectionActive = false;
+        Interlocked.Increment(ref lifecycleGeneration);
+        loadTask = null;
+        needsRefreshOnActivation = true;
+        IsLoadingSaves = false;
         localSavesViewModel.SetWatcherEnabled(false);
     }
 
@@ -212,25 +223,53 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         localSavesViewModel.SuspendWatcherForInstanceRename();
     }
 
-    public void ResumeLocalWatchersAfterInstanceRename()
+    public void ResumeLocalWatchersAfterInstanceRename(bool restart = true)
     {
-        localSavesViewModel.ResumeWatcherAfterInstanceRename();
+        if (restart && isSectionActive)
+        {
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            needsRefreshOnActivation = true;
+        }
+        localSavesViewModel.ResumeWatcherAfterInstanceRename(restart);
     }
 
     public override Task OnSectionActivatedAsync()
     {
-        // 只在页面可见时监听目录，避免后台页面持续刷新和播放动画。
-        isSectionActive = true;
-        localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
-        if (hasPendingVisualRefresh && HasLoadedSaves)
-            PublishReadyProjection();
+        if (!isSectionActive)
+        {
+            // 只在页面可见时监听目录，避免后台页面持续刷新和播放动画。
+            isSectionActive = true;
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
+        }
+
+        if (!needsRefreshOnActivation)
+            return EnsureLoadedForSelectedInstanceAsync();
+
+        needsRefreshOnActivation = false;
+        if (selectedInstance is null)
+            return Task.CompletedTask;
+
+        if (HasLoadedSaves)
+        {
+            if (hasPendingVisualRefresh)
+            {
+                hasPendingVisualRefresh = false;
+                RefreshFromLocalSaves();
+            }
+
+            loadTask = RefreshCachedSavesAsync(Volatile.Read(ref lifecycleGeneration));
+            return loadTask;
+        }
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
 
     public Task EnsureLoadedForSelectedInstanceAsync()
     {
-        if (selectedInstance is null)
+        if (!isSectionActive || selectedInstance is null)
             return Task.CompletedTask;
 
         if (loadTask is { IsCompleted: false })
@@ -239,7 +278,15 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         if (HasLoadedSaves)
             return Task.CompletedTask;
 
-        loadTask = LoadSavesAsync();
+        loadTask = LoadSavesAsync(Volatile.Read(ref lifecycleGeneration));
         return loadTask;
+    }
+
+    private bool IsCurrentLifecycle(long generation, GameInstance expectedInstance)
+    {
+        return isSectionActive
+            && generation == Volatile.Read(ref lifecycleGeneration)
+            && string.Equals(expectedInstance.Id, selectedInstance?.Id, StringComparison.Ordinal)
+            && string.Equals(expectedInstance.InstanceDirectory, selectedInstance?.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 }

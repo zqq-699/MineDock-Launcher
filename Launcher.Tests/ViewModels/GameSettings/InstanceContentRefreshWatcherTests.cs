@@ -78,6 +78,53 @@ public sealed class InstanceContentRefreshWatcherTests
     }
 
     [Fact]
+    public void CompletingSuspensionWithoutRestartLeavesWatcherStopped()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        using var watcher = new InstanceContentRefreshWatcher(
+            monitor,
+            InstanceDirectoryKind.Mods,
+            () => Task.CompletedTask,
+            _ => { },
+            NullLogger.Instance);
+        watcher.SetInstance(CreateInstance());
+        watcher.SetEnabled(true);
+        var firstWatch = monitor.Current;
+
+        watcher.Suspend();
+        watcher.Resume(restart: false);
+
+        Assert.True(firstWatch.IsDisposed);
+        Assert.Equal(1, monitor.WatchCount);
+    }
+
+    [Fact]
+    public void IdempotentConfigurationDoesNotReplaceActiveWatch()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var instance = CreateInstance();
+        using var watcher = new InstanceContentRefreshWatcher(
+            monitor,
+            InstanceDirectoryKind.Mods,
+            () => Task.CompletedTask,
+            _ => { },
+            NullLogger.Instance);
+        watcher.SetInstance(instance);
+        watcher.SetEnabled(true);
+        var firstWatch = monitor.Current;
+
+        watcher.SetInstance(new GameInstance
+        {
+            Id = instance.Id,
+            InstanceDirectory = instance.InstanceDirectory
+        });
+        watcher.SetEnabled(true);
+
+        Assert.False(firstWatch.IsDisposed);
+        Assert.Equal(1, monitor.WatchCount);
+    }
+
+    [Fact]
     public async Task RefreshCoordinatorDiscardsResultFromPreviousInstance()
     {
         var monitor = new RecordingDirectoryMonitor();
@@ -154,6 +201,34 @@ public sealed class InstanceContentRefreshWatcherTests
         coordinator.SetWatcherEnabled(true);
         Assert.True(await coordinator.RefreshAsync());
         Assert.Equal(["loaded"], applied);
+    }
+
+    [Fact]
+    public async Task DisablingRefreshCoordinatorDiscardsLoadThatIgnoresCancellation()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var loadSource = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IReadOnlyList<string> applied = ["cached"];
+        using var coordinator = new LocalContentRefreshCoordinator<string>(
+            monitor,
+            InstanceDirectoryKind.ShaderPacks,
+            (_, _) => loadSource.Task,
+            values => applied = values,
+            () => { },
+            _ => { },
+            ImmediateUiDispatcher.Instance,
+            NullLogger.Instance);
+        coordinator.SetInstance(CreateInstance());
+        coordinator.SetWatcherEnabled(true);
+        var watch = monitor.Current;
+        var refresh = coordinator.RefreshAsync();
+
+        coordinator.SetWatcherEnabled(false);
+        loadSource.SetResult(["stale"]);
+
+        Assert.False(await refresh);
+        Assert.Equal(["cached"], applied);
+        Assert.True(watch.IsDisposed);
     }
 
     private static GameInstance CreateInstance()

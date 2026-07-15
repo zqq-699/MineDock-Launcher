@@ -40,6 +40,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly IResourceCatalogService? resourceCatalogService;
+    private readonly IResourceThumbnailService? thumbnailService;
     private readonly IGameVersionService? gameVersionService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
@@ -62,6 +63,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     {
         this.options = options;
         this.resourceCatalogService = resourceCatalogService;
+        thumbnailService = resourceCatalogService as IResourceThumbnailService;
         this.gameVersionService = gameVersionService;
         this.uiDispatcher = uiDispatcher;
         this.logger = logger;
@@ -399,10 +401,13 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             var items = result.Projects
                 .Select(project => new ResourcesModProjectItemViewModel(project, releaseOrder, options.FallbackIconKey))
                 .ToList();
+            ApplyCachedThumbnailSources(items);
 
             // 进入 UI 线程前最后检查一次，避免排队发布已经被新筛选条件替代的结果。
             cancellationToken.ThrowIfCancellationRequested();
             uiDispatcher.Invoke(() => ApplyResult(result, items, request.Offset, append, cancellationToken));
+            if (thumbnailService is not null)
+                Observe(RefreshThumbnailSourcesAsync(items, cancellationToken), "refresh resource project thumbnails");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -414,6 +419,56 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
             uiDispatcher.Invoke(() => ApplyFailure(exception, append, cancellationToken));
         }
+    }
+
+    private void ApplyCachedThumbnailSources(IEnumerable<ResourcesModProjectItemViewModel> items)
+    {
+        if (thumbnailService is null)
+            return;
+
+        foreach (var item in items)
+        {
+            try
+            {
+                item.SetManagedIconSource(thumbnailService.TryGetCachedThumbnailSource(item.Project));
+            }
+            catch (Exception exception)
+            {
+                item.SetManagedIconSource(null);
+                logger?.LogWarning(
+                    exception,
+                    "Failed to resolve cached resource project thumbnail. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                    item.Project.Kind,
+                    item.Project.Source,
+                    item.Project.ProjectId);
+            }
+        }
+    }
+
+    private async Task RefreshThumbnailSourcesAsync(
+        IReadOnlyList<ResourcesModProjectItemViewModel> items,
+        CancellationToken cancellationToken)
+    {
+        if (thumbnailService is null)
+            return;
+
+        var tasks = items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Project.IconUrl))
+            .Select(async item =>
+            {
+                var source = await thumbnailService
+                    .GetOrCreateThumbnailSourceAsync(item.Project, cancellationToken)
+                    .ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(source) || cancellationToken.IsCancellationRequested)
+                    return;
+
+                uiDispatcher.Invoke(() =>
+                {
+                    if (!cancellationToken.IsCancellationRequested && VisibleProjects.Contains(item))
+                        item.SetManagedIconSource(source);
+                });
+            });
+        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <summary>

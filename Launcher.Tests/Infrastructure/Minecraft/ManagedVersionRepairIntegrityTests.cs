@@ -52,7 +52,7 @@ public sealed class ManagedVersionRepairIntegrityTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task RepairReplacesSameSizedAssetWithInvalidSha1()
+    public async Task RepairLeavesSameSizedAssetUnchangedWithoutHashValidation()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         var expected = CreateExpectedFiles();
@@ -77,8 +77,8 @@ public sealed class ManagedVersionRepairIntegrityTests : TestTempDirectory
             CancellationToken.None,
             DownloadSourcePreference.Official);
 
-        Assert.Equal(expected.Asset, await File.ReadAllTextAsync(expected.AssetPath(minecraftDirectory)));
-        Assert.Equal(1, handler.RequestCount);
+        Assert.Equal(sameSizeWrongAsset, await File.ReadAllTextAsync(expected.AssetPath(minecraftDirectory)));
+        Assert.Equal(0, handler.RequestCount);
     }
 
     [Fact]

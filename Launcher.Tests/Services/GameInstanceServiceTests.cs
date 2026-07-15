@@ -94,6 +94,20 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task DiscoveryDoesNotCreateOptionalInstanceContentDirectories()
+    {
+        var (settings, _, service, _) = CreateService();
+        await CreateVersionAsync(settings.MinecraftDirectory, "discovered", "release", "1.21", null);
+        var instanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "discovered");
+
+        var instances = await service.GetInstancesAsync();
+
+        Assert.Contains(instances, instance => instance.VersionName == "discovered");
+        foreach (var directoryName in new[] { "mods", "config", "saves", "resourcepacks", "shaderpacks" })
+            Assert.False(Directory.Exists(Path.Combine(instanceDirectory, directoryName)));
+    }
+
+    [Fact]
     public async Task DeleteDefaultInstanceFallsBackToRemainingInstance()
     {
         var (settings, repository, service, _) = CreateService(defaultInstanceId: "first");

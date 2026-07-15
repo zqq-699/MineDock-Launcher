@@ -29,10 +29,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Resources;
 
-public sealed class ResourceCatalogService : IResourceCatalogService, IResourceCatalogProgressReporter
+public sealed class ResourceCatalogService : IResourceCatalogService, IResourceCatalogProgressReporter, IResourceThumbnailService
 {
     private readonly IReadOnlyDictionary<ResourceProjectSource, IResourceProviderClient> providers;
     private readonly ResourceProjectStorage storage;
+    private readonly ResourceThumbnailCacheService thumbnailCache;
     private readonly ILogger<ResourceCatalogService> logger;
 
     public ResourceCatalogService(
@@ -68,7 +69,21 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
             settingsService,
             downloadSpeedLimitState,
             limiter);
+        thumbnailCache = new ResourceThumbnailCacheService(
+            resolvedPathProvider,
+            resolvedHttpClient,
+            limiter,
+            downloadSpeedLimitState,
+            this.logger);
     }
+
+    public string? TryGetCachedThumbnailSource(ResourceProject project) =>
+        thumbnailCache.TryGetCachedThumbnailSource(project);
+
+    public Task<string?> GetOrCreateThumbnailSourceAsync(
+        ResourceProject project,
+        CancellationToken cancellationToken = default) =>
+        thumbnailCache.GetOrCreateThumbnailSourceAsync(project, cancellationToken);
 
     public Task<ResourceCatalogSearchResult> SearchModsAsync(
         ResourceCatalogSearchRequest request,

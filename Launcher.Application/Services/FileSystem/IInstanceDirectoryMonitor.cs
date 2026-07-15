@@ -46,5 +46,9 @@ public interface IInstanceDirectoryWatch : IDisposable
 
 public interface IInstanceDirectoryMonitor
 {
+    /// <summary>
+    /// Observes an existing instance directory without creating or repairing the instance root
+    /// or any content subdirectory. A missing instance root produces an inert watch.
+    /// </summary>
     IInstanceDirectoryWatch Watch(GameInstance instance, InstanceDirectoryKind directoryKind);
 }

@@ -252,13 +252,20 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         ShaderPackManagement.SuspendLocalWatchersForInstanceRename();
     }
 
-    public void ResumeLocalWatchersAfterInstanceMove()
+    public void ResumeLocalWatchersAfterInstanceMove(bool restart = true)
     {
-        ModManagement.ResumeLocalWatchersAfterInstanceRename();
-        SaveManagement.ResumeLocalWatchersAfterInstanceRename();
-        ResourcePackManagement.ResumeLocalWatchersAfterInstanceRename();
-        ShaderPackManagement.ResumeLocalWatchersAfterInstanceRename();
-        ActivateCurrentSection();
+        ModManagement.ResumeLocalWatchersAfterInstanceRename(restart);
+        SaveManagement.ResumeLocalWatchersAfterInstanceRename(restart);
+        ResourcePackManagement.ResumeLocalWatchersAfterInstanceRename(restart);
+        ShaderPackManagement.ResumeLocalWatchersAfterInstanceRename(restart);
+        if (restart)
+            ActivateCurrentSection();
+    }
+
+    public void ClearSelectedInstanceIf(string instanceId)
+    {
+        if (string.Equals(SelectedInstance?.Instance.Id, instanceId, StringComparison.Ordinal))
+            SetSelectedInstance(null);
     }
 
     public Task DeleteModsAsync(IReadOnlyList<string> fullPaths) => ModManagement.DeleteModsAsync(fullPaths);

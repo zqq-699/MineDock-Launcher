@@ -35,10 +35,11 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
 /// <summary>
     /// 首次加载当前实例存档，并合并页面激活期间的重复加载请求。
     /// </summary>
-    private async Task LoadSavesAsync()
+    private async Task LoadSavesAsync(long generation)
     {
         if (selectedInstance is null)
             return;
+        var expectedInstance = selectedInstance;
 
         // 先发布 Loading 状态，让空列表能够显示骨架/加载提示而不是误报“没有存档”。
         SetInitialProjectionReady(false);
@@ -50,6 +51,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
         {
             if (!await localSavesViewModel.RefreshSavesAsync())
                 return;
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
             HasLoadedSaves = true;
             // 隐藏页面不播放动画，只记住下次激活需要一次完整视觉刷新。
             if (isSectionActive)
@@ -59,10 +62,13 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
         }
         catch (Exception exception)
         {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
             logger.LogError(
                 exception,
                 "Failed to load saves for section activation. InstanceId={InstanceId}",
-                selectedInstance.Id);
+                expectedInstance.Id);
             HasLoadedSaves = false;
             ClearDisplayedSaves();
             hasPendingVisualRefresh = false;
@@ -71,11 +77,49 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
         }
         finally
         {
-            IsLoadingSaves = false;
-            loadTask = null;
-            OnPropertyChanged(nameof(InstalledSummaryText));
-            RaiseAvailabilityPropertyChanges();
-            OnPropertyChanged(nameof(SaveEmptyMessage));
+            if (IsCurrentLifecycle(generation, expectedInstance))
+            {
+                IsLoadingSaves = false;
+                loadTask = null;
+                OnPropertyChanged(nameof(InstalledSummaryText));
+                RaiseAvailabilityPropertyChanges();
+                OnPropertyChanged(nameof(SaveEmptyMessage));
+            }
+        }
+    }
+
+    private async Task RefreshCachedSavesAsync(long generation)
+    {
+        if (selectedInstance is null)
+            return;
+        var expectedInstance = selectedInstance;
+
+        try
+        {
+            if (!await localSavesViewModel.RefreshSavesAsync()
+                || !IsCurrentLifecycle(generation, expectedInstance))
+            {
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalSaves();
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
+            logger.LogError(
+                exception,
+                "Failed to silently refresh cached saves. InstanceId={InstanceId}",
+                expectedInstance.Id);
+            statusService.Report(Strings.Status_LoadLocalSavesFailed);
+        }
+        finally
+        {
+            if (IsCurrentLifecycle(generation, expectedInstance))
+                loadTask = null;
         }
     }
 

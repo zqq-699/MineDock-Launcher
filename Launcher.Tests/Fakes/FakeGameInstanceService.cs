@@ -31,10 +31,12 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public Exception? SaveException { get; set; }
     public bool ReturnNewInstanceOnRename { get; init; }
     public Action? RenameCallback { get; set; }
+    public Action? DeleteCallback { get; set; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
     public TaskCompletionSource<bool> GetInstancesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeGetInstances { get; set; }
+    public Func<int, CancellationToken, Task<IReadOnlyList<GameInstance>>>? GetInstancesHandler { get; set; }
     public Task? WaitBeforeSave { get; set; }
     public TaskCompletionSource<bool> SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource<bool> SaveCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -73,12 +75,17 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
 
     public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
+        int call;
         lock (syncRoot)
         {
             GetInstancesCallCount++;
+            call = GetInstancesCallCount;
         }
 
         GetInstancesStarted.TrySetResult(true);
+        if (GetInstancesHandler is not null)
+            return await GetInstancesHandler(call, cancellationToken);
+
         if (WaitBeforeGetInstances is not null)
             await WaitBeforeGetInstances.WaitAsync(cancellationToken);
 
@@ -214,6 +221,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     {
         lock (syncRoot)
         {
+            DeleteCallback?.Invoke();
             LastDeletedInstanceId = instanceId;
             DeleteCallCount++;
             var removed = CreatedInstances.RemoveAll(instance => instance.Id == instanceId) > 0;

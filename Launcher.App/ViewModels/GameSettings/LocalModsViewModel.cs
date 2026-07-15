@@ -104,6 +104,7 @@ public sealed class LocalModsViewModel : IDisposable
         contentWatcher.SetEnabled(enabled);
         if (!enabled)
         {
+            Interlocked.Increment(ref modRefreshVersion);
             CancelRefresh();
             CancelIconEnrichment();
         }
@@ -115,16 +116,9 @@ public sealed class LocalModsViewModel : IDisposable
         CancelRefresh();
     }
 
-    public void ResumeWatcherAfterInstanceRename()
+    public void ResumeWatcherAfterInstanceRename(bool restart = true)
     {
-        contentWatcher.Resume();
-    }
-
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
-    {
-        SetSelectedInstance(instance);
-        SetWatcherEnabled(true);
-        return RefreshModsAsync();
+        contentWatcher.Resume(restart);
     }
 
     /// <summary>
@@ -177,12 +171,19 @@ public sealed class LocalModsViewModel : IDisposable
         }
 
         // 集合替换和 ModsChanged 在同一个 UI 临界区完成，观察者不会看到两份快照不一致。
+        var published = false;
         uiDispatcher.Invoke(() =>
         {
+            if (!IsRefreshCurrent(instance, refreshVersion))
+                return;
+
             currentMods = loadedMods;
             Mods.ReplaceWith(loadedMods);
             ModsChanged?.Invoke(this, EventArgs.Empty);
+            published = true;
         });
+        if (!published)
+            return false;
         logger.LogInformation(
             "Local mods view refreshed. InstanceId={InstanceId} Count={ModCount}",
             instance.Id,
@@ -485,7 +486,7 @@ public sealed class LocalModsViewModel : IDisposable
         if (resolvedIcons.Count == 0
             || enrichmentCts.IsCancellationRequested
             || refreshVersion != modRefreshVersion
-            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+            || !IsSameInstancePath(instance, selectedInstance))
         {
             return;
         }
@@ -495,7 +496,7 @@ public sealed class LocalModsViewModel : IDisposable
             // 排队等待 UI 线程期间所选实例仍可能变化，必须在真正写入模型前再次校验。
             if (enrichmentCts.IsCancellationRequested
                 || refreshVersion != modRefreshVersion
-                || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+                || !IsSameInstancePath(instance, selectedInstance))
             {
                 return;
             }
@@ -523,7 +524,14 @@ public sealed class LocalModsViewModel : IDisposable
     private bool IsRefreshCurrent(GameInstance instance, int refreshVersion)
     {
         return refreshVersion == modRefreshVersion
-            && string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal);
+            && IsSameInstancePath(instance, selectedInstance);
+    }
+
+    private static bool IsSameInstancePath(GameInstance left, GameInstance? right)
+    {
+        return right is not null
+            && string.Equals(left.Id, right.Id, StringComparison.Ordinal)
+            && string.Equals(left.InstanceDirectory, right.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 
     private void CancelIconEnrichment()

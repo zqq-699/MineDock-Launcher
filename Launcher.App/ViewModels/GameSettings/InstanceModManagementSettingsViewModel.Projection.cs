@@ -35,10 +35,11 @@ public sealed partial class InstanceModManagementSettingsViewModel
     /// <summary>
     /// 首次加载当前实例 Mod，并把并发调用合并到同一个加载任务。
     /// </summary>
-    private async Task LoadModsAsync()
+    private async Task LoadModsAsync(long generation)
     {
         if (selectedInstance is null || !IsModManagementSupported)
             return;
+        var expectedInstance = selectedInstance;
 
         // Loading 和 HasLoaded 分开表示“首次加载中”“已有结果”和“加载失败”三种状态。
         SetInitialProjectionReady(false);
@@ -50,6 +51,8 @@ public sealed partial class InstanceModManagementSettingsViewModel
         {
             if (!await localModsViewModel.RefreshModsAsync())
                 return;
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
             HasLoadedMods = true;
             // 隐藏页面不消费入场动画；下次激活时才触发一次完整视觉更新。
             if (isSectionActive)
@@ -59,10 +62,13 @@ public sealed partial class InstanceModManagementSettingsViewModel
         }
         catch (Exception exception)
         {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
             logger.LogError(
                 exception,
                 "Failed to load mods for section activation. InstanceId={InstanceId}",
-                selectedInstance.Id);
+                expectedInstance.Id);
             HasLoadedMods = false;
             ClearDisplayedMods();
             hasPendingVisualRefresh = false;
@@ -71,11 +77,49 @@ public sealed partial class InstanceModManagementSettingsViewModel
         }
         finally
         {
-            IsLoadingMods = false;
-            loadTask = null;
-            OnPropertyChanged(nameof(InstalledSummaryText));
-            RaiseAvailabilityPropertyChanges();
-            OnPropertyChanged(nameof(ModEmptyMessage));
+            if (IsCurrentLifecycle(generation, expectedInstance))
+            {
+                IsLoadingMods = false;
+                loadTask = null;
+                OnPropertyChanged(nameof(InstalledSummaryText));
+                RaiseAvailabilityPropertyChanges();
+                OnPropertyChanged(nameof(ModEmptyMessage));
+            }
+        }
+    }
+
+    private async Task RefreshCachedModsAsync(long generation)
+    {
+        if (selectedInstance is null || !IsModManagementSupported)
+            return;
+        var expectedInstance = selectedInstance;
+
+        try
+        {
+            if (!await localModsViewModel.RefreshModsAsync()
+                || !IsCurrentLifecycle(generation, expectedInstance))
+            {
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalMods();
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
+            logger.LogError(
+                exception,
+                "Failed to silently refresh cached mods. InstanceId={InstanceId}",
+                expectedInstance.Id);
+            statusService.Report(Strings.Status_LoadLocalModsFailed);
+        }
+        finally
+        {
+            if (IsCurrentLifecycle(generation, expectedInstance))
+                loadTask = null;
         }
     }
 

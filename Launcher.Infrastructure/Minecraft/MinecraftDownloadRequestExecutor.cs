@@ -130,7 +130,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         // atomic one-shot behavior, but never persist it as a resumable part.
         if (string.IsNullOrWhiteSpace(expectedSha1))
         {
-            MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1, options?.ManagedRoot);
+            var managedRoot = options?.ResolveManagedRoot(destinationPath);
+            MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1, managedRoot);
             return DownloadUnverifiedAsync();
 
             async Task<ResolvedDownloadRequest> DownloadUnverifiedAsync()
@@ -149,7 +150,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                             context.AttemptNumber,
                             reportAttemptProgress,
                             token,
-                            options?.ManagedRoot).ConfigureAwait(false);
+                            managedRoot).ConfigureAwait(false);
                         return context.Resolution;
                     },
                     noResultStatus: null,

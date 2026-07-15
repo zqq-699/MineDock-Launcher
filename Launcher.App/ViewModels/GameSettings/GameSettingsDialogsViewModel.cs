@@ -128,6 +128,7 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
         IsDeleteInstanceDialogOpen = false;
         InstancePendingDelete = null;
         details.SuspendLocalWatchersForInstanceMove();
+        var deletionCommitted = false;
         try
         {
             if (!await instanceService.DeleteInstanceAsync(pending.Instance.Id))
@@ -135,6 +136,8 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
                 statusService.Report(Strings.Status_DeleteInstanceFailed);
                 return;
             }
+            deletionCommitted = true;
+            details.ClearSelectedInstanceIf(pending.Instance.Id);
             statusService.Report(string.Format(Strings.Status_InstanceDeletedFormat, pending.Name));
             InstanceDeleted?.Invoke(pending);
         }
@@ -145,8 +148,8 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
         }
         finally
         {
-            // 成功时选择已被清空，Resume 只复位挂起标志；失败时恢复当前详情 watcher。
-            details.ResumeLocalWatchersAfterInstanceMove();
+            // 删除提交后只解除挂起，不能再用旧实例上下文重启 watcher；失败时恢复当前活动分区。
+            details.ResumeLocalWatchersAfterInstanceMove(restart: !deletionCommitted);
         }
     }
 

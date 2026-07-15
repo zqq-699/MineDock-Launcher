@@ -35,10 +35,11 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
 /// <summary>
     /// 加载当前实例资源包，并复用尚未结束的同一加载任务。
     /// </summary>
-    private async Task LoadResourcePacksAsync()
+    private async Task LoadResourcePacksAsync(long generation)
     {
         if (selectedInstance is null)
             return;
+        var expectedInstance = selectedInstance;
 
         // Loading 与 HasLoaded 分离，首次进入和刷新失败可以呈现不同的空状态。
         SetInitialProjectionReady(false);
@@ -50,6 +51,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
         {
             if (!await localResourcePacksViewModel.RefreshResourcePacksAsync())
                 return;
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
             HasLoadedResourcePacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)
@@ -59,10 +62,13 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
         }
         catch (Exception exception)
         {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
             logger.LogError(
                 exception,
                 "Failed to load resource packs for section activation. InstanceId={InstanceId}",
-                selectedInstance.Id);
+                expectedInstance.Id);
             HasLoadedResourcePacks = false;
             ClearDisplayedResourcePacks();
             hasPendingVisualRefresh = false;
@@ -71,11 +77,49 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
         }
         finally
         {
-            IsLoadingResourcePacks = false;
-            loadTask = null;
-            OnPropertyChanged(nameof(InstalledSummaryText));
-            RaiseAvailabilityPropertyChanges();
-            OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+            if (IsCurrentLifecycle(generation, expectedInstance))
+            {
+                IsLoadingResourcePacks = false;
+                loadTask = null;
+                OnPropertyChanged(nameof(InstalledSummaryText));
+                RaiseAvailabilityPropertyChanges();
+                OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+            }
+        }
+    }
+
+    private async Task RefreshCachedResourcePacksAsync(long generation)
+    {
+        if (selectedInstance is null)
+            return;
+        var expectedInstance = selectedInstance;
+
+        try
+        {
+            if (!await localResourcePacksViewModel.RefreshResourcePacksAsync()
+                || !IsCurrentLifecycle(generation, expectedInstance))
+            {
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalResourcePacks();
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
+            logger.LogError(
+                exception,
+                "Failed to silently refresh cached resource packs. InstanceId={InstanceId}",
+                expectedInstance.Id);
+            statusService.Report(Strings.Status_LoadLocalResourcePacksFailed);
+        }
+        finally
+        {
+            if (IsCurrentLifecycle(generation, expectedInstance))
+                loadTask = null;
         }
     }
 

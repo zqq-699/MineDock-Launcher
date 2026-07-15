@@ -18,6 +18,7 @@
  */
 
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -215,19 +216,21 @@ public sealed partial class LocalModIconEnrichmentService
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var unresolved = candidates.ToDictionary(candidate => candidate.Sha1, StringComparer.OrdinalIgnoreCase);
+        var progressGate = new object();
 
         var modrinthIcons = await providerClient.ResolveModrinthAsync(candidates, cancellationToken).ConfigureAwait(false);
-        foreach (var (sha1, icon) in modrinthIcons)
+        var resolvedModrinthIcons = await CacheProviderIconsAsync(
+            modrinthIcons,
+            unresolved,
+            progress,
+            progressGate,
+            cancellationToken).ConfigureAwait(false);
+        foreach (var (sha1, iconSource) in resolvedModrinthIcons)
         {
             if (!unresolved.TryGetValue(sha1, out var candidate))
                 continue;
 
-            var iconSource = await TryCacheRemoteIconAsync(candidate, icon, cancellationToken).ConfigureAwait(false);
-            if (iconSource is null)
-                continue;
-
             result[candidate.FullPath] = iconSource;
-            ReportProgress(progress, candidate.FullPath, iconSource);
             unresolved.Remove(sha1);
         }
 
@@ -235,21 +238,50 @@ public sealed partial class LocalModIconEnrichmentService
         {
             var curseForgeIcons = await providerClient.ResolveCurseForgeAsync(unresolved.Values.ToList(), cancellationToken)
                 .ConfigureAwait(false);
-            foreach (var (sha1, icon) in curseForgeIcons)
+            var resolvedCurseForgeIcons = await CacheProviderIconsAsync(
+                curseForgeIcons,
+                unresolved,
+                progress,
+                progressGate,
+                cancellationToken).ConfigureAwait(false);
+            foreach (var (sha1, iconSource) in resolvedCurseForgeIcons)
             {
                 if (!unresolved.TryGetValue(sha1, out var candidate))
                     continue;
 
-                var iconSource = await TryCacheRemoteIconAsync(candidate, icon, cancellationToken).ConfigureAwait(false);
-                if (iconSource is null)
-                    continue;
-
                 result[candidate.FullPath] = iconSource;
-                ReportProgress(progress, candidate.FullPath, iconSource);
+                unresolved.Remove(sha1);
             }
         }
 
         return result;
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> CacheProviderIconsAsync(
+        IReadOnlyDictionary<string, RemoteIconCandidate> providerIcons,
+        IReadOnlyDictionary<string, ModIconLookupCandidate> unresolved,
+        IProgress<IReadOnlyDictionary<string, string>>? progress,
+        object progressGate,
+        CancellationToken cancellationToken)
+    {
+        var resolved = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var tasks = providerIcons.Select(async pair =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!unresolved.TryGetValue(pair.Key, out var candidate))
+                return;
+
+            var iconSource = await TryCacheRemoteIconAsync(candidate, pair.Value, cancellationToken)
+                .ConfigureAwait(false);
+            if (iconSource is null)
+                return;
+
+            resolved[pair.Key] = iconSource;
+            lock (progressGate)
+                ReportProgress(progress, candidate.FullPath, iconSource);
+        });
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return resolved;
     }
 
     private static void ReportProgress(

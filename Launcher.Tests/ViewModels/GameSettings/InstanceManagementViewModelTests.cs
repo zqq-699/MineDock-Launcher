@@ -43,6 +43,29 @@ public sealed class InstanceManagementViewModelTests : TestTempDirectory
             backupService.RecoveredDirectories);
     }
 
+    [Fact]
+    public async Task NewRefreshForSameRootDiscardsSnapshotStartedBeforeDeletion()
+    {
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, "root")
+        };
+        var instanceService = new RootSwitchingInstanceService();
+        var viewModel = new InstanceManagementViewModel(
+            new TestSettingsService(settings),
+            instanceService,
+            new NullStatusService());
+
+        var earlierRefresh = viewModel.InitializeAsync(settings);
+        await instanceService.FirstRefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var postDeleteRefresh = viewModel.RefreshInstancesAsync();
+        instanceService.ReleaseFirstRefresh.TrySetResult();
+        await Task.WhenAll(earlierRefresh, postDeleteRefresh);
+
+        Assert.Equal(2, instanceService.RefreshCount);
+        Assert.Equal("root-b", Assert.Single(viewModel.Instances).Id);
+    }
+
     private sealed class RootSwitchingInstanceService : IGameInstanceService
     {
         private readonly RecordingBackupService? backupService;

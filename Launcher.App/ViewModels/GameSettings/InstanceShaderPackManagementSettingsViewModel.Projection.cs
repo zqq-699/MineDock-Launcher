@@ -35,10 +35,11 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
 /// <summary>
     /// 加载当前实例光影包，并复用尚未结束的同一加载任务。
     /// </summary>
-    private async Task LoadShaderPacksAsync()
+    private async Task LoadShaderPacksAsync(long generation)
     {
         if (selectedInstance is null)
             return;
+        var expectedInstance = selectedInstance;
 
         // Loading 与 HasLoaded 分离，首次进入和刷新失败可以呈现不同的空状态。
         SetInitialProjectionReady(false);
@@ -50,6 +51,8 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
         {
             if (!await localShaderPacksViewModel.RefreshShaderPacksAsync())
                 return;
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
             HasLoadedShaderPacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)
@@ -59,10 +62,13 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
         }
         catch (Exception exception)
         {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
             logger.LogError(
                 exception,
                 "Failed to load shader packs for section activation. InstanceId={InstanceId}",
-                selectedInstance.Id);
+                expectedInstance.Id);
             HasLoadedShaderPacks = false;
             ClearDisplayedShaderPacks();
             hasPendingVisualRefresh = false;
@@ -71,11 +77,49 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
         }
         finally
         {
-            IsLoadingShaderPacks = false;
-            loadTask = null;
-            OnPropertyChanged(nameof(InstalledSummaryText));
-            RaiseAvailabilityPropertyChanges();
-            OnPropertyChanged(nameof(ShaderPackEmptyMessage));
+            if (IsCurrentLifecycle(generation, expectedInstance))
+            {
+                IsLoadingShaderPacks = false;
+                loadTask = null;
+                OnPropertyChanged(nameof(InstalledSummaryText));
+                RaiseAvailabilityPropertyChanges();
+                OnPropertyChanged(nameof(ShaderPackEmptyMessage));
+            }
+        }
+    }
+
+    private async Task RefreshCachedShaderPacksAsync(long generation)
+    {
+        if (selectedInstance is null)
+            return;
+        var expectedInstance = selectedInstance;
+
+        try
+        {
+            if (!await localShaderPacksViewModel.RefreshShaderPacksAsync()
+                || !IsCurrentLifecycle(generation, expectedInstance))
+            {
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalShaderPacks();
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentLifecycle(generation, expectedInstance))
+                return;
+
+            logger.LogError(
+                exception,
+                "Failed to silently refresh cached shader packs. InstanceId={InstanceId}",
+                expectedInstance.Id);
+            statusService.Report(Strings.Status_LoadLocalShaderPacksFailed);
+        }
+        finally
+        {
+            if (IsCurrentLifecycle(generation, expectedInstance))
+                loadTask = null;
         }
     }
 

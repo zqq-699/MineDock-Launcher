@@ -529,7 +529,8 @@ internal sealed record RequiredGameFile(
     string Reason,
     GameFileRepairFailureReason? ForcedFailureReason = null,
     string? Sha256 = null,
-    string? ManagedRoot = null);
+    string? ManagedRoot = null,
+    MinecraftFileVerification Verification = MinecraftFileVerification.Full);
 
 internal sealed record GameFileValidationReport(
     int MissingCount,
@@ -809,7 +810,17 @@ internal sealed class RequiredGameFileManifestBuilder
             if (hash is null || !MinecraftFileIntegrity.IsSha1(hash))
                 continue;
             var target = MinecraftPathGuard.EnsureWithin(Path.Combine(objectsRoot, hash[..2], hash), objectsRoot, "Asset object");
-            Add(files, new RequiredGameFile(target, "AssetObject", $"https://resources.download.minecraft.net/{hash[..2]}/{hash}", hash, GetLong(asset["size"]), true, "DirectDownload", objectEntry.Key, ManagedRoot: objectsRoot));
+            Add(files, new RequiredGameFile(
+                target,
+                "AssetObject",
+                $"https://resources.download.minecraft.net/{hash[..2]}/{hash}",
+                hash,
+                GetLong(asset["size"]),
+                true,
+                "DirectDownload",
+                objectEntry.Key,
+                ManagedRoot: objectsRoot,
+                Verification: MinecraftFileVerification.SizeOnly));
         }
     }
 
@@ -905,10 +916,12 @@ internal static class GameFileManifestValidator
             }
             using var verifiedLease = AcquireCurrentOperationVerificationLease(file, operationContext);
             var verifiedByCurrentOperation = verifiedLease is not null;
-            var verification = verifiedByCurrentOperation ? MinecraftFileVerification.SizeOnly : MinecraftFileVerification.Full;
+            var verification = verifiedByCurrentOperation
+                ? MinecraftFileVerification.SizeOnly
+                : file.Verification;
             if (verifiedByCurrentOperation)
                 currentOperationVerificationReuseCount++;
-            else
+            else if (verification == MinecraftFileVerification.Full)
                 fullVerificationCount++;
             var status = await MinecraftFileIntegrity.EvaluateAsync(file.TargetPath, file.Sha1, file.Size, verification, cancellationToken).ConfigureAwait(false);
             if (status == MinecraftFileIntegrityStatus.Valid

@@ -26,6 +26,7 @@ using System.Text;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
+using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -43,6 +44,7 @@ public sealed partial class LocalModIconEnrichmentService : ILocalModIconEnrichm
     private static readonly TimeSpan UnusedExpiration = TimeSpan.FromDays(30);
 
     private readonly HttpClient httpClient;
+    private readonly RemoteThumbnailDownloadClient thumbnailDownloader;
     private readonly LauncherPathProvider pathProvider;
     private readonly RemoteModIconProviderClient providerClient;
     private readonly ILogger<LocalModIconEnrichmentService> logger;
@@ -55,11 +57,18 @@ public sealed partial class LocalModIconEnrichmentService : ILocalModIconEnrichm
         LauncherPathProvider? pathProvider = null,
         HttpClient? httpClient = null,
         ICurseForgeApiKeyResolver? curseForgeApiKeyResolver = null,
-        ILogger<LocalModIconEnrichmentService>? logger = null)
+        ILogger<LocalModIconEnrichmentService>? logger = null,
+        IImportConcurrencyLimiter? limiter = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
         this.pathProvider = pathProvider ?? new LauncherPathProvider();
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.logger = logger ?? NullLogger<LocalModIconEnrichmentService>.Instance;
+        thumbnailDownloader = new RemoteThumbnailDownloadClient(
+            this.httpClient,
+            limiter,
+            downloadSpeedLimitState,
+            this.logger);
         var apiKeyResolver = curseForgeApiKeyResolver ?? new CurseForgeApiKeyResolver(this.pathProvider);
         providerClient = new RemoteModIconProviderClient(this.httpClient, apiKeyResolver, this.logger);
         cacheDirectory = Path.Combine(this.pathProvider.DefaultDataDirectory, "cache", "mods", "remote-icons");

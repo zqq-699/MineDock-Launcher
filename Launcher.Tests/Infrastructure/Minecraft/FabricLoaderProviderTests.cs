@@ -138,6 +138,31 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.2", fabricJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
 
+    [Fact]
+    public async Task FabricVersionComposerAllowsPrivateVersionRootInSplitInstallLayout()
+    {
+        var sandboxMinecraftDirectory = Path.Combine(TempRoot, "sandbox", ".minecraft");
+        var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
+        var layout = MinecraftInstallPathLayout.Create(sandboxMinecraftDirectory, sharedMinecraftDirectory);
+        using var operationContext = VanillaLoaderProvider.CreateDownloadOperationContext(layout.Path);
+
+        var finalVersionName = await FabricVersionComposer.CreateFinalVersionAsync(
+            new HttpClient(new FabricInstallHandler()),
+            "1.20.2",
+            "0.19.3",
+            "1.20.2-fabric-0.19.3",
+            sandboxMinecraftDirectory,
+            DownloadSourcePreference.Auto,
+            operationContext: operationContext);
+
+        var clientJar = Path.Combine(
+            layout.Path.Versions,
+            finalVersionName,
+            $"{finalVersionName}.jar");
+        Assert.True(File.Exists(clientJar));
+        Assert.Equal(Path.GetFullPath(layout.Path.Versions), operationContext.ResolveManagedRoot(clientJar));
+    }
+
     private sealed class NotFoundHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -260,7 +285,9 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
                       "type": "release",
                       "downloads": {
                         "client": {
-                          "url": "https://example.test/mojang/1.20.2.jar"
+                          "url": "https://example.test/mojang/1.20.2.jar",
+                          "sha1": "d8d8453b5a674113789bdab6b4f0dd25b0b43b92",
+                          "size": 8
                         }
                       },
                       "libraries": [

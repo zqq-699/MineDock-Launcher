@@ -19,12 +19,45 @@ internal sealed class MinecraftDownloadOperationContext : IDisposable
     private readonly ConcurrentDictionary<string, AssetIdentity> assets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, MinecraftFileVerificationSnapshot> verifiedAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> assetLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly string[] managedRoots;
+
     public MinecraftDownloadOperationContext(string managedRoot)
+        : this([managedRoot])
     {
-        ManagedRoot = Path.GetFullPath(managedRoot);
+    }
+
+    public MinecraftDownloadOperationContext(IEnumerable<string> managedRoots)
+    {
+        ArgumentNullException.ThrowIfNull(managedRoots);
+        var normalizedRoots = managedRoots
+            .Select(root => string.IsNullOrWhiteSpace(root)
+                ? throw new ArgumentException("A managed download root cannot be empty.", nameof(managedRoots))
+                : Path.GetFullPath(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedRoots.Length == 0)
+            throw new ArgumentException("At least one managed download root is required.", nameof(managedRoots));
+
+        ManagedRoot = normalizedRoots[0];
+        this.managedRoots = normalizedRoots
+            .OrderByDescending(root => root.Length)
+            .ToArray();
     }
 
     public string ManagedRoot { get; }
+
+    public string ResolveManagedRoot(string destinationPath)
+    {
+        var normalizedDestination = Path.GetFullPath(destinationPath);
+        foreach (var root in managedRoots)
+        {
+            if (MinecraftPathGuard.IsWithin(normalizedDestination, root))
+                return root;
+        }
+
+        throw new InvalidDataException(
+            $"Managed download escaped every allowed directory: {destinationPath}");
+    }
 
     public void Dispose()
     {

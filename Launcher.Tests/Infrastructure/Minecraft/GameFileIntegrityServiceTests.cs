@@ -327,6 +327,53 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task PrelaunchValidationAcceptsSameSizedAssetObjectWithoutHashing()
+    {
+        const string versionName = "Vanilla";
+        const string expectedAssetContent = "asset";
+        const string sameSizeWrongAsset = "wrong";
+        var assetHash = Sha1(expectedAssetContent);
+        var indexContent = new JsonObject
+        {
+            ["objects"] = new JsonObject
+            {
+                ["example/asset"] = new JsonObject
+                {
+                    ["hash"] = assetHash,
+                    ["size"] = Encoding.UTF8.GetByteCount(expectedAssetContent)
+                }
+            }
+        }.ToJsonString();
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        var indexPath = Path.Combine(minecraftDirectory, "assets", "indexes", "1.20.6.json");
+        var assetPath = Path.Combine(minecraftDirectory, "assets", "objects", assetHash[..2], assetHash);
+        Directory.CreateDirectory(Path.GetDirectoryName(indexPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath)!);
+        await File.WriteAllTextAsync(indexPath, indexContent);
+        await File.WriteAllTextAsync(assetPath, sameSizeWrongAsset);
+        await AddClientAndAssetMetadataAsync(
+            versionDirectory,
+            versionName,
+            "client",
+            indexContent,
+            assetHash,
+            expectedAssetContent);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
+            new GameFileRepairOptions(AllowRepair: false));
+
+        Assert.True(result.LaunchAllowed);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Equal(sameSizeWrongAsset, await File.ReadAllTextAsync(assetPath));
+    }
+
+    [Fact]
     public async Task PostInstallValidationReusesUnchangedFileSnapshots()
     {
         const string versionName = "Fabric-1.20.6";

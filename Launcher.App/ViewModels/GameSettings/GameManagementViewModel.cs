@@ -25,20 +25,16 @@ using Launcher.App.Models;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
 using Launcher.Domain.Models;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
 /// <summary>
-/// 为 Shell 聚合实例、创建、Mod 和设置子 ViewModel，并转发常用命令与进度状态。
+/// 为 Shell 聚合实例、创建、在线资源搜索和设置子 ViewModel，并转发常用命令与进度状态。
 /// </summary>
 public sealed partial class GameManagementViewModel : ObservableObject
 {
-    // 该类型是兼容现有 Shell Binding 的门面，具体文件、安装和 Mod 流程均由子 ViewModel 承担。
+    // 实例内容由当前详情分区独占；Shell 门面不持有任何本地内容 watcher。
     private readonly IStatusService statusService;
-    private readonly ILogger<GameManagementViewModel> logger;
-    private bool suppressSelectedInstanceModRefresh;
 
     [ObservableProperty]
     private double progressPercent;
@@ -46,17 +42,13 @@ public sealed partial class GameManagementViewModel : ObservableObject
     public GameManagementViewModel(
         InstanceManagementViewModel instances,
         LoaderSelectionViewModel loaderSelection,
-        LocalModsViewModel localMods,
         ModrinthSearchViewModel modrinthSearch,
-        IStatusService statusService,
-        ILogger<GameManagementViewModel>? logger = null)
+        IStatusService statusService)
     {
         InstancesViewModel = instances;
         LoaderSelection = loaderSelection;
-        LocalMods = localMods;
         ModrinthSearch = modrinthSearch;
         this.statusService = statusService;
-        this.logger = logger ?? NullLogger<GameManagementViewModel>.Instance;
 
         InstancesViewModel.PropertyChanged += InstancesViewModel_PropertyChanged;
         LoaderSelection.PropertyChanged += ForwardChildPropertyChanged;
@@ -67,15 +59,12 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     public LoaderSelectionViewModel LoaderSelection { get; }
 
-    public LocalModsViewModel LocalMods { get; }
-
     public ModrinthSearchViewModel ModrinthSearch { get; }
 
     public ObservableCollection<GameInstance> Instances => InstancesViewModel.Instances;
     public ObservableCollection<MinecraftVersionInfo> MinecraftVersions => LoaderSelection.MinecraftVersions;
     public ObservableCollection<NavigationItem> LoaderItems => LoaderSelection.LoaderItems;
     public ObservableCollection<LoaderVersionInfo> LoaderVersions => LoaderSelection.LoaderVersions;
-    public ObservableCollection<LocalMod> Mods => LocalMods.Mods;
     public ObservableCollection<ModrinthProject> ModrinthProjects => ModrinthSearch.ModrinthProjects;
 
     public GameInstance? SelectedInstance
@@ -122,9 +111,9 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
-        // 先 Prime 设置与磁盘快照，再执行需要等待的版本目录和当前实例 Mod 同步。
+        // 先 Prime 设置与磁盘快照，再执行需要等待的版本目录同步。
         LoaderSelection.PrimeFromSettings(launcherSettings);
-        await RunInstanceRefreshWithModSyncAsync(() => InstancesViewModel.InitializeAsync(launcherSettings));
+        await InstancesViewModel.InitializeAsync(launcherSettings);
     }
 
     public Task PrimeInstancesAsync(LauncherSettings launcherSettings)
@@ -147,7 +136,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
         if (InstancesViewModel.HasLoadedInstances)
             return;
 
-        await RunInstanceRefreshWithModSyncAsync(InstancesViewModel.EnsureInstancesLoadedAsync);
+        await InstancesViewModel.EnsureInstancesLoadedAsync();
     }
 
     public void SelectLoader(LoaderKind loader)
@@ -175,7 +164,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
     [RelayCommand]
     public Task RefreshInstancesAsync()
     {
-        return RunInstanceRefreshWithModSyncAsync(InstancesViewModel.RefreshInstancesAsync);
+        return InstancesViewModel.RefreshInstancesAsync();
     }
 
     [RelayCommand]
@@ -195,30 +184,6 @@ public sealed partial class GameManagementViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task RefreshModsAsync()
-    {
-        return LocalMods.RefreshModsAsync();
-    }
-
-    [RelayCommand]
-    private Task ToggleModAsync(LocalMod mod)
-    {
-        return LocalMods.ToggleModAsync(mod);
-    }
-
-    [RelayCommand]
-    private Task DeleteModAsync(LocalMod mod)
-    {
-        return LocalMods.DeleteModAsync(mod);
-    }
-
-    [RelayCommand]
-    private Task ImportModFromPathAsync(string path)
-    {
-        return LocalMods.ImportModFromPathAsync(path);
-    }
-
-    [RelayCommand]
     private Task SearchModsAsync()
     {
         return ModrinthSearch.SearchModsAsync(SelectedInstance);
@@ -227,10 +192,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task InstallSelectedModAsync()
     {
-        // 在线安装完成后刷新当前实例 Mod 投影，下载服务不直接修改 UI 集合。
-        var installed = await ModrinthSearch.InstallSelectedModAsync(SelectedInstance, CreateProgress());
-        if (installed)
-            await LocalMods.RefreshModsAsync();
+        await ModrinthSearch.InstallSelectedModAsync(SelectedInstance, CreateProgress());
     }
 
     [RelayCommand]
@@ -251,22 +213,6 @@ public sealed partial class GameManagementViewModel : ObservableObject
         return InstancesViewModel.SetDefaultInstanceAsync();
     }
 
-    private async Task RunInstanceRefreshWithModSyncAsync(Func<Task> refresh)
-    {
-        // 实例集合刷新可能替换选择对象，完成后按新选择再次刷新 Mod 子页面。
-        suppressSelectedInstanceModRefresh = true;
-        try
-        {
-            await refresh();
-        }
-        finally
-        {
-            suppressSelectedInstanceModRefresh = false;
-        }
-
-        await LocalMods.SetSelectedInstanceAsync(SelectedInstance);
-    }
-
     private IProgress<LauncherProgress> CreateProgress()
     {
         return new Progress<LauncherProgress>(progress =>
@@ -279,31 +225,6 @@ public sealed partial class GameManagementViewModel : ObservableObject
     private void InstancesViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         ForwardChildPropertyChanged(sender, e);
-
-        if (e.PropertyName == nameof(InstanceManagementViewModel.SelectedInstance)
-            && !suppressSelectedInstanceModRefresh)
-        {
-            _ = ObserveSelectedInstanceModRefreshAsync(SelectedInstance);
-        }
-    }
-
-    private async Task ObserveSelectedInstanceModRefreshAsync(GameInstance? instance)
-    {
-        // 属性事件无法等待异步刷新；子 ViewModel 自己处理取消，本层只观察失败。
-        try
-        {
-            await LocalMods.SetSelectedInstanceAsync(instance);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(
-                exception,
-                "Failed to refresh local mods after selecting an instance. InstanceId={InstanceId}",
-                instance?.Id);
-        }
     }
 
     private void ForwardChildPropertyChanged(object? sender, PropertyChangedEventArgs e)

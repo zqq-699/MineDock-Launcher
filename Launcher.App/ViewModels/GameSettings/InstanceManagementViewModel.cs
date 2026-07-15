@@ -37,8 +37,10 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
     private readonly IStatusService statusService;
     private readonly ILogger<InstanceManagementViewModel> logger;
     private readonly object refreshInstancesSync = new();
+    private readonly SemaphoreSlim refreshInstancesGate = new(1, 1);
     private LauncherSettings settings = new();
-    private Task<string>? refreshInstancesTask;
+    private long refreshRequestGeneration;
+    private long appliedRefreshGeneration;
     private string? lastRefreshedMinecraftDirectory;
     private bool hasLoadedInstances;
 
@@ -97,38 +99,57 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
     public async Task RefreshInstancesAsync()
     {
-        var followingRootChange = false;
-        while (true)
+        long requestedGeneration;
+        lock (refreshInstancesSync)
+            requestedGeneration = ++refreshRequestGeneration;
+
+        await refreshInstancesGate.WaitAsync();
+        try
         {
-            Task<string> refreshTask;
             lock (refreshInstancesSync)
             {
-                if (followingRootChange
+                if (appliedRefreshGeneration >= requestedGeneration
                     && lastRefreshedMinecraftDirectory is not null
                     && PathsEqual(lastRefreshedMinecraftDirectory, settings.MinecraftDirectory))
                 {
                     return;
                 }
-                refreshTask = refreshInstancesTask ??= RefreshInstancesCoreAsync(settings.MinecraftDirectory);
             }
 
-            string refreshedDirectory;
-            try
+            while (true)
             {
-                refreshedDirectory = await refreshTask;
-            }
-            finally
-            {
+                long generation;
+                string requestedMinecraftDirectory;
                 lock (refreshInstancesSync)
                 {
-                    if (ReferenceEquals(refreshInstancesTask, refreshTask))
-                        refreshInstancesTask = null;
+                    generation = refreshRequestGeneration;
+                    requestedMinecraftDirectory = settings.MinecraftDirectory;
+                }
+
+                var loadedInstances = await LoadInstanceSnapshotAsync(requestedMinecraftDirectory);
+                lock (refreshInstancesSync)
+                {
+                    if (generation != refreshRequestGeneration
+                        || !PathsEqual(requestedMinecraftDirectory, settings.MinecraftDirectory))
+                    {
+                        logger.LogInformation(
+                            "Discarded stale instance refresh. RefreshGeneration={RefreshGeneration} CurrentGeneration={CurrentGeneration} RequestedDirectory={RequestedDirectory} CurrentDirectory={CurrentDirectory}",
+                            generation,
+                            refreshRequestGeneration,
+                            requestedMinecraftDirectory,
+                            settings.MinecraftDirectory);
+                        continue;
+                    }
+
+                    ApplyInstanceSnapshot(requestedMinecraftDirectory, loadedInstances);
+                    appliedRefreshGeneration = generation;
+                    return;
                 }
             }
-
-            if (PathsEqual(refreshedDirectory, settings.MinecraftDirectory))
-                return;
-            followingRootChange = true;
+        }
+        finally
+        {
+            refreshInstancesGate.Release();
         }
     }
 
@@ -267,22 +288,20 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             SelectedInstance?.Id);
     }
 
-    private async Task<string> RefreshInstancesCoreAsync(string requestedMinecraftDirectory)
+    private async Task<IReadOnlyList<GameInstance>> LoadInstanceSnapshotAsync(string requestedMinecraftDirectory)
     {
         if (backupService is not null)
         {
             await backupService.RecoverPendingRestoresAsync(requestedMinecraftDirectory);
         }
 
-        var loadedInstances = await instanceService.GetInstancesAsync();
-        if (!PathsEqual(requestedMinecraftDirectory, settings.MinecraftDirectory))
-        {
-            logger.LogInformation(
-                "Discarded instance refresh because the Minecraft directory changed. RequestedDirectory={RequestedDirectory} CurrentDirectory={CurrentDirectory}",
-                requestedMinecraftDirectory,
-                settings.MinecraftDirectory);
-            return requestedMinecraftDirectory;
-        }
+        return await instanceService.GetInstancesAsync();
+    }
+
+    private void ApplyInstanceSnapshot(
+        string requestedMinecraftDirectory,
+        IReadOnlyList<GameInstance> loadedInstances)
+    {
         var previousSelectedId = SelectedInstance?.Id;
 
         Instances.ReplaceWith(loadedInstances);
@@ -294,7 +313,6 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);
-        return requestedMinecraftDirectory;
     }
 
     private static bool PathsEqual(string first, string second) =>

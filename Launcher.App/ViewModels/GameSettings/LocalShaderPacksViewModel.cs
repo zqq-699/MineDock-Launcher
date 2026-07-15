@@ -67,14 +67,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
-    public void ResumeWatcherAfterInstanceRename() => refreshCoordinator.ResumeAfterRename();
-
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
-    {
-        SetSelectedInstance(instance);
-        SetWatcherEnabled(true);
-        return RefreshShaderPacksAsync();
-    }
+    public void ResumeWatcherAfterInstanceRename(bool restart = true) => refreshCoordinator.ResumeAfterRename(restart);
 
     public Task<bool> RefreshShaderPacksAsync() => refreshCoordinator.RefreshAsync();
 

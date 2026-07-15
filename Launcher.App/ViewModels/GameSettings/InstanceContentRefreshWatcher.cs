@@ -40,6 +40,7 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
     private GameInstance? instance;
     private bool enabled;
     private bool suspended;
+    private long watchGeneration;
 
     public InstanceContentRefreshWatcher(
         IInstanceDirectoryMonitor monitor,
@@ -59,33 +60,51 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
 
     public void SetInstance(GameInstance? value)
     {
+        if (IsSameWatchTarget(instance, value))
+        {
+            instance = value;
+            return;
+        }
+
         instance = value;
         ResetWatch();
     }
 
     public void SetEnabled(bool value)
     {
+        if (enabled == value)
+            return;
+
         enabled = value;
         ResetWatch();
     }
 
     public void Suspend()
     {
+        if (suspended)
+            return;
+
         suspended = true;
         ResetWatch();
     }
 
-    public void Resume()
+    public void Resume(bool restart = true)
     {
         if (!suspended)
             return;
+
         suspended = false;
-        ResetWatch();
+        if (restart)
+            ResetWatch();
+        else
+            StopWatchAndInvalidate();
     }
 
     public void Dispose()
     {
-        StopWatch();
+        enabled = false;
+        suspended = true;
+        StopWatchAndInvalidate();
     }
 
     /// <summary>
@@ -94,7 +113,7 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
     private void ResetWatch()
     {
         // 实例、启用状态或挂起状态任一变化时都重新建立监听，避免旧目录继续向新页面发送事件。
-        StopWatch();
+        StopWatchAndInvalidate();
         if (!enabled || suspended || instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
@@ -126,6 +145,9 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
 
     private void Watch_Changed(object? sender, InstanceDirectoryChangedEventArgs e)
     {
+        if (!ReferenceEquals(sender, watch) || !enabled || suspended || instance is null)
+            return;
+
         if (shouldRefresh?.Invoke(e) == false)
             return;
 
@@ -133,7 +155,11 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
         CancelPendingRefresh();
         var cancellation = new CancellationTokenSource();
         pendingRefresh = cancellation;
-        _ = RefreshAfterDelayAsync(e, cancellation);
+        _ = RefreshAfterDelayAsync(
+            e,
+            cancellation,
+            Volatile.Read(ref watchGeneration),
+            instance);
     }
 
     /// <summary>
@@ -141,15 +167,19 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
     /// </summary>
     private async Task RefreshAfterDelayAsync(
         InstanceDirectoryChangedEventArgs change,
-        CancellationTokenSource cancellation)
+        CancellationTokenSource cancellation,
+        long generation,
+        GameInstance watchedInstance)
     {
-        var watchedInstance = instance;
         try
         {
             await Task.Delay(RefreshDelay, cancellation.Token).ConfigureAwait(false);
+            if (!IsCurrent(generation, watchedInstance))
+                return;
+
             logger.LogInformation(
                 "Detected instance content change. InstanceId={InstanceId} DirectoryKind={DirectoryKind} ChangeType={ChangeType} Path={Path}",
-                watchedInstance?.Id,
+                watchedInstance.Id,
                 directoryKind,
                 change.ChangeType,
                 change.FullPath);
@@ -160,10 +190,13 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
         }
         catch (Exception exception)
         {
+            if (!IsCurrent(generation, watchedInstance))
+                return;
+
             logger.LogError(
                 exception,
                 "Failed to refresh instance content after directory change. InstanceId={InstanceId} DirectoryKind={DirectoryKind}",
-                watchedInstance?.Id,
+                watchedInstance.Id,
                 directoryKind);
             reportFailure(exception);
         }
@@ -182,5 +215,28 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
             return;
         cancellation.Cancel();
         cancellation.Dispose();
+    }
+
+    private void StopWatchAndInvalidate()
+    {
+        Interlocked.Increment(ref watchGeneration);
+        StopWatch();
+    }
+
+    private bool IsCurrent(long generation, GameInstance watchedInstance)
+    {
+        return generation == Volatile.Read(ref watchGeneration)
+            && enabled
+            && !suspended
+            && IsSameWatchTarget(instance, watchedInstance);
+    }
+
+    private static bool IsSameWatchTarget(GameInstance? left, GameInstance? right)
+    {
+        if (left is null || right is null)
+            return left is null && right is null;
+
+        return string.Equals(left.Id, right.Id, StringComparison.Ordinal)
+            && string.Equals(left.InstanceDirectory, right.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 }

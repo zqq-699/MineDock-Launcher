@@ -16,16 +16,16 @@ internal static class MinecraftPathGuard
     {
         var normalizedCandidate = Normalize(candidate);
         var normalizedParent = Normalize(parent);
-        if (!string.Equals(normalizedCandidate, normalizedParent, StringComparison.OrdinalIgnoreCase)
-            && !normalizedCandidate.StartsWith(
-                normalizedParent + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase))
+        if (!IsWithinNormalized(normalizedCandidate, normalizedParent))
         {
             throw new InvalidDataException($"{description} escaped its allowed directory: {candidate}");
         }
 
         return normalizedCandidate;
     }
+
+    public static bool IsWithin(string candidate, string parent) =>
+        IsWithinNormalized(Normalize(candidate), Normalize(parent));
 
     public static string EnsureInstallFilePath(MinecraftPath path, string candidate)
     {
@@ -105,4 +105,10 @@ internal static class MinecraftPathGuard
             ? fullPath
             : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
+
+    private static bool IsWithinNormalized(string candidate, string parent) =>
+        string.Equals(candidate, parent, StringComparison.OrdinalIgnoreCase)
+        || candidate.StartsWith(
+            parent + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
 }

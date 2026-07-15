@@ -149,6 +149,41 @@ public sealed class GameSettingsInstanceListViewModelTests
     }
 
     [Fact]
+    public async Task RefreshRequestedAfterDeletionDiscardsEarlierSnapshot()
+    {
+        var deleted = CreateInstance("deleted", "1.21", LoaderKind.Vanilla);
+        var replacement = CreateInstance("replacement", "1.21", LoaderKind.Vanilla);
+        var releaseFirstRefresh = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstRefreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instances = new FakeGameInstanceService
+        {
+            GetInstancesHandler = async (call, cancellationToken) =>
+            {
+                if (call == 1)
+                {
+                    firstRefreshStarted.TrySetResult();
+                    await releaseFirstRefresh.Task.WaitAsync(cancellationToken);
+                    return [deleted];
+                }
+
+                return [replacement];
+            }
+        };
+        var viewModel = new GameSettingsInstanceListViewModel(
+            instances,
+            new StubGameVersionService([new MinecraftVersionInfo("1.21", "release", false)]));
+
+        var earlierRefresh = viewModel.RefreshAsync();
+        await firstRefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var postDeleteRefresh = viewModel.RefreshSilentlyAsync();
+        releaseFirstRefresh.TrySetResult();
+        await Task.WhenAll(earlierRefresh, postDeleteRefresh);
+
+        Assert.Equal(2, instances.GetInstancesCallCount);
+        Assert.Equal("replacement", Assert.Single(viewModel.AllInstances).Instance.Id);
+    }
+
+    [Fact]
     public async Task ImportBatchDeduplicatesPathsAndStopsAtFirstFailure()
     {
         var visited = new List<string>();

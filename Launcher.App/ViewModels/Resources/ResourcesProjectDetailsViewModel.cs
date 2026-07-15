@@ -32,6 +32,7 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     private readonly Stack<ResourcesModProjectItemViewModel> backStack = new();
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly IResourceCatalogService? resourceCatalogService;
+    private readonly IResourceThumbnailService? thumbnailService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private CancellationTokenSource? dependenciesCancellation;
@@ -44,6 +45,7 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     {
         this.options = options;
         this.resourceCatalogService = resourceCatalogService;
+        thumbnailService = resourceCatalogService as IResourceThumbnailService;
         this.uiDispatcher = uiDispatcher;
         this.logger = logger;
     }
@@ -152,6 +154,25 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
             var items = result.RequiredProjects
                 .Select(dependency => new ResourcesModProjectItemViewModel(dependency, fallbackIconKey: options.FallbackIconKey))
                 .ToList();
+            if (thumbnailService is not null)
+            {
+                foreach (var item in items)
+                {
+                    try
+                    {
+                        item.SetManagedIconSource(thumbnailService.TryGetCachedThumbnailSource(item.Project));
+                    }
+                    catch (Exception exception)
+                    {
+                        item.SetManagedIconSource(null);
+                        logger?.LogWarning(
+                            exception,
+                            "Failed to resolve cached dependency thumbnail. Source={Source} ProjectId={ProjectId}",
+                            item.Project.Source,
+                            item.Project.ProjectId);
+                    }
+                }
+            }
             uiDispatcher.Invoke(() =>
             {
                 if (cancellationToken.IsCancellationRequested || !ReferenceEquals(CurrentProject, project))
@@ -162,6 +183,8 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
                 IsLoadingDependencies = false;
                 NotifyStateChanged();
             });
+            if (thumbnailService is not null)
+                await RefreshDependencyThumbnailsAsync(project, items, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -183,6 +206,33 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
                 project.Project.Source,
                 project.Project.ProjectId);
         }
+    }
+
+    private async Task RefreshDependencyThumbnailsAsync(
+        ResourcesModProjectItemViewModel parent,
+        IReadOnlyList<ResourcesModProjectItemViewModel> items,
+        CancellationToken cancellationToken)
+    {
+        var tasks = items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Project.IconUrl))
+            .Select(async item =>
+            {
+                var source = await thumbnailService!
+                    .GetOrCreateThumbnailSourceAsync(item.Project, cancellationToken)
+                    .ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(source) || cancellationToken.IsCancellationRequested)
+                    return;
+                uiDispatcher.Invoke(() =>
+                {
+                    if (!cancellationToken.IsCancellationRequested
+                        && ReferenceEquals(CurrentProject, parent)
+                        && RequiredDependencies.Contains(item))
+                    {
+                        item.SetManagedIconSource(source);
+                    }
+                });
+            });
+        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     private void CancelDependenciesLoad()

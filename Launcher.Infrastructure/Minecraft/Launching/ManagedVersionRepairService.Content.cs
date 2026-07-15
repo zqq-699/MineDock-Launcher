@@ -247,7 +247,7 @@ private async Task EnsureVersionJarAsync(
                     objectPath,
                     expectedSha1: requirement.Hash,
                     expectedSize,
-                    MinecraftFileVerification.Full,
+                    MinecraftFileVerification.SizeOnly,
                     token).ConfigureAwait(false);
                 if (objectStatus == MinecraftFileIntegrityStatus.Valid)
                     return;

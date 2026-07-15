@@ -7,6 +7,7 @@
 
 using System.IO.Compression;
 using System.Diagnostics;
+using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -147,6 +148,49 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             CancellationToken.None));
 
         Assert.False(File.Exists(escapedPath));
+    }
+
+    [Fact]
+    public async Task SplitLayoutCmlDownloadsAllowPrivateVersionJarAndSharedLibrary()
+    {
+        var sandbox = Path.Combine(TempRoot, "sandbox", ".minecraft");
+        var realMinecraft = Path.Combine(TempRoot, "real", ".minecraft");
+        var layout = MinecraftInstallPathLayout.Create(sandbox, realMinecraft);
+        var payload = "split-root-download"u8.ToArray();
+        var sha1 = Convert.ToHexString(SHA1.HashData(payload));
+        using var client = new HttpClient(new BinaryDownloadHandler(payload));
+        using var operationContext = VanillaLoaderProvider.CreateDownloadOperationContext(layout.Path);
+        var executor = new MinecraftDownloadRequestExecutor(
+            client,
+            category: DownloadConcurrencyCategory.Runtime);
+        var installer = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
+            client,
+            executor,
+            DownloadSourcePreference.Official,
+            progress: null,
+            minecraftPath: layout.Path,
+            operationContext: operationContext);
+        var versionJar = Path.Combine(layout.Path.Versions, "Test", "Test.jar");
+        var libraryJar = Path.Combine(layout.Path.Library, "com", "example", "library", "1.0", "library-1.0.jar");
+
+        foreach (var destination in new[] { versionJar, libraryJar })
+        {
+            await installer.DownloadGameFileAsync(
+                new GameFile(Path.GetFileName(destination))
+                {
+                    Path = destination,
+                    Url = "https://example.test/runtime.jar",
+                    Hash = sha1,
+                    Size = payload.Length
+                },
+                progress: null,
+                CancellationToken.None);
+        }
+
+        Assert.Equal(payload, await File.ReadAllBytesAsync(versionJar));
+        Assert.Equal(payload, await File.ReadAllBytesAsync(libraryJar));
+        Assert.Equal(Path.GetFullPath(layout.Path.Versions), operationContext.ResolveManagedRoot(versionJar));
+        Assert.Equal(Path.GetFullPath(layout.Path.Library), operationContext.ResolveManagedRoot(libraryJar));
     }
 
     [Fact]
@@ -721,6 +765,20 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(instance)
         ?? throw new InvalidOperationException($"Expected private field '{fieldName}'.");
+
+    private sealed class BinaryDownloadHandler(byte[] payload) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(payload)
+            });
+        }
+    }
 
     private static void RaisePrivateEvent<T>(object instance, string fieldName, T args)
     {

@@ -79,7 +79,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(integrity);
         options ??= new DownloadFileOptions();
         var normalizedDestination = Path.GetFullPath(destinationPath);
-        var managedRoot = options.ManagedRoot ?? options.OperationContext?.ManagedRoot;
+        var managedRoot = options.ResolveManagedRoot(normalizedDestination);
         if (!string.IsNullOrWhiteSpace(managedRoot))
         {
             managedRoot = Path.GetFullPath(managedRoot);

@@ -293,8 +293,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
     }
 
     internal static MinecraftDownloadOperationContext CreateDownloadOperationContext(MinecraftPath path) =>
-        new(Path.GetDirectoryName(path.Assets)
-            ?? throw new InvalidOperationException("Minecraft assets path has no managed root."));
+        new([path.Versions, path.Library, path.Assets, path.Resource, path.Runtime]);
 
     internal static MinecraftLauncher CreateLauncher(
         string gameDirectory,

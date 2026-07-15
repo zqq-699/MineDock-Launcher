@@ -52,6 +52,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private bool isSectionActive;
     private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
+    private bool needsRefreshOnActivation = true;
+    private long lifecycleGeneration;
 
     // 可观察属性均为界面投影，任何磁盘变化都必须先进入共享本地内容 ViewModel。
     [ObservableProperty]
@@ -164,7 +166,9 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         // 切换底层集合时会同步触发事件，抑制回调以避免在半重置状态下重建列表。
+        Interlocked.Increment(ref lifecycleGeneration);
         selectedInstance = instance;
+        needsRefreshOnActivation = true;
         loadTask = null;
         hasPendingVisualRefresh = false;
         isVisibleRefreshQueued = false;
@@ -203,7 +207,14 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     public override void OnSectionDeactivated()
     {
+        if (!isSectionActive)
+            return;
+
         isSectionActive = false;
+        Interlocked.Increment(ref lifecycleGeneration);
+        loadTask = null;
+        needsRefreshOnActivation = true;
+        IsLoadingResourcePacks = false;
         localResourcePacksViewModel.SetWatcherEnabled(false);
     }
 
@@ -212,25 +223,53 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         localResourcePacksViewModel.SuspendWatcherForInstanceRename();
     }
 
-    public void ResumeLocalWatchersAfterInstanceRename()
+    public void ResumeLocalWatchersAfterInstanceRename(bool restart = true)
     {
-        localResourcePacksViewModel.ResumeWatcherAfterInstanceRename();
+        if (restart && isSectionActive)
+        {
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            needsRefreshOnActivation = true;
+        }
+        localResourcePacksViewModel.ResumeWatcherAfterInstanceRename(restart);
     }
 
     public override Task OnSectionActivatedAsync()
     {
-        // 页面不可见时关闭 watcher，激活后再补做被合并的刷新并恢复动画。
-        isSectionActive = true;
-        localResourcePacksViewModel.SetWatcherEnabled(selectedInstance is not null);
-        if (hasPendingVisualRefresh && HasLoadedResourcePacks)
-            PublishReadyProjection();
+        if (!isSectionActive)
+        {
+            // 页面不可见时关闭 watcher，激活后静默补齐离开期间的变化。
+            isSectionActive = true;
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            localResourcePacksViewModel.SetWatcherEnabled(selectedInstance is not null);
+        }
+
+        if (!needsRefreshOnActivation)
+            return EnsureLoadedForSelectedInstanceAsync();
+
+        needsRefreshOnActivation = false;
+        if (selectedInstance is null)
+            return Task.CompletedTask;
+
+        if (HasLoadedResourcePacks)
+        {
+            if (hasPendingVisualRefresh)
+            {
+                hasPendingVisualRefresh = false;
+                RefreshFromLocalResourcePacks();
+            }
+
+            loadTask = RefreshCachedResourcePacksAsync(Volatile.Read(ref lifecycleGeneration));
+            return loadTask;
+        }
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
 
     public Task EnsureLoadedForSelectedInstanceAsync()
     {
-        if (selectedInstance is null)
+        if (!isSectionActive || selectedInstance is null)
             return Task.CompletedTask;
 
         if (loadTask is { IsCompleted: false })
@@ -239,7 +278,15 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         if (HasLoadedResourcePacks)
             return Task.CompletedTask;
 
-        loadTask = LoadResourcePacksAsync();
+        loadTask = LoadResourcePacksAsync(Volatile.Read(ref lifecycleGeneration));
         return loadTask;
+    }
+
+    private bool IsCurrentLifecycle(long generation, GameInstance expectedInstance)
+    {
+        return isSectionActive
+            && generation == Volatile.Read(ref lifecycleGeneration)
+            && string.Equals(expectedInstance.Id, selectedInstance?.Id, StringComparison.Ordinal)
+            && string.Equals(expectedInstance.InstanceDirectory, selectedInstance?.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 }

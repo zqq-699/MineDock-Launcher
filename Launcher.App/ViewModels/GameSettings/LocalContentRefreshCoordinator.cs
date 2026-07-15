@@ -87,7 +87,10 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
     {
         watcher.SetEnabled(enabled);
         if (!enabled)
+        {
+            Interlocked.Increment(ref refreshGeneration);
             CancelRefresh();
+        }
     }
 
     public void SuspendForRename()
@@ -96,7 +99,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
         CancelRefresh();
     }
 
-    public void ResumeAfterRename() => watcher.Resume();
+    public void ResumeAfterRename(bool restart = true) => watcher.Resume(restart);
 
     /// <summary>
     /// 加载当前实例内容，并且仅在实例和刷新代次仍匹配时发布结果。
@@ -124,7 +127,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
             var items = await loadAsync(instance, replacement.Token).ConfigureAwait(false);
             if (generation != refreshGeneration
                 || replacement.IsCancellationRequested
-                || !string.Equals(instance.Id, SelectedInstance?.Id, StringComparison.Ordinal))
+                || !IsSameInstancePath(instance, SelectedInstance))
             {
                 return false;
             }
@@ -133,7 +136,9 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
             uiDispatcher.Invoke(() =>
             {
                 // 调度到 UI 线程期间可能又发起刷新，因此发布前需要再次验证代次。
-                if (generation != refreshGeneration || replacement.IsCancellationRequested)
+                if (generation != refreshGeneration
+                    || replacement.IsCancellationRequested
+                    || !IsSameInstancePath(instance, SelectedInstance))
                     return;
                 CurrentItems = items;
                 apply(items);
@@ -174,5 +179,12 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
         // 旧请求结束时不能清空新请求刚写入的 CTS。
         if (ReferenceEquals(Interlocked.CompareExchange(ref refreshCancellation, null, cancellation), cancellation))
             cancellation.Dispose();
+    }
+
+    private static bool IsSameInstancePath(GameInstance left, GameInstance? right)
+    {
+        return right is not null
+            && string.Equals(left.Id, right.Id, StringComparison.Ordinal)
+            && string.Equals(left.InstanceDirectory, right.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 }

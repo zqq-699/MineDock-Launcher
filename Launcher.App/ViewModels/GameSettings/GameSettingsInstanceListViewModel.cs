@@ -36,10 +36,12 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
     private readonly IGameInstanceService instanceService;
     private readonly IGameVersionService gameVersionService;
     private readonly ILogger<GameSettingsInstanceListViewModel> logger;
+    private readonly SemaphoreSlim refreshGate = new(1, 1);
     private IReadOnlyDictionary<string, string> versionTypesByName =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedInstances;
     private bool preserveFilteredSelection;
+    private long refreshGeneration;
 
     [ObservableProperty]
     private GameSettingsInstanceCategory? selectedCategory;
@@ -95,7 +97,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
     public async Task EnsureLoadedAsync(CancellationToken cancellationToken = default)
     {
         // 首次确保加载与显式刷新分开，避免每次页面激活都无条件扫描磁盘。
-        if (hasLoadedInstances || IsLoading)
+        if (hasLoadedInstances)
             return;
 
         await RefreshCoreAsync(true, true, true, cancellationToken);
@@ -199,21 +201,32 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         bool logRefreshResult,
         CancellationToken cancellationToken)
     {
-        // 请求开始时捕获当前选择 Id，磁盘同步完成后按 Id 恢复而不是依赖旧对象引用。
-        if (IsLoading)
-            return;
-        IsLoading = true;
-        LoadError = string.Empty;
-        EmptyMessage = string.Empty;
-        if (clearVisibleInstancesBeforeRefresh)
-            ClearVisibleInstances();
-        var selectedId = SelectedInstance?.Instance.Id;
+        var generation = Interlocked.Increment(ref refreshGeneration);
+        await refreshGate.WaitAsync(cancellationToken);
         try
         {
+            // 请求开始时捕获当前选择 Id，磁盘同步完成后按 Id 恢复而不是依赖旧对象引用。
+            IsLoading = true;
+            LoadError = string.Empty;
+            EmptyMessage = string.Empty;
+            if (clearVisibleInstancesBeforeRefresh)
+                ClearVisibleInstances();
+            var selectedId = SelectedInstance?.Instance.Id;
+
             // Resolve slow remote classification metadata before taking the mutable instance
             // snapshot, so a click saved during that network wait cannot be overwritten by stale data.
-            versionTypesByName = await LoadVersionTypesAsync(cancellationToken);
+            var loadedVersionTypes = await LoadVersionTypesAsync(cancellationToken);
             var instances = await instanceService.GetInstancesAsync(cancellationToken);
+            if (generation != Volatile.Read(ref refreshGeneration))
+            {
+                logger.LogInformation(
+                    "Discarded stale game settings instance refresh. RefreshGeneration={RefreshGeneration} CurrentGeneration={CurrentGeneration}",
+                    generation,
+                    Volatile.Read(ref refreshGeneration));
+                return;
+            }
+
+            versionTypesByName = loadedVersionTypes;
             Reconcile(instances);
             RestoreSelection(selectedId);
             hasLoadedInstances = true;
@@ -224,6 +237,9 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         }
         catch (Exception exception)
         {
+            if (generation != Volatile.Read(ref refreshGeneration))
+                return;
+
             logger.LogWarning(exception, "Failed to load game settings instances.");
             LoadError = Strings.Status_LoadInstancesFailed;
             hasLoadedInstances = false;
@@ -231,17 +247,21 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         finally
         {
             IsLoading = false;
-            RefreshVisibleInstances();
-            if (hasLoadedInstances && playEntranceAnimation)
-                EntranceAnimationToken++;
-            if (hasLoadedInstances && logRefreshResult)
+            if (generation == Volatile.Read(ref refreshGeneration))
             {
-                logger.LogInformation(
-                    "Game settings instances refreshed. Count={InstanceCount} VisibleCount={VisibleCount} SelectedInstanceId={SelectedInstanceId}",
-                    AllInstances.Count,
-                    VisibleInstances.Count,
-                    SelectedInstance?.Instance.Id);
+                RefreshVisibleInstances();
+                if (hasLoadedInstances && playEntranceAnimation)
+                    EntranceAnimationToken++;
+                if (hasLoadedInstances && logRefreshResult)
+                {
+                    logger.LogInformation(
+                        "Game settings instances refreshed. Count={InstanceCount} VisibleCount={VisibleCount} SelectedInstanceId={SelectedInstanceId}",
+                        AllInstances.Count,
+                        VisibleInstances.Count,
+                        SelectedInstance?.Instance.Id);
+                }
             }
+            refreshGate.Release();
         }
     }
 

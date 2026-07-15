@@ -57,6 +57,8 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private bool isSectionActive;
     private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
+    private bool needsRefreshOnActivation = true;
+    private long lifecycleGeneration;
 
     // 可观察属性是本地快照的 UI 投影，不直接拥有任何文件系统状态。
     [ObservableProperty]
@@ -183,7 +185,9 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         // 实例引用变化意味着现有选择、冲突对话框和可见项都不再有效，必须作为一个状态边界整体重置。
+        Interlocked.Increment(ref lifecycleGeneration);
         selectedInstance = instance;
+        needsRefreshOnActivation = true;
         ResolvePendingImportConflict(false);
         loadTask = null;
         hasPendingVisualRefresh = false;
@@ -221,7 +225,14 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public override void OnSectionDeactivated()
     {
+        if (!isSectionActive)
+            return;
+
         isSectionActive = false;
+        Interlocked.Increment(ref lifecycleGeneration);
+        loadTask = null;
+        needsRefreshOnActivation = true;
+        IsLoadingMods = false;
         localModsViewModel.SetWatcherEnabled(false);
     }
 
@@ -230,9 +241,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         localModsViewModel.SuspendWatcherForInstanceRename();
     }
 
-    public void ResumeLocalWatchersAfterInstanceRename()
+    public void ResumeLocalWatchersAfterInstanceRename(bool restart = true)
     {
-        localModsViewModel.ResumeWatcherAfterInstanceRename();
+        if (restart && isSectionActive)
+        {
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            needsRefreshOnActivation = true;
+        }
+        localModsViewModel.ResumeWatcherAfterInstanceRename(restart);
     }
 
     /// <summary>
@@ -240,17 +257,39 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     /// </summary>
     public override Task OnSectionActivatedAsync()
     {
-        isSectionActive = true;
-        localModsViewModel.SetWatcherEnabled(IsModManagementSupported);
-        if (hasPendingVisualRefresh && HasLoadedMods)
-            PublishReadyProjection();
+        if (!isSectionActive)
+        {
+            isSectionActive = true;
+            Interlocked.Increment(ref lifecycleGeneration);
+            loadTask = null;
+            localModsViewModel.SetWatcherEnabled(IsModManagementSupported);
+        }
+
+        if (!needsRefreshOnActivation)
+            return EnsureLoadedForSelectedInstanceAsync();
+
+        needsRefreshOnActivation = false;
+        if (selectedInstance is null || !IsModManagementSupported)
+            return Task.CompletedTask;
+
+        if (HasLoadedMods)
+        {
+            if (hasPendingVisualRefresh)
+            {
+                hasPendingVisualRefresh = false;
+                RefreshFromLocalMods();
+            }
+
+            loadTask = RefreshCachedModsAsync(Volatile.Read(ref lifecycleGeneration));
+            return loadTask;
+        }
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
 
     public Task EnsureLoadedForSelectedInstanceAsync()
     {
-        if (selectedInstance is null || !IsModManagementSupported)
+        if (!isSectionActive || selectedInstance is null || !IsModManagementSupported)
             return Task.CompletedTask;
 
         if (loadTask is { IsCompleted: false })
@@ -259,7 +298,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         if (HasLoadedMods)
             return Task.CompletedTask;
 
-        loadTask = LoadModsAsync();
+        loadTask = LoadModsAsync(Volatile.Read(ref lifecycleGeneration));
         return loadTask;
+    }
+
+    private bool IsCurrentLifecycle(long generation, GameInstance expectedInstance)
+    {
+        return isSectionActive
+            && generation == Volatile.Read(ref lifecycleGeneration)
+            && string.Equals(expectedInstance.Id, selectedInstance?.Id, StringComparison.Ordinal)
+            && string.Equals(expectedInstance.InstanceDirectory, selectedInstance?.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 }
