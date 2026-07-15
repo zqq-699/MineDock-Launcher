@@ -237,16 +237,20 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
             progressReports,
             report => report.Stage.StartsWith("Install.", StringComparison.Ordinal));
 
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add("-cp");
+        startInfo.ArgumentList.Add(loaderPath);
         var finalValidation = await service.ValidateFinalLaunchCommandAsync(
             new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
             {
                 LoaderIdentity = identity
             },
-            new ProcessStartInfo { UseShellExecute = false });
+            startInfo);
         Assert.False(finalValidation.LaunchAllowed);
         Assert.Contains(
             finalValidation.Failures,
-            failure => failure.Category == "LoaderProcessorOutput"
+            failure => failure.Category == "Classpath"
+                && failure.Reason == GameFileRepairFailureReason.FinalLaunchPlanInvalid
                 && failure.TargetPath == loaderPath);
     }
 
@@ -294,6 +298,87 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
         Assert.False(result.LaunchAllowed);
         Assert.Equal(GameFileRepairFailureReason.FinalLaunchPlanInvalid, failure.Reason);
         Assert.Equal(missingPath, failure.TargetPath);
+    }
+
+    [Fact]
+    public async Task FinalCommandValidationDoesNotHashKnownClasspathFile()
+    {
+        const string versionName = "Vanilla";
+        const string relativePath = "example/library/1.0/library-1.0.jar";
+        const string expectedContent = "library";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, relativePath, expectedContent);
+        var libraryPath = Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+        await File.WriteAllTextAsync(libraryPath, "corrupt");
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add("-cp");
+        startInfo.ArgumentList.Add(libraryPath);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+        var request = new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory);
+
+        var finalValidation = await service.ValidateFinalLaunchCommandAsync(request, startInfo);
+        var fullValidation = await service.ValidateAndRepairAsync(
+            request,
+            new GameFileRepairOptions(AllowRepair: false));
+
+        Assert.True(finalValidation.LaunchAllowed);
+        Assert.False(fullValidation.LaunchAllowed);
+        Assert.Contains(
+            fullValidation.Failures,
+            failure => failure.Category == "Library"
+                && failure.Reason == GameFileRepairFailureReason.Corrupted);
+    }
+
+    [Fact]
+    public async Task FinalCommandValidationDoesNotReadAssetIndex()
+    {
+        const string versionName = "Vanilla";
+        const string relativePath = "example/library/1.0/library-1.0.jar";
+        const string libraryContent = "library";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, relativePath, libraryContent);
+        var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        var versionJson = JsonNode.Parse(await File.ReadAllTextAsync(versionJsonPath))!.AsObject();
+        versionJson["assetIndex"] = new JsonObject
+        {
+            ["id"] = "broken",
+            ["url"] = "https://example.test/assets/broken.json",
+            ["sha1"] = Sha1("{"),
+            ["size"] = 1
+        };
+        await File.WriteAllTextAsync(versionJsonPath, versionJson.ToJsonString());
+        var indexesDirectory = Path.Combine(minecraftDirectory, "assets", "indexes");
+        Directory.CreateDirectory(indexesDirectory);
+        await File.WriteAllTextAsync(Path.Combine(indexesDirectory, "broken.json"), "{");
+        var libraryPath = Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add("-cp");
+        startInfo.ArgumentList.Add(libraryPath);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+        var request = new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory);
+
+        var finalValidation = await service.ValidateFinalLaunchCommandAsync(request, startInfo);
+        var fullValidation = await service.ValidateAndRepairAsync(
+            request,
+            new GameFileRepairOptions(AllowRepair: false));
+
+        Assert.True(finalValidation.LaunchAllowed);
+        Assert.False(fullValidation.LaunchAllowed);
+        Assert.Equal(
+            GameFileRepairFailureReason.MetadataIncomplete,
+            Assert.Single(fullValidation.Failures).Reason);
     }
 
     [Fact]

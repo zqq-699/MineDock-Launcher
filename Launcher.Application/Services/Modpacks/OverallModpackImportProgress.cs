@@ -111,6 +111,7 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
             case InstallProgressStages.Queue:
             case InstallProgressStages.Preparing:
             case InstallProgressStages.DownloadingLoaderInstaller:
+            case InstallProgressStages.CheckingJava:
             case InstallProgressStages.RunningLoaderInstaller:
             case InstallProgressStages.FinalizingVersion:
             case InstallProgressStages.CompletingFiles:

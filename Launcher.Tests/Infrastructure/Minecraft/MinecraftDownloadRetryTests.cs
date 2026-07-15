@@ -1215,6 +1215,11 @@ public sealed class MinecraftDownloadRetryTests
             logger: logger,
             addressPolicy: new DownloadAddressPolicy((_, _) =>
                 Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") })),
+            hostConcurrencyController: new DownloadHostConcurrencyController(
+                maximumJitter: TimeSpan.Zero,
+                nextJitter: () => 0,
+                delayAsync: static (_, _) => ValueTask.CompletedTask),
+            nextRetryJitter: () => 0,
             retryOptions: options ?? new DownloadRetryOptions
             {
                 MaxAttemptsPerSource = 4,

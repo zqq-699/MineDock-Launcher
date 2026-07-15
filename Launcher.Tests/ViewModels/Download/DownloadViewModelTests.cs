@@ -274,6 +274,16 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public void CheckingInstallerJavaUsesExistingLocalizedStatusText()
+    {
+        var status = LauncherProgressTextFormatter.Format(new LauncherProgress(
+            InstallProgressStages.CheckingJava,
+            string.Empty));
+
+        Assert.Equal(Strings.Status_LaunchCheckingJava, status);
+    }
+
+    [Fact]
     public void CompletionClearsPendingSpeedTelemetry()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
@@ -365,6 +375,27 @@ public sealed class DownloadViewModelTests
 
         Assert.Equal(Strings.Status_DuplicateInstanceName, viewModel.InstallError);
         Assert.DoesNotContain("Exception", viewModel.InstallError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task JavaSelectionFailureUsesFriendlyMessage()
+    {
+        var service = new FakeGameInstanceService
+        {
+            CreateException = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                17)
+        };
+        var viewModel = CreateInstallViewModel(
+            service,
+            new DownloadTasksPageViewModel(TimeSpan.Zero),
+            new DownloadInstanceNameTracker());
+
+        await viewModel.InstallAsync(CreateInstallRequest("java-missing"));
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, viewModel.InstallError);
+        Assert.DoesNotContain("missing java", viewModel.InstallError, StringComparison.OrdinalIgnoreCase);
     }
 
     private static DownloadInstallViewModel CreateInstallViewModel(

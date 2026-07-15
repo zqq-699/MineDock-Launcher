@@ -38,6 +38,19 @@ public sealed class OverallModpackImportProgressTests
         Assert.Equal(2 * 1024 * 1024, reports[^1].DownloadSpeedTelemetry!.BytesPerSecond);
     }
 
+    [Fact]
+    public void JavaCheckBetweenInstallerDownloadAndExecutionNeverRegressesOverallProgress()
+    {
+        var reports = new List<LauncherProgress>();
+        var progress = new OverallModpackImportProgress(new InlineProgress(reports));
+
+        progress.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty, 100));
+        progress.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
+        progress.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
+
+        Assert.Equal(reports.Select(report => report.Percent).Order(), reports.Select(report => report.Percent));
+    }
+
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
     {
         public void Report(LauncherProgress value) => reports.Add(value);

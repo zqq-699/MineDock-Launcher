@@ -17,6 +17,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -36,15 +38,26 @@ public sealed class ModrinthApiClient
     private readonly HttpClient httpClient;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly ILogger logger;
+    private readonly DownloadHostConcurrencyController hostConcurrencyController;
 
     public ModrinthApiClient(
         HttpClient? httpClient = null,
         IImportConcurrencyLimiter? limiter = null,
         ILogger<ModrinthApiClient>? logger = null)
+        : this(httpClient, limiter, logger, DownloadHostConcurrencyController.Shared)
+    {
+    }
+
+    internal ModrinthApiClient(
+        HttpClient? httpClient,
+        IImportConcurrencyLimiter? limiter,
+        ILogger<ModrinthApiClient>? logger,
+        DownloadHostConcurrencyController hostConcurrencyController)
     {
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.logger = logger ?? NullLogger<ModrinthApiClient>.Instance;
+        this.hostConcurrencyController = hostConcurrencyController;
     }
 
     internal async Task<IReadOnlyDictionary<string, ModrinthVersionFileMatch>> GetVersionFileMatchesAsync(
@@ -58,20 +71,74 @@ public sealed class ModrinthApiClient
         if (hashes.Length == 0)
             return new Dictionary<string, ModrinthVersionFileMatch>(StringComparer.OrdinalIgnoreCase);
 
-        await using var lease = await limiter.AcquireMetadataSlotAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await httpClient.PostAsJsonAsync(
-                $"{BaseUrl}/version_files",
-                new ModrinthVersionFilesRequest(hashes, "sha1"),
-                JsonOptions,
-                cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        var versions = await response.Content.ReadFromJsonAsync<Dictionary<string, ModrinthVersionMatch>>(
-                JsonOptions,
-                cancellationToken)
-            .ConfigureAwait(false)
-            ?? new Dictionary<string, ModrinthVersionMatch>(StringComparer.OrdinalIgnoreCase);
+        var uri = new Uri($"{BaseUrl}/version_files", UriKind.Absolute);
+        await using var admission = await hostConcurrencyController.AcquireAsync(
+            uri,
+            limiter.AcquireMetadataSlotAsync,
+            applyColdStartJitter: true,
+            cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage? response = null;
+        DownloadFailureReason? failureReason = null;
+        HttpStatusCode? statusCode = null;
+        var recordResult = false;
+        Dictionary<string, ModrinthVersionMatch> versions;
+        try
+        {
+            response = await httpClient.PostAsJsonAsync(
+                    uri,
+                    new ModrinthVersionFilesRequest(hashes, "sha1"),
+                    JsonOptions,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            response.EnsureSuccessStatusCode();
+            versions = await response.Content.ReadFromJsonAsync<Dictionary<string, ModrinthVersionMatch>>(
+                    JsonOptions,
+                    cancellationToken)
+                .ConfigureAwait(false)
+                ?? new Dictionary<string, ModrinthVersionMatch>(StringComparer.OrdinalIgnoreCase);
+            failureReason = null;
+            recordResult = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.ResponseHeadersTimeout
+                : DownloadFailureReason.BodyInterrupted;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.Network
+                : response.IsSuccessStatusCode
+                    ? DownloadFailureReason.BodyInterrupted
+                    : DownloadFailureReason.HttpStatus;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        catch (IOException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.Network
+                : DownloadFailureReason.BodyInterrupted;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        finally
+        {
+            response?.Dispose();
+            if (recordResult)
+                RecordHostResult(admission.Origin, failureReason, statusCode);
+        }
 
         var result = new Dictionary<string, ModrinthVersionFileMatch>(StringComparer.OrdinalIgnoreCase);
         foreach (var (hash, version) in versions)
@@ -100,6 +167,24 @@ public sealed class ModrinthApiClient
             hashes.Length,
             result.Count);
         return result;
+    }
+
+    private void RecordHostResult(
+        string origin,
+        DownloadFailureReason? failureReason,
+        HttpStatusCode? statusCode)
+    {
+        var adjustment = hostConcurrencyController.RecordResult(origin, failureReason, statusCode);
+        if (adjustment is null)
+            return;
+        logger.LogInformation(
+            "Download host concurrency adjusted. HostOrigin={HostOrigin} PreviousTarget={PreviousTarget} CurrentTarget={CurrentTarget} AdjustmentReason={AdjustmentReason} SuccessCount={SuccessCount} FailureCount={FailureCount}",
+            adjustment.Origin,
+            adjustment.PreviousTarget,
+            adjustment.CurrentTarget,
+            adjustment.Reason,
+            adjustment.Successes,
+            adjustment.Failures);
     }
 
     internal sealed record ModrinthVersionFileMatch(

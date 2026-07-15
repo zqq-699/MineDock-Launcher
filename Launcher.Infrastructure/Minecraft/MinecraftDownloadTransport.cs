@@ -28,15 +28,20 @@ internal sealed class MinecraftDownloadTransport
     private readonly HttpClient httpClient;
     private readonly DownloadRetryOptions retryOptions;
     private readonly DownloadAddressPolicy addressPolicy;
+    private readonly Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
+        acquireAdmissionAsync;
 
     public MinecraftDownloadTransport(
         HttpClient httpClient,
         DownloadRetryOptions retryOptions,
-        DownloadAddressPolicy? addressPolicy = null)
+        DownloadAddressPolicy? addressPolicy = null,
+        Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
+            acquireAdmissionAsync = null)
     {
         this.httpClient = httpClient;
         this.retryOptions = retryOptions;
         this.addressPolicy = addressPolicy ?? new DownloadAddressPolicy();
+        this.acquireAdmissionAsync = acquireAdmissionAsync;
     }
 
     public async Task<DownloadTransportResult> SendAsync(
@@ -44,11 +49,9 @@ internal sealed class MinecraftDownloadTransport
         CancellationToken cancellationToken,
         Action<HttpRequestMessage>? configureRequest = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
-        bool isThirdParty = false)
+        bool isThirdParty = false,
+        bool applyColdStartJitter = false)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(retryOptions.ResponseHeadersTimeout);
-
         var originalUri = new Uri(actualUrl, UriKind.Absolute);
         var currentUri = originalUri;
         var stopwatch = Stopwatch.StartNew();
@@ -60,52 +63,87 @@ internal sealed class MinecraftDownloadTransport
 
         for (var redirectCount = 0; ; redirectCount++)
         {
-            var endpoint = await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
-            var response = await SendSingleAsync(
-                endpoint,
-                timeout.Token,
-                cancellationToken,
-                configureRequest,
-                sensitiveHeaders)
-                .ConfigureAwait(false);
-            if (!IsRedirect(response.StatusCode))
-                return new DownloadTransportResult(response, originalUri, currentUri, currentUri.Host, redirects, stopwatch.Elapsed);
-
-            if (redirectCount >= retryOptions.MaxRedirects)
-            {
-                response.Dispose();
-                throw InvalidRedirect(
-                    $"The HTTP redirect chain exceeded {retryOptions.MaxRedirects} hops.");
-            }
-
-            var location = response.Headers.Location;
-            if (location is null)
-            {
-                response.Dispose();
-                throw InvalidRedirect("The HTTP redirect response did not contain a Location header.");
-            }
-
-            Uri nextUri;
+            DownloadHostConcurrencyController.DownloadAdmissionLease? admissionLease = null;
             try
             {
-                nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
-            }
-            catch (UriFormatException exception)
-            {
-                response.Dispose();
-                throw InvalidRedirect("The HTTP redirect target was invalid.", exception);
-            }
+                var endpoint = await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
+                if (acquireAdmissionAsync is not null)
+                {
+                    admissionLease = await acquireAdmissionAsync(
+                        currentUri,
+                        applyColdStartJitter,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(retryOptions.ResponseHeadersTimeout);
+                var response = await SendSingleAsync(
+                    endpoint,
+                    timeout.Token,
+                    cancellationToken,
+                    configureRequest,
+                    sensitiveHeaders)
+                    .ConfigureAwait(false);
+                if (!IsRedirect(response.StatusCode))
+                {
+                    var result = new DownloadTransportResult(
+                        response,
+                        originalUri,
+                        currentUri,
+                        currentUri.Host,
+                        redirects,
+                        stopwatch.Elapsed,
+                        admissionLease);
+                    admissionLease = null;
+                    return result;
+                }
 
-            if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-                || !visited.Add(nextUri.AbsoluteUri))
-            {
-                response.Dispose();
-                throw InvalidRedirect("The HTTP redirect target was unsupported or formed a loop.");
-            }
+                if (redirectCount >= retryOptions.MaxRedirects)
+                {
+                    response.Dispose();
+                    throw InvalidRedirect(
+                        $"The HTTP redirect chain exceeded {retryOptions.MaxRedirects} hops.");
+                }
 
-            response.Dispose();
-            redirects.Add(nextUri);
-            currentUri = nextUri;
+                var location = response.Headers.Location;
+                if (location is null)
+                {
+                    response.Dispose();
+                    throw InvalidRedirect("The HTTP redirect response did not contain a Location header.");
+                }
+
+                Uri nextUri;
+                try
+                {
+                    nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+                }
+                catch (UriFormatException exception)
+                {
+                    response.Dispose();
+                    throw InvalidRedirect("The HTTP redirect target was invalid.", exception);
+                }
+
+                if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                    || !visited.Add(nextUri.AbsoluteUri))
+                {
+                    response.Dispose();
+                    throw InvalidRedirect("The HTTP redirect target was unsupported or formed a loop.");
+                }
+
+                response.Dispose();
+                redirects.Add(nextUri);
+                currentUri = nextUri;
+            }
+            catch (DownloadAttemptException exception)
+            {
+                throw exception
+                    .WithFinalHost(currentUri.Host)
+                    .WithFinalOrigin(DownloadHostConcurrencyController.NormalizeOrigin(currentUri));
+            }
+            finally
+            {
+                if (admissionLease is not null)
+                    await admissionLease.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 

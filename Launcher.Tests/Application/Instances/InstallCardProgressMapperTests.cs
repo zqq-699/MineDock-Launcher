@@ -29,16 +29,18 @@ public sealed class InstallCardProgressMapperTests
         var mapper = new InstallCardProgressMapper(new InlineProgress(reports), LoaderKind.Forge, hasOptionalContent: false);
 
         mapper.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty));
+        mapper.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
         mapper.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
         mapper.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
         mapper.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, string.Empty, 50));
         mapper.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, string.Empty, 10));
 
         Assert.Equal(12, reports[0].Percent);
-        Assert.Equal(30, reports[1].Percent);
-        Assert.Equal(38, reports[2].Percent);
-        Assert.Equal(67, reports[3].Percent);
+        Assert.Equal(26, reports[1].Percent);
+        Assert.Equal(30, reports[2].Percent);
+        Assert.Equal(38, reports[3].Percent);
         Assert.Equal(67, reports[4].Percent);
+        Assert.Equal(67, reports[5].Percent);
     }
 
     [Fact]

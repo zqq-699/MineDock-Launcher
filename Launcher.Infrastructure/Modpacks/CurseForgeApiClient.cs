@@ -41,15 +41,26 @@ public sealed class CurseForgeApiClient
     private readonly HttpClient httpClient;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly ILogger logger;
+    private readonly DownloadHostConcurrencyController hostConcurrencyController;
 
     public CurseForgeApiClient(
         HttpClient? httpClient = null,
         IImportConcurrencyLimiter? limiter = null,
         ILogger<CurseForgeApiClient>? logger = null)
+        : this(httpClient, limiter, logger, DownloadHostConcurrencyController.Shared)
+    {
+    }
+
+    internal CurseForgeApiClient(
+        HttpClient? httpClient,
+        IImportConcurrencyLimiter? limiter,
+        ILogger<CurseForgeApiClient>? logger,
+        DownloadHostConcurrencyController hostConcurrencyController)
     {
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.logger = logger ?? NullLogger<CurseForgeApiClient>.Instance;
+        this.hostConcurrencyController = hostConcurrencyController;
     }
 
     internal async Task<CurseForgeResolvedFileDownload> GetFileDownloadAsync(
@@ -117,12 +128,15 @@ public sealed class CurseForgeApiClient
         request.Content = JsonContent.Create(
             new CurseForgeFingerprintRequest(fingerprints.Distinct().ToArray()));
 
-        await using var lease = await limiter.AcquireMetadataSlotAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        return await ParseFingerprintMatchesAsync(stream, cancellationToken).ConfigureAwait(false);
+        return await SendMetadataAsync(
+            request,
+            async (response, token) =>
+            {
+                response.EnsureSuccessStatusCode();
+                await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+                return await ParseFingerprintMatchesAsync(stream, token).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<CurseForgeFile> GetFileMetadataAsync(
@@ -132,27 +146,31 @@ public sealed class CurseForgeApiClient
         CancellationToken cancellationToken)
     {
         using var request = CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}", apiKey);
-        await using var lease = await limiter.AcquireMetadataSlotAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.CurseForgeFileUnavailable,
-                $"CurseForge file {projectId}/{fileId} was not found.");
-        }
+        return await SendMetadataAsync(
+            request,
+            async (response, token) =>
+            {
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.CurseForgeFileUnavailable,
+                        $"CurseForge file {projectId}/{fileId} was not found.");
+                }
 
-        response.EnsureSuccessStatusCode();
-        var fileResponse = await response.Content.ReadFromJsonAsync<CurseForgeFileResponse>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        var file = fileResponse?.Data;
-        if (file is null || string.IsNullOrWhiteSpace(file.FileName))
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.InvalidManifest,
-                $"CurseForge file metadata is missing for {projectId}/{fileId}.");
-        }
+                response.EnsureSuccessStatusCode();
+                var fileResponse = await response.Content.ReadFromJsonAsync<CurseForgeFileResponse>(cancellationToken: token)
+                    .ConfigureAwait(false);
+                var file = fileResponse?.Data;
+                if (file is null || string.IsNullOrWhiteSpace(file.FileName))
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"CurseForge file metadata is missing for {projectId}/{fileId}.");
+                }
 
-        return file;
+                return file;
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DownloadUrlResult> TryGetDownloadUrlAsync(
@@ -163,22 +181,109 @@ public sealed class CurseForgeApiClient
     {
         // 403/404 可能表示作者禁用 API 下载，不等同于元数据请求失败，调用方仍可回退 CDN。
         using var request = CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}/download-url", apiKey);
-        await using var lease = await limiter.AcquireMetadataSlotAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
-        {
-            logger.LogInformation(
-                "CurseForge download-url endpoint did not provide a direct URL. ProjectId={ProjectId} FileId={FileId} StatusCode={StatusCode}",
-                projectId,
-                fileId,
-                (int)response.StatusCode);
-            return new DownloadUrlResult(response.StatusCode, null);
-        }
+        return await SendMetadataAsync(
+            request,
+            async (response, token) =>
+            {
+                if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+                {
+                    logger.LogInformation(
+                        "CurseForge download-url endpoint did not provide a direct URL. ProjectId={ProjectId} FileId={FileId} StatusCode={StatusCode}",
+                        projectId,
+                        fileId,
+                        (int)response.StatusCode);
+                    return new DownloadUrlResult(response.StatusCode, null);
+                }
 
-        response.EnsureSuccessStatusCode();
-        var downloadUrlResponse = await response.Content.ReadFromJsonAsync<CurseForgeDownloadUrlResponse>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        return new DownloadUrlResult(response.StatusCode, downloadUrlResponse?.Data);
+                response.EnsureSuccessStatusCode();
+                var downloadUrlResponse = await response.Content.ReadFromJsonAsync<CurseForgeDownloadUrlResponse>(cancellationToken: token)
+                    .ConfigureAwait(false);
+                return new DownloadUrlResult(response.StatusCode, downloadUrlResponse?.Data);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<T> SendMetadataAsync<T>(
+        HttpRequestMessage request,
+        Func<HttpResponseMessage, CancellationToken, Task<T>> readAsync,
+        CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri ?? throw new InvalidOperationException("CurseForge request URI is missing.");
+        await using var admission = await hostConcurrencyController.AcquireAsync(
+            uri,
+            limiter.AcquireMetadataSlotAsync,
+            applyColdStartJitter: true,
+            cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage? response = null;
+        DownloadFailureReason? failureReason = null;
+        HttpStatusCode? statusCode = null;
+        var recordResult = false;
+        try
+        {
+            response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            var result = await readAsync(response, cancellationToken).ConfigureAwait(false);
+            failureReason = response.IsSuccessStatusCode ? null : DownloadFailureReason.HttpStatus;
+            recordResult = true;
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.ResponseHeadersTimeout
+                : DownloadFailureReason.BodyInterrupted;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.Network
+                : response.IsSuccessStatusCode
+                    ? DownloadFailureReason.BodyInterrupted
+                    : DownloadFailureReason.HttpStatus;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        catch (IOException)
+        {
+            failureReason = response is null
+                ? DownloadFailureReason.Network
+                : DownloadFailureReason.BodyInterrupted;
+            statusCode = response?.StatusCode;
+            recordResult = true;
+            throw;
+        }
+        finally
+        {
+            response?.Dispose();
+            if (recordResult)
+                RecordHostResult(admission.Origin, failureReason, statusCode);
+        }
+    }
+
+    private void RecordHostResult(
+        string origin,
+        DownloadFailureReason? failureReason,
+        HttpStatusCode? statusCode)
+    {
+        var adjustment = hostConcurrencyController.RecordResult(origin, failureReason, statusCode);
+        if (adjustment is null)
+            return;
+        logger.LogInformation(
+            "Download host concurrency adjusted. HostOrigin={HostOrigin} PreviousTarget={PreviousTarget} CurrentTarget={CurrentTarget} AdjustmentReason={AdjustmentReason} SuccessCount={SuccessCount} FailureCount={FailureCount}",
+            adjustment.Origin,
+            adjustment.PreviousTarget,
+            adjustment.CurrentTarget,
+            adjustment.Reason,
+            adjustment.Successes,
+            adjustment.Failures);
     }
 
     private static HttpRequestMessage CreateRequest(string requestUri, string apiKey)

@@ -38,6 +38,60 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
+    public async Task ForgeLoaderProviderPassesSelectedJavaPathToInstallerRunner()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
+        var expectedJavaPath = Path.Combine(TempRoot, "Selected Java", "bin", "java.exe");
+        string? receivedJavaPath = null;
+        var provider = CreateProvider(
+            new ScriptedForgeInstallerRunner((gameDirectory, javaPath, _) =>
+            {
+                receivedJavaPath = javaPath;
+                return CreateSandboxForgeInstallAsync(
+                    gameDirectory,
+                    "forge-1.20.1-47.4.20",
+                    "1.20.1",
+                    "1.20.1-47.4.20");
+            }),
+            javaRuntimeResolver: new FixedJavaRuntimeResolver(expectedJavaPath));
+
+        await provider.InstallAsync(
+            "1.20.1",
+            minecraftDirectory,
+            "1.20.1-forge-47.4.20",
+            "47.4.20",
+            progress: null);
+
+        Assert.Equal(expectedJavaPath, receivedJavaPath);
+    }
+
+    [Fact]
+    public async Task ForgeLoaderProviderDoesNotStartInstallerWhenJavaSelectionFails()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
+        var runnerStarted = false;
+        var provider = CreateProvider(
+            new ScriptedForgeInstallerRunner((_, _, _) =>
+            {
+                runnerStarted = true;
+                return Task.CompletedTask;
+            }),
+            javaRuntimeResolver: new FailingJavaRuntimeResolver());
+
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() => provider.InstallAsync(
+            "1.20.1",
+            minecraftDirectory,
+            "1.20.1-forge-47.4.20",
+            "47.4.20",
+            progress: null));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing, exception.Reason);
+        Assert.False(runnerStarted);
+    }
+
+    [Fact]
     public async Task ForgeInstallerRunnerCancellationTerminatesEntireProcessTree()
     {
         Directory.CreateDirectory(TempRoot);
@@ -80,7 +134,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         try
         {
             var runTask = runner.RunInstallerAsync(
-                "ignored-java",
+                Path.Combine(TempRoot, "ignored-java.exe"),
                 Path.Combine(TempRoot, "ignored-installer.jar"),
                 TempRoot,
                 cancellation.Token);
@@ -115,10 +169,80 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunInstallerAsync(
-            "ignored-java",
+            Path.Combine(TempRoot, "ignored-java.exe"),
             Path.Combine(TempRoot, "ignored-installer.jar"),
             TempRoot,
             cancellation.Token));
+
+        Assert.False(started);
+    }
+
+    [Fact]
+    public async Task ForgeInstallerRunnerUsesExactJavaPathAndArgumentList()
+    {
+        ProcessStartInfo? capturedStartInfo = null;
+        var javaPath = Path.Combine(TempRoot, "Java Runtime", "bin", "java.exe");
+        var installerPath = Path.Combine(TempRoot, "Forge Installer", "forge installer.jar");
+        var gameDirectory = Path.Combine(TempRoot, "Game Directory");
+        var runner = new ForgeInstallerRunner(startInfo =>
+        {
+            capturedStartInfo = startInfo;
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            processStartInfo.ArgumentList.Add("-NoProfile");
+            processStartInfo.ArgumentList.Add("-NonInteractive");
+            processStartInfo.ArgumentList.Add("-Command");
+            processStartInfo.ArgumentList.Add("exit 0");
+            return Process.Start(processStartInfo);
+        });
+
+        await runner.RunInstallerAsync(javaPath, installerPath, gameDirectory, CancellationToken.None);
+
+        Assert.NotNull(capturedStartInfo);
+        Assert.Equal(javaPath, capturedStartInfo.FileName);
+        Assert.Equal(["-jar", installerPath, "--installClient", gameDirectory], capturedStartInfo.ArgumentList);
+    }
+
+    [Fact]
+    public async Task ForgeInstallerRunnerRejectsMissingJavaPathWithoutStartingProcess()
+    {
+        var started = false;
+        var runner = new ForgeInstallerRunner(_ =>
+        {
+            started = true;
+            return null;
+        });
+
+        await Assert.ThrowsAsync<ArgumentException>(() => runner.RunInstallerAsync(
+            string.Empty,
+            Path.Combine(TempRoot, "installer.jar"),
+            TempRoot,
+            CancellationToken.None));
+
+        Assert.False(started);
+    }
+
+    [Fact]
+    public async Task ForgeInstallerRunnerRejectsPathJavaFallbackWithoutStartingProcess()
+    {
+        var started = false;
+        var runner = new ForgeInstallerRunner(_ =>
+        {
+            started = true;
+            return null;
+        });
+
+        await Assert.ThrowsAsync<ArgumentException>(() => runner.RunInstallerAsync(
+            "java",
+            Path.Combine(TempRoot, "installer.jar"),
+            TempRoot,
+            CancellationToken.None));
 
         Assert.False(started);
     }
@@ -261,7 +385,8 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
                     "1.20.1",
                     "1.20.1-47.4.20")),
             new NoOpFinalVersionInstaller(),
-            TempRoot);
+            TempRoot,
+            javaRuntimeResolver: new FixedJavaRuntimeResolver());
         await provider.InstallAsync(
             "1.20.1",
             minecraftDirectory,
@@ -353,6 +478,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         var expectedStages = new[]
         {
             LaunchProgressStages.RepairingLoaderInstaller,
+            LaunchProgressStages.CheckingJava,
             LaunchProgressStages.RunningLoaderInstaller,
             LaunchProgressStages.FinalizingLoaderVersion,
             LaunchProgressStages.PublishingLoaderArtifacts,
@@ -579,13 +705,15 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
     private ForgeLoaderProvider CreateProvider(
         IForgeInstallerRunner? runner = null,
-        IFinalVersionInstaller? finalVersionInstaller = null)
+        IFinalVersionInstaller? finalVersionInstaller = null,
+        ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver = null)
     {
         return new ForgeLoaderProvider(
             new HttpClient(new ForgeHttpHandler()),
             runner ?? new NoOpForgeInstallerRunner(),
             finalVersionInstaller ?? new NoOpFinalVersionInstaller(),
-            TempRoot);
+            TempRoot,
+            javaRuntimeResolver: javaRuntimeResolver ?? new FixedJavaRuntimeResolver());
     }
 
     private static async Task CreateSandboxForgeInstallAsync(
@@ -868,6 +996,39 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             LastPath = path;
             LastVersionName = versionName;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FixedJavaRuntimeResolver(string? executablePath = null) : ILoaderInstallerJavaRuntimeResolver
+    {
+        public Task<JavaRuntimeInfo> ResolveAsync(
+            string minecraftVersion,
+            string versionName,
+            CancellationToken cancellationToken = default)
+        {
+            var path = executablePath ?? Path.Combine("C:\\Program Files", "Launcher Java", "bin", "java.exe");
+            return Task.FromResult(new JavaRuntimeInfo(
+                "Launcher Java 21",
+                "21.0.2",
+                21,
+                "x64",
+                path,
+                Path.GetDirectoryName(Path.GetDirectoryName(path))!,
+                "Test"));
+        }
+    }
+
+    private sealed class FailingJavaRuntimeResolver : ILoaderInstallerJavaRuntimeResolver
+    {
+        public Task<JavaRuntimeInfo> ResolveAsync(
+            string minecraftVersion,
+            string versionName,
+            CancellationToken cancellationToken = default)
+        {
+            throw new JavaRuntimeSelectionException(
+                "No compatible Java runtime is available.",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                17);
         }
     }
 

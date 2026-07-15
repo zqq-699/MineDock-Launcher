@@ -41,7 +41,8 @@ public sealed class DownloadRequestExecutorLeaseTests
             retryOptions: new DownloadRetryOptions
             {
                 ResponseHeadersTimeout = TimeSpan.FromMinutes(1)
-            });
+            },
+            hostConcurrencyController: CreateHostController());
         using var cancellation = new CancellationTokenSource();
 
         var requests = Enumerable.Range(0, 2)
@@ -63,6 +64,11 @@ public sealed class DownloadRequestExecutorLeaseTests
             limiter.AcquireMetadataSlotAsync,
             slotCount: 2);
     }
+
+    private static DownloadHostConcurrencyController CreateHostController() => new(
+        maximumJitter: TimeSpan.Zero,
+        nextJitter: () => 0,
+        delayAsync: static (_, _) => ValueTask.CompletedTask);
 }
 
 public sealed class DownloadSourceRoutingLeaseTests
@@ -80,7 +86,8 @@ public sealed class DownloadSourceRoutingLeaseTests
             retryOptions: new DownloadRetryOptions
             {
                 ResponseHeadersTimeout = TimeSpan.FromMinutes(1)
-            }));
+            },
+            hostConcurrencyController: CreateHostController()));
         using var cancellation = new CancellationTokenSource();
 
         var requests = Enumerable.Range(0, 8)
@@ -111,7 +118,8 @@ public sealed class DownloadSourceRoutingLeaseTests
             {
                 MaxAttemptsPerSource = 1,
                 RetryDelay = TimeSpan.Zero
-            }));
+            },
+            hostConcurrencyController: CreateHostController()));
 
         foreach (var index in Enumerable.Range(0, 8))
         {
@@ -123,6 +131,11 @@ public sealed class DownloadSourceRoutingLeaseTests
             limiter.AcquireRuntimeDownloadSlotAsync,
             slotCount: 8);
     }
+
+    private static DownloadHostConcurrencyController CreateHostController() => new(
+        maximumJitter: TimeSpan.Zero,
+        nextJitter: () => 0,
+        delayAsync: static (_, _) => ValueTask.CompletedTask);
 }
 
 internal sealed class BlockingRequestHandler(int expectedRequestCount) : HttpMessageHandler

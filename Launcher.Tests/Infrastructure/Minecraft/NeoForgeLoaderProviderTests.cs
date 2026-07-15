@@ -31,6 +31,31 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
 {
     [Fact]
+    public async Task NeoForgeLoaderProviderPassesSelectedJavaPathToInstallerRunner()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.4");
+        var expectedJavaPath = Path.Combine(TempRoot, "Selected Java", "bin", "java.exe");
+        string? receivedJavaPath = null;
+        var provider = CreateProvider(
+            new ScriptedForgeInstallerRunner((gameDirectory, javaPath, _) =>
+            {
+                receivedJavaPath = javaPath;
+                return CreateSandboxNeoForgeInstallAsync(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237");
+            }),
+            javaRuntimeResolver: new FixedJavaRuntimeResolver(expectedJavaPath));
+
+        await provider.InstallAsync(
+            "1.20.4",
+            minecraftDirectory,
+            "1.20.4-neoforge-20.4.237",
+            "20.4.237",
+            progress: null);
+
+        Assert.Equal(expectedJavaPath, receivedJavaPath);
+    }
+
+    [Fact]
     public async Task NeoForgeLoaderProviderParsesVersionsFromOfficialMetadata()
     {
         var provider = CreateProvider();
@@ -288,13 +313,15 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
 
     private NeoForgeLoaderProvider CreateProvider(
         IForgeInstallerRunner? runner = null,
-        IFinalVersionInstaller? finalVersionInstaller = null)
+        IFinalVersionInstaller? finalVersionInstaller = null,
+        ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver = null)
     {
         return new NeoForgeLoaderProvider(
             new HttpClient(new NeoForgeHttpHandler()),
             runner ?? new NoOpForgeInstallerRunner(),
             finalVersionInstaller ?? new NoOpFinalVersionInstaller(),
-            TempRoot);
+            TempRoot,
+            javaRuntimeResolver: javaRuntimeResolver ?? new FixedJavaRuntimeResolver());
     }
 
     private static async Task CreateSandboxNeoForgeInstallAsync(
@@ -437,6 +464,25 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             LastPath = path;
             LastVersionName = versionName;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FixedJavaRuntimeResolver(string? executablePath = null) : ILoaderInstallerJavaRuntimeResolver
+    {
+        public Task<JavaRuntimeInfo> ResolveAsync(
+            string minecraftVersion,
+            string versionName,
+            CancellationToken cancellationToken = default)
+        {
+            var path = executablePath ?? Path.Combine("C:\\Program Files", "Launcher Java", "bin", "java.exe");
+            return Task.FromResult(new JavaRuntimeInfo(
+                "Launcher Java 21",
+                "21.0.2",
+                21,
+                "x64",
+                path,
+                Path.GetDirectoryName(Path.GetDirectoryName(path))!,
+                "Test"));
         }
     }
 

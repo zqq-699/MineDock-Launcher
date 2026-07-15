@@ -253,9 +253,7 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
         ProcessStartInfo startInfo,
         CancellationToken cancellationToken = default)
     {
-        var plan = await manifestBuilder.ResolveAsync(request, cancellationToken).ConfigureAwait(false);
-        var manifestReport = await GameFileManifestValidator.ValidateAsync(plan.Manifest, cancellationToken)
-            .ConfigureAwait(false);
+        var plan = await manifestBuilder.ResolveFinalCommandAsync(request, cancellationToken).ConfigureAwait(false);
         var knownFiles = plan.Manifest.Files
             .Select(file => Path.GetFullPath(file.TargetPath))
             .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -263,7 +261,7 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Select(path => NormalizeCommandPath(path, startInfo.WorkingDirectory))
             .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        var failures = new List<GameFileRepairFailure>(manifestReport.Failures);
+        var failures = new List<GameFileRepairFailure>();
         foreach (var reference in FinalLaunchCommandPathReader.Read(startInfo))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -560,6 +558,21 @@ internal sealed class RequiredGameFileManifestBuilder
 
     public async Task<ResolvedLaunchPlan> ResolveAsync(GameFileIntegrityRequest request, CancellationToken cancellationToken)
     {
+        return await ResolveAsync(request, includeAssets: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ResolvedLaunchPlan> ResolveFinalCommandAsync(
+        GameFileIntegrityRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await ResolveAsync(request, includeAssets: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ResolvedLaunchPlan> ResolveAsync(
+        GameFileIntegrityRequest request,
+        bool includeAssets,
+        CancellationToken cancellationToken)
+    {
         var versionDirectory = Path.GetFullPath(request.InstanceDirectory);
         var versionResolution = await ReadResolvedVersionJsonAsync(request.MinecraftDirectory, request.VersionName, versionDirectory, cancellationToken)
             .ConfigureAwait(false);
@@ -580,7 +593,8 @@ internal sealed class RequiredGameFileManifestBuilder
         }
         AddClientJar(files, versionDirectory, request.VersionName, versionJson);
         AddLibraries(files, request.MinecraftDirectory, versionJson);
-        await AddAssetsAsync(files, request.MinecraftDirectory, versionJson, cancellationToken).ConfigureAwait(false);
+        if (includeAssets)
+            await AddAssetsAsync(files, request.MinecraftDirectory, versionJson, cancellationToken).ConfigureAwait(false);
         AddLogging(files, request.MinecraftDirectory, versionJson);
         await AddLoaderArtifactsAsync(files, request, versionDirectory, cancellationToken).ConfigureAwait(false);
         return new ResolvedLaunchPlan(request.VersionName, versionJson, new RequiredGameFileManifest(files.Values.ToList()));

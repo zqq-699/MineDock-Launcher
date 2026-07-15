@@ -26,15 +26,9 @@ namespace Launcher.Tests.Infrastructure.Modpacks;
 public sealed class ImportConcurrencyLimiterTests
 {
     [Fact]
-    public async Task AdaptiveSchedulerStartsAtSixtyFourAndDropsAfterFailure()
+    public async Task GlobalSchedulerStartsAndRemainsAtSixtyFour()
     {
-        var clock = new TestTimeProvider();
-        var scheduler = new AdaptiveDownloadScheduler(
-            ImportConcurrencyLimiter.MinimumDownloadConcurrency,
-            ImportConcurrencyLimiter.InitialDownloadConcurrency,
-            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
-            timeProvider: clock,
-            adjustmentCooldown: TimeSpan.FromSeconds(1));
+        var scheduler = new FixedDownloadScheduler(ImportConcurrencyLimiter.MaximumDownloadConcurrency);
         var leases = new List<IImportConcurrencyLease>();
 
         try
@@ -45,9 +39,7 @@ public sealed class ImportConcurrencyLimiterTests
             Assert.Equal(ImportConcurrencyLimiter.InitialDownloadConcurrency, scheduler.Snapshot.CurrentTarget);
             Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, scheduler.Snapshot.ConfiguredMaximum);
 
-            clock.Advance(TimeSpan.FromSeconds(1));
-            scheduler.RecordResult(DownloadFailureReason.Network);
-            Assert.Equal(32, scheduler.Snapshot.CurrentTarget);
+            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, scheduler.Snapshot.CurrentTarget);
         }
         finally
         {
@@ -57,44 +49,24 @@ public sealed class ImportConcurrencyLimiterTests
     }
 
     [Fact]
-    public async Task AdaptiveSchedulerRampsToMaximumWhenSuccessfulRequestsAreWaiting()
+    public async Task GlobalSchedulerReleasesQueuedRequestsWithoutChangingTarget()
     {
-        var rampingClock = new TestTimeProvider();
-        var rampingScheduler = new AdaptiveDownloadScheduler(
-            minimum: 4,
-            initial: 4,
-            maximum: 6,
-            timeProvider: rampingClock,
-            adjustmentCooldown: TimeSpan.FromSeconds(1));
-        var rampingLeases = new List<IImportConcurrencyLease>();
+        var scheduler = new FixedDownloadScheduler(maximum: 2);
+        var first = await scheduler.AcquireAsync(CancellationToken.None);
+        var second = await scheduler.AcquireAsync(CancellationToken.None);
 
         try
         {
-            for (var index = 0; index < 4; index++)
-                rampingLeases.Add(await rampingScheduler.AcquireAsync(CancellationToken.None));
-
-            for (var target = 4;
-                 target < 6;
-                 target++)
-            {
-                var queued = rampingScheduler.AcquireAsync(CancellationToken.None).AsTask();
-                Assert.True(SpinWait.SpinUntil(
-                    () => rampingScheduler.Snapshot.WaitingCount == 1,
-                    TimeSpan.FromSeconds(1)));
-
-                for (var index = 0; index < target; index++)
-                    rampingScheduler.RecordResult(failureReason: null);
-
-                rampingClock.Advance(TimeSpan.FromSeconds(1));
-                rampingScheduler.RecordResult(failureReason: null);
-                rampingLeases.Add(await queued.WaitAsync(TimeSpan.FromSeconds(1)));
-                Assert.Equal(target + 1, rampingScheduler.Snapshot.CurrentTarget);
-            }
+            var queued = scheduler.AcquireAsync(CancellationToken.None).AsTask();
+            Assert.False(queued.IsCompleted);
+            first.Dispose();
+            await using var released = await queued.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.Equal(2, scheduler.Snapshot.CurrentTarget);
         }
         finally
         {
-            foreach (var lease in rampingLeases)
-                lease.Dispose();
+            first.Dispose();
+            second.Dispose();
         }
     }
 
@@ -217,12 +189,4 @@ public sealed class ImportConcurrencyLimiterTests
         }
     }
 
-    private sealed class TestTimeProvider : TimeProvider
-    {
-        private DateTimeOffset utcNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        public override DateTimeOffset GetUtcNow() => utcNow;
-
-        public void Advance(TimeSpan duration) => utcNow += duration;
-    }
 }

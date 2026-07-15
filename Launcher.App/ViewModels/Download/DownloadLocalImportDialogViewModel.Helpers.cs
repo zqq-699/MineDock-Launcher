@@ -63,6 +63,8 @@ private bool TryResolveSingleFile(IReadOnlyList<string> paths, out string resolv
                 => Strings.Status_ModpackMissingCurseForgeApiKey,
             ModpackImportFailureReason.HashMismatch
                 => Strings.Status_ModpackHashMismatch,
+            ModpackImportFailureReason.JavaRuntimeUnavailable
+                => Strings.Status_JavaSelectionFailed,
             _ => Strings.Status_ModpackImportFailed
         };
     }

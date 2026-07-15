@@ -143,7 +143,6 @@ private async Task<string> InstallCoreAsync(
                 selectedLoaderVersion,
                 prerequisitesStopwatch.ElapsedMilliseconds);
 
-            progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             var installerRunStopwatch = Stopwatch.StartNew();
             logger.LogInformation(
                 "Forge Java installer process started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
@@ -153,6 +152,7 @@ private async Task<string> InstallCoreAsync(
                 installerJarPath,
                 installerMinecraftDirectory,
                 minecraftVersion,
+                isolatedVersionName,
                 selectedLoaderVersion,
                 downloadSourcePreference,
                 progress,
@@ -360,16 +360,25 @@ private async Task<string> InstallCoreAsync(
         string installerJarPath,
         string installerMinecraftDirectory,
         string minecraftVersion,
+        string isolatedVersionName,
         string selectedLoaderVersion,
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond)
     {
+        progress?.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
+        var resolver = javaRuntimeResolver
+            ?? throw new InvalidOperationException("The loader installer Java runtime resolver is not configured.");
+        var javaRuntime = await resolver
+            .ResolveAsync(minecraftVersion, isolatedVersionName, cancellationToken)
+            .ConfigureAwait(false);
+        progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
+
         try
         {
             await installerRunner.RunInstallerAsync(
-                "java",
+                javaRuntime.ExecutablePath,
                 installerJarPath,
                 installerMinecraftDirectory,
                 cancellationToken);

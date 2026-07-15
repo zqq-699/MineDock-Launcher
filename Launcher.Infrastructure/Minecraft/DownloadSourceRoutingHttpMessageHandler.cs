@@ -45,7 +45,8 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
         ILogger? logger = null,
         DownloadBandwidthLimiter? bandwidthLimiter = null,
         IImportConcurrencyLimiter? limiter = null,
-        DownloadRetryOptions? retryOptions = null)
+        DownloadRetryOptions? retryOptions = null,
+        DownloadHostConcurrencyController? hostConcurrencyController = null)
         : base(innerHandler)
     {
         this.preference = preference;
@@ -63,7 +64,8 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
             retryOptions,
             addressPolicy: innerHandler is RoutingDownloadHttpMessageHandler
                 ? new DownloadAddressPolicy()
-                : DownloadAddressPolicy.CreateForInjectedTransport());
+                : DownloadAddressPolicy.CreateForInjectedTransport(),
+            hostConcurrencyController: hostConcurrencyController);
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(

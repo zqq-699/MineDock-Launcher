@@ -47,6 +47,7 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
     private readonly HttpClient httpClient;
     private readonly IForgeInstallerRunner installerRunner;
     private readonly IFinalVersionInstaller finalVersionInstaller;
+    private readonly ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly ILogger logger;
     private readonly string tempRootDirectory;
@@ -57,7 +58,7 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
         HttpClient? httpClient = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<ForgeLoaderProvider>? logger = null)
-        : this(httpClient, installerRunner: null, finalVersionInstaller: null, tempRootDirectory: null, downloadSpeedLimitState, logger)
+        : this(httpClient, installerRunner: null, finalVersionInstaller: null, tempRootDirectory: null, downloadSpeedLimitState, logger, javaRuntimeResolver: null)
     {
     }
 
@@ -66,7 +67,7 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
         IForgeInstallerRunner? installerRunner,
         string? tempRootDirectory,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null)
-        : this(httpClient, installerRunner, finalVersionInstaller: null, tempRootDirectory, downloadSpeedLimitState, logger: null)
+        : this(httpClient, installerRunner, finalVersionInstaller: null, tempRootDirectory, downloadSpeedLimitState, logger: null, javaRuntimeResolver: null)
     {
     }
 
@@ -76,11 +77,13 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
         IFinalVersionInstaller? finalVersionInstaller,
         string? tempRootDirectory,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver = null)
     {
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.installerRunner = installerRunner ?? new ForgeInstallerRunner();
         this.finalVersionInstaller = finalVersionInstaller ?? new FinalVersionInstaller();
+        this.javaRuntimeResolver = javaRuntimeResolver;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger.Instance;
         this.tempRootDirectory = string.IsNullOrWhiteSpace(tempRootDirectory) ? Path.GetTempPath() : tempRootDirectory;

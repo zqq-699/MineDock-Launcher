@@ -88,6 +88,31 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task JavaSelectionFailureReturnsDedicatedReasonAndCleansStagedInstance()
+    {
+        var staging = new FakeStaging(TempRoot);
+        var installer = new FakeInstaller
+        {
+            LoaderException = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                17)
+        };
+        var service = new LocalModpackImportService(
+            new FakeGameInstanceService(),
+            new FakePackage(CreatePrepared("Missing Java")),
+            installer,
+            staging);
+
+        var result = await service.ImportFromArchiveAsync("pack.mrpack", null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ModpackImportFailureReason.JavaRuntimeUnavailable, result.FailureReason);
+        Assert.Equal(1, staging.CleanupCount);
+        Assert.False(Directory.Exists(staging.LastDirectory));
+    }
+
+    [Fact]
     public async Task ConcurrentImportsSerializeLoaderInstallationButKeepContentDownloadsParallel()
     {
         var coordinator = new GameInstallCoordinator();

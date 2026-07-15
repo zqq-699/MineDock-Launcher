@@ -51,10 +51,25 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceInstallTransactionService, InstanceInstallTransactionService>();
         services.AddSingleton<IInstanceInstallCleanupService, InstanceInstallCleanupService>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
+        services.AddSingleton<LoaderInstallerJavaRuntimeResolver>();
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
         services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();
-        services.AddSingleton<ILoaderProvider, ForgeLoaderProvider>();
-        services.AddSingleton<ILoaderProvider, NeoForgeLoaderProvider>();
+        services.AddSingleton<ILoaderProvider>(serviceProvider => new ForgeLoaderProvider(
+            httpClient: null,
+            installerRunner: null,
+            finalVersionInstaller: null,
+            tempRootDirectory: null,
+            serviceProvider.GetService<IDownloadSpeedLimitState>(),
+            serviceProvider.GetService<ILogger<ForgeLoaderProvider>>(),
+            serviceProvider.GetRequiredService<LoaderInstallerJavaRuntimeResolver>()));
+        services.AddSingleton<ILoaderProvider>(serviceProvider => new NeoForgeLoaderProvider(
+            httpClient: null,
+            installerRunner: null,
+            finalVersionInstaller: null,
+            tempRootDirectory: null,
+            serviceProvider.GetService<IDownloadSpeedLimitState>(),
+            serviceProvider.GetService<ILogger<NeoForgeLoaderProvider>>(),
+            serviceProvider.GetRequiredService<LoaderInstallerJavaRuntimeResolver>()));
         services.AddSingleton<ILoaderProvider, QuiltLoaderProvider>();
         services.AddSingleton<ILoaderFileManifestContributor>(
             new ResolvedVersionLoaderFileManifestContributor(LoaderKind.Vanilla));

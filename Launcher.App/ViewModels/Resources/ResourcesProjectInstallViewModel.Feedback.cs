@@ -67,6 +67,7 @@ private void BeginUserFeedback(ResourcesModVersionItemViewModel item)
             ModpackImportFailureReason.UnsupportedLoader => Strings.Status_ModpackUnsupportedLoader,
             ModpackImportFailureReason.MissingCurseForgeApiKey => Strings.Status_ModpackMissingCurseForgeApiKey,
             ModpackImportFailureReason.HashMismatch => Strings.Status_ModpackHashMismatch,
+            ModpackImportFailureReason.JavaRuntimeUnavailable => Strings.Status_JavaSelectionFailed,
             _ => options.InstallFailedText
         };
     }

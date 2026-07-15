@@ -36,7 +36,8 @@ public enum ModpackImportFailureReason
     MissingCurseForgeApiKey,
     CurseForgeFileUnavailable,
     HashMismatch,
-    UnexpectedError
+    UnexpectedError,
+    JavaRuntimeUnavailable
 }
 
 public sealed class ModpackImportResult

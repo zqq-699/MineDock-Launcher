@@ -36,7 +36,7 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal interface IForgeInstallerRunner
 {
-    Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken);
+    Task RunInstallerAsync(string javaExecutablePath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken);
 }
 
 internal interface IFinalVersionInstaller
@@ -241,21 +241,34 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
         this.startProcess = startProcess ?? throw new ArgumentNullException(nameof(startProcess));
     }
 
-    public async Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
+    public async Task RunInstallerAsync(string javaExecutablePath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(javaExecutablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(installerJarPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(minecraftDirectory);
+        if (!Path.IsPathFullyQualified(javaExecutablePath))
+        {
+            throw new ArgumentException(
+                "The Java executable path must be fully qualified.",
+                nameof(javaExecutablePath));
+        }
+
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             var startInfo = new ProcessStartInfo
             {
-                FileName = string.IsNullOrWhiteSpace(javaCommand) ? "java" : javaCommand,
-                Arguments = $"-jar \"{installerJarPath}\" --installClient \"{minecraftDirectory}\"",
+                FileName = javaExecutablePath,
                 WorkingDirectory = minecraftDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            startInfo.ArgumentList.Add("-jar");
+            startInfo.ArgumentList.Add(installerJarPath);
+            startInfo.ArgumentList.Add("--installClient");
+            startInfo.ArgumentList.Add(minecraftDirectory);
 
             using var process = startProcess(startInfo)
                 ?? throw new InvalidOperationException("Forge installer could not be started.");

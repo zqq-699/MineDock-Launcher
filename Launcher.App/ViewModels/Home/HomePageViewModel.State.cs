@@ -137,6 +137,7 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
             LaunchProgressStages.RepairingLibraries => Strings.Status_LaunchRepairingLibraries,
             LaunchProgressStages.RepairingAssets => Strings.Status_LaunchRepairingAssets,
             LaunchProgressStages.RepairingLogging => Strings.Status_LaunchRepairingLogging,
+            InstallProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
             LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
             LaunchProgressStages.RunningPreLaunchCommand => Strings.Status_LaunchRunningPreLaunchCommand,
             LaunchProgressStages.PreparingProcess => Strings.Status_LaunchPreparingProcess,

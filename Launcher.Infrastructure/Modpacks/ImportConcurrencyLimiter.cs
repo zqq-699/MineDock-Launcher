@@ -5,8 +5,6 @@
  */
 
 using Launcher.Application.Services;
-using Launcher.Infrastructure.Minecraft;
-
 namespace Launcher.Infrastructure.Modpacks;
 
 internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
@@ -18,10 +16,7 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
-    private readonly AdaptiveDownloadScheduler downloadScheduler = new(
-        minimum: MinimumDownloadConcurrency,
-        initial: InitialDownloadConcurrency,
-        maximum: MaximumDownloadConcurrency);
+    private readonly FixedDownloadScheduler downloadScheduler = new(MaximumDownloadConcurrency);
 
     public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default) =>
         downloadScheduler.AcquireAsync(cancellationToken);
@@ -34,12 +29,6 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
 
     public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default) =>
         AcquireFixedAsync(hashSemaphore, cancellationToken);
-
-    internal void RecordDownloadResult(DownloadConcurrencyCategory category, DownloadFailureReason? failureReason)
-    {
-        _ = category;
-        downloadScheduler.RecordResult(failureReason);
-    }
 
     internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) DownloadSnapshot =>
         downloadScheduler.Snapshot;
@@ -58,122 +47,52 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
     }
 }
 
-/// <summary>
-/// A lease scheduler instead of a replaceable semaphore. Lowering the target
-/// simply stops issuing new leases; already useful requests finish normally.
-/// </summary>
-internal sealed class AdaptiveDownloadScheduler
+internal sealed class FixedDownloadScheduler
 {
-    private static readonly TimeSpan AdjustmentCooldown = TimeSpan.FromSeconds(20);
-    private readonly object syncRoot = new();
-    private readonly SemaphoreSlim signal = new(0);
-    private readonly int minimum;
+    private readonly SemaphoreSlim semaphore;
     private readonly int maximum;
-    private readonly TimeProvider timeProvider;
-    private readonly TimeSpan adjustmentCooldown;
     private int activeCount;
     private int waitingCount;
-    private int currentTarget;
-    private int successes;
-    private int failures;
-    private DateTimeOffset lastAdjustmentAt;
 
-    public AdaptiveDownloadScheduler(
-        int minimum,
-        int initial,
-        int maximum,
-        TimeProvider? timeProvider = null,
-        TimeSpan? adjustmentCooldown = null)
+    public FixedDownloadScheduler(int maximum)
     {
-        this.minimum = minimum;
         this.maximum = maximum;
-        this.timeProvider = timeProvider ?? TimeProvider.System;
-        this.adjustmentCooldown = adjustmentCooldown ?? AdjustmentCooldown;
-        currentTarget = initial;
-        lastAdjustmentAt = this.timeProvider.GetUtcNow();
+        semaphore = new SemaphoreSlim(maximum, maximum);
     }
 
     internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) Snapshot
     {
-        get { lock (syncRoot) return (activeCount, waitingCount, currentTarget, maximum); }
+        get => (
+            Volatile.Read(ref activeCount),
+            Volatile.Read(ref waitingCount),
+            maximum,
+            maximum);
     }
 
     public async ValueTask<IImportConcurrencyLease> AcquireAsync(CancellationToken cancellationToken)
     {
-        lock (syncRoot)
-        {
-            waitingCount++;
-        }
+        Interlocked.Increment(ref waitingCount);
         try
         {
-            while (true)
-            {
-                lock (syncRoot)
-                {
-                    if (activeCount < currentTarget)
-                    {
-                        activeCount++;
-                        return new Lease(this);
-                    }
-                }
-                await signal.WaitAsync(cancellationToken).ConfigureAwait(false);
-            }
+            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            lock (syncRoot)
-            {
-                waitingCount--;
-            }
+            Interlocked.Decrement(ref waitingCount);
         }
-    }
-
-    public void RecordResult(DownloadFailureReason? failureReason)
-    {
-        lock (syncRoot)
-        {
-            if (failureReason is null)
-                successes++;
-            else if (failureReason is DownloadFailureReason.Network or DownloadFailureReason.Dns
-                or DownloadFailureReason.ResponseHeadersTimeout or DownloadFailureReason.FirstByteTimeout
-                or DownloadFailureReason.BodyIdleTimeout
-                or DownloadFailureReason.BodyInterrupted
-                or DownloadFailureReason.HttpStatus)
-                failures++;
-
-            var now = timeProvider.GetUtcNow();
-            if (now - lastAdjustmentAt < adjustmentCooldown)
-                return;
-            if (failures > 0)
-                currentTarget = Math.Max(minimum, (currentTarget + 1) / 2);
-            else if (successes >= currentTarget && waitingCount > 0)
-                currentTarget = Math.Min(maximum, currentTarget + 1);
-            successes = 0;
-            failures = 0;
-            lastAdjustmentAt = now;
-            SignalWaiters();
-        }
+        Interlocked.Increment(ref activeCount);
+        return new Lease(this);
     }
 
     private void Release()
     {
-        lock (syncRoot)
-        {
-            activeCount--;
-            SignalWaiters();
-        }
+        Interlocked.Decrement(ref activeCount);
+        semaphore.Release();
     }
 
-    private void SignalWaiters()
+    private sealed class Lease(FixedDownloadScheduler owner) : IImportConcurrencyLease
     {
-        var available = Math.Max(0, currentTarget - activeCount);
-        while (available-- > 0 && signal.CurrentCount < waitingCount)
-            signal.Release();
-    }
-
-    private sealed class Lease(AdaptiveDownloadScheduler owner) : IImportConcurrencyLease
-    {
-        private AdaptiveDownloadScheduler? owner = owner;
+        private FixedDownloadScheduler? owner = owner;
         public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
         public void Dispose() => Interlocked.Exchange(ref owner, null)?.Release();
     }

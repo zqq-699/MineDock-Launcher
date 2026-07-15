@@ -36,9 +36,9 @@ public sealed class LaunchServiceTests : TestTempDirectory
     [Fact]
     public async Task DisabledFileCheckSkipsFileStagesAndReportsHundredOnlyAfterWindowAppears()
     {
-        var repair = new FakeRepairService();
+        var integrity = new RecordingIntegrityService();
         var launcher = new FakeLauncherFactory();
-        var service = CreateService(repair, launcher);
+        var service = CreateService(launcher: launcher, integrity: integrity);
         var settings = CreateSettings();
         settings.DefaultCheckFilesBeforeLaunch = false;
         var reports = new List<LauncherProgress>();
@@ -49,7 +49,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
             settings,
             new InlineProgress(reports));
 
-        Assert.Null(repair.LastVersionName);
+        Assert.Equal(0, integrity.ValidateCallCount);
+        Assert.Equal(1, integrity.FinalValidationCallCount);
         Assert.DoesNotContain(
             reports,
             report => report.Stage is LaunchProgressStages.CheckingFiles
@@ -59,6 +60,24 @@ public sealed class LaunchServiceTests : TestTempDirectory
             reports
                 .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
                 .Select(report => report.Percent!.Value));
+    }
+
+    [Fact]
+    public async Task EnabledFileCheckRunsFullAndFinalValidationOnce()
+    {
+        var integrity = new RecordingIntegrityService();
+        var launcher = new FakeLauncherFactory();
+        var service = CreateService(launcher: launcher, integrity: integrity);
+        var settings = CreateSettings();
+
+        await service.LaunchAsync(
+            CreateInstance(settings.MinecraftDirectory, "File Check"),
+            CreateAccount(),
+            settings,
+            progress: null);
+
+        Assert.Equal(1, integrity.ValidateCallCount);
+        Assert.Equal(1, integrity.FinalValidationCallCount);
     }
 
     [Fact]
@@ -605,19 +624,25 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         public Func<CancellationToken, Task<GameFileRepairResult>>? OnValidate { get; init; }
         public GameFileIntegrityRequest? FinalRequest { get; private set; }
+        public int ValidateCallCount { get; private set; }
+        public int FinalValidationCallCount { get; private set; }
 
         public Task<GameFileRepairResult> ValidateAndRepairAsync(
             GameFileIntegrityRequest request,
             GameFileRepairOptions options,
             IProgress<LauncherProgress>? progress = null,
-            CancellationToken cancellationToken = default) =>
-            OnValidate?.Invoke(cancellationToken) ?? Task.FromResult(GameFileRepairResult.Empty);
+            CancellationToken cancellationToken = default)
+        {
+            ValidateCallCount++;
+            return OnValidate?.Invoke(cancellationToken) ?? Task.FromResult(GameFileRepairResult.Empty);
+        }
 
         public Task<GameFileRepairResult> ValidateFinalLaunchCommandAsync(
             GameFileIntegrityRequest request,
             ProcessStartInfo startInfo,
             CancellationToken cancellationToken = default)
         {
+            FinalValidationCallCount++;
             FinalRequest = request;
             return Task.FromResult(GameFileRepairResult.Empty);
         }

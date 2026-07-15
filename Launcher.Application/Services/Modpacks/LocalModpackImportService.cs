@@ -147,6 +147,18 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(exception.FailureReason);
         }
+        catch (JavaRuntimeSelectionException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Modpack import could not select a compatible Java runtime. ArchivePath={ArchivePath} FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion}",
+                archivePath,
+                exception.Reason,
+                exception.RequiredMajorVersion,
+                exception.CurrentMajorVersion);
+            await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
+            return ModpackImportResult.Failure(ModpackImportFailureReason.JavaRuntimeUnavailable);
+        }
         catch (OperationCanceledException)
         {
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);

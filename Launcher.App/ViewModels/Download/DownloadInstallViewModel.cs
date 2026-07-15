@@ -154,6 +154,21 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
                 "Instance installation rejected because the name is unavailable. InstanceName={InstanceName}",
                 request.InstanceName);
         }
+        catch (JavaRuntimeSelectionException exception)
+        {
+            instanceNameTracker.RemovePending(request.InstanceName);
+            SetLatestInstallFailure(installSequence, Strings.Status_JavaSelectionFailed);
+            installTask.Fail(Strings.Status_JavaSelectionFailed);
+            logger.LogWarning(
+                exception,
+                "Instance installation could not select a compatible Java runtime. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName} FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion}",
+                request.MinecraftVersion,
+                request.Loader,
+                request.InstanceName,
+                exception.Reason,
+                exception.RequiredMajorVersion,
+                exception.CurrentMajorVersion);
+        }
         catch (Exception exception)
         {
             instanceNameTracker.RemovePending(request.InstanceName);

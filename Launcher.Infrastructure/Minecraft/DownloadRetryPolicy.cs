@@ -82,10 +82,17 @@ internal class DownloadAttemptException : Exception
     public HttpStatusCode? StatusCode { get; }
     public TimeSpan? RetryAfter { get; }
     public string? FinalHost { get; private set; }
+    public string? FinalOrigin { get; private set; }
 
     public DownloadAttemptException WithFinalHost(string? finalHost)
     {
         FinalHost = finalHost;
+        return this;
+    }
+
+    public DownloadAttemptException WithFinalOrigin(string? finalOrigin)
+    {
+        FinalOrigin = finalOrigin;
         return this;
     }
 
