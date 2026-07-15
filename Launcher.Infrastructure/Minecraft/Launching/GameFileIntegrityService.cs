@@ -22,6 +22,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using CmlLib.Core.ProcessBuilder;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -166,10 +167,6 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
             LogReport("Game file post-repair validation completed.", request, after, repairedCount);
             return after with { RepairedCount = repairedCount };
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return FailureResult(request, GameFileRepairFailureReason.Canceled, "Canceled", "None", null);
-        }
         catch (InstanceRepairException exception)
         {
             return FailureResult(
@@ -230,10 +227,6 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
             LogReport("Game file post-install repair validation completed.", request, after, repairedCount);
             return after with { RepairedCount = repairedCount };
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return FailureResult(request, GameFileRepairFailureReason.Canceled, "Canceled", "None", null);
-        }
         catch (InstanceRepairException exception)
         {
             return FailureResult(
@@ -266,6 +259,10 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
         var knownFiles = plan.Manifest.Files
             .Select(file => Path.GetFullPath(file.TargetPath))
             .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        var allowedAdditionalFiles = request.AllowedAdditionalCommandFilePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => NormalizeCommandPath(path, startInfo.WorkingDirectory))
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var failures = new List<GameFileRepairFailure>(manifestReport.Failures);
         foreach (var reference in FinalLaunchCommandPathReader.Read(startInfo))
         {
@@ -277,14 +274,26 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
             var exists = reference.IsDirectory ? Directory.Exists(path) : File.Exists(path);
             var insideMinecraftDirectory = IsWithin(path, request.MinecraftDirectory);
             var known = knownFiles.Contains(path);
-            if (!exists || (insideMinecraftDirectory && !reference.IsDirectory && !known))
+            var acceptsAdditionalFile = reference.Category is "JavaAgent" or "LoggingConfiguration";
+            var explicitlyAllowed = acceptsAdditionalFile && allowedAdditionalFiles.Contains(path);
+            string? failureReason = null;
+            if (!exists)
+                failureReason = "Referenced path does not exist.";
+            else if (explicitlyAllowed && !IsOrdinaryCommandFile(path))
+                failureReason = "Allowed additional path is not an ordinary file.";
+            else if (acceptsAdditionalFile && !known && !explicitlyAllowed)
+                failureReason = "Path was not explicitly allowed by the launch request.";
+            else if (insideMinecraftDirectory && !reference.IsDirectory && !known && !explicitlyAllowed)
+                failureReason = "Path was not part of the resolved manifest.";
+
+            if (failureReason is not null)
             {
                 failures.Add(new GameFileRepairFailure(
                     path,
                     reference.Category,
                     GameFileRepairFailureReason.FinalLaunchPlanInvalid,
                     "None",
-                    exists ? "Path was not part of the resolved manifest." : "Referenced path does not exist."));
+                    failureReason));
             }
         }
 
@@ -489,6 +498,19 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
         var normalizedCandidate = Path.GetFullPath(candidate);
         return normalizedCandidate.Equals(normalizedRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
             || normalizedCandidate.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static bool IsOrdinaryCommandFile(string path)
+    {
+        try
+        {
+            return File.Exists(path)
+                && (File.GetAttributes(path) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) == 0;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }
 
@@ -852,7 +874,8 @@ internal static class GameFileManifestValidator
                     file.Reason));
                 continue;
             }
-            var verifiedByCurrentOperation = IsVerifiedByCurrentOperation(file, operationContext);
+            using var verifiedLease = AcquireCurrentOperationVerificationLease(file, operationContext);
+            var verifiedByCurrentOperation = verifiedLease is not null;
             var verification = verifiedByCurrentOperation ? MinecraftFileVerification.SizeOnly : MinecraftFileVerification.Full;
             if (verifiedByCurrentOperation)
                 currentOperationVerificationReuseCount++;
@@ -901,15 +924,15 @@ internal static class GameFileManifestValidator
             currentOperationVerificationReuseCount);
     }
 
-    private static bool IsVerifiedByCurrentOperation(
+    private static MinecraftVerifiedFileLease? AcquireCurrentOperationVerificationLease(
         RequiredGameFile file,
         MinecraftDownloadOperationContext? operationContext)
     {
-        return operationContext is not null
-            && MinecraftFileIntegrity.IsSha1(file.Sha1)
-            && operationContext.IsVerified(
+        return operationContext is not null && MinecraftFileIntegrity.IsSha1(file.Sha1)
+            ? operationContext.AcquireVerifiedFileLease(
                 file.TargetPath,
-                DownloadIntegrityExpectation.Sha1(file.Sha1!, file.Size));
+                DownloadIntegrityExpectation.Sha1(file.Sha1!, file.Size))
+            : null;
     }
 
     private static bool IsOrdinaryFile(string path)
@@ -986,6 +1009,26 @@ internal static partial class FinalLaunchCommandPathReader
         var arguments = startInfo.ArgumentList.Count > 0
             ? startInfo.ArgumentList.ToList()
             : Tokenize(startInfo.Arguments).ToList();
+        return Read(arguments);
+    }
+
+    public static IReadOnlyList<string> ReadAllowedUserFilePaths(string? arguments, string? workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(arguments))
+            return [];
+
+        var baseDirectory = string.IsNullOrWhiteSpace(workingDirectory)
+            ? Environment.CurrentDirectory
+            : workingDirectory;
+        return Read(MArgument.FromCommandLine(arguments).Values.ToList())
+            .Where(reference => reference.Category is "JavaAgent" or "LoggingConfiguration")
+            .Select(reference => Path.GetFullPath(reference.Path, baseDirectory))
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static IEnumerable<FinalLaunchCommandPath> Read(IReadOnlyList<string> arguments)
+    {
         for (var index = 0; index < arguments.Count; index++)
         {
             var argument = arguments[index];

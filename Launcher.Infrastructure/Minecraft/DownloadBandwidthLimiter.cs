@@ -55,16 +55,15 @@ internal sealed class DownloadBandwidthLimiter
         IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
         var normalizedLimit = Math.Max(downloadSpeedLimitMbPerSecond, 0);
-        var effectiveLimit = downloadSpeedLimitState?.DownloadSpeedLimitMbPerSecond ?? normalizedLimit;
-        if (effectiveLimit <= 0)
-            return null;
-
         if (downloadSpeedLimitState is not null)
         {
             // 共享设置对象对应一份预算，运行时修改限速后所有关联下载会立即采用新值。
             var sharedBudgetState = SharedStateBudgets.GetValue(downloadSpeedLimitState, static _ => new SharedBudgetState());
             return new DownloadBandwidthLimiter(sharedBudgetState, downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         }
+
+        if (normalizedLimit <= 0)
+            return null;
 
         var fixedBudgetState = FixedLimitBudgets.GetOrAdd(normalizedLimit, static _ => new SharedBudgetState());
         return new DownloadBandwidthLimiter(fixedBudgetState, normalizedLimit, downloadSpeedLimitState: null);

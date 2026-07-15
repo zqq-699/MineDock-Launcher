@@ -188,6 +188,11 @@ public sealed partial class LaunchService
                 launchOption,
                 cancellationToken)
             .ConfigureAwait(false);
+        var allowedAdditionalCommandFiles = FinalLaunchCommandPathReader
+            .ReadAllowedUserFilePaths(resolvedSettings.JvmArguments, process.StartInfo.WorkingDirectory)
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        if (preparedRuntime.AuthlibInjector is { } trustedInjector)
+            allowedAdditionalCommandFiles.Add(Path.GetFullPath(trustedInjector.FilePath));
         var finalValidation = await gameFileIntegrityService.ValidateFinalLaunchCommandAsync(
                 new GameFileIntegrityRequest(
                     settings.MinecraftDirectory,
@@ -199,7 +204,8 @@ public sealed partial class LaunchService
                     LoaderIdentity = new GameFileLoaderIdentity(
                         instance.Loader,
                         instance.MinecraftVersion,
-                        instance.LoaderVersion)
+                        instance.LoaderVersion),
+                    AllowedAdditionalCommandFilePaths = allowedAdditionalCommandFiles.ToArray()
                 },
                 process.StartInfo,
                 cancellationToken)

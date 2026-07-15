@@ -77,6 +77,45 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ValidationCancellationIsPropagated()
+    {
+        const string versionName = "Canceled Validation";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
+            new GameFileRepairOptions(AllowRepair: true),
+            cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
+    public async Task PostInstallValidationCancellationIsPropagated()
+    {
+        const string versionName = "Canceled Post Install Validation";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        using var operation = new MinecraftDownloadOperationContext(minecraftDirectory);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ValidateInstalledVersionAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
+            operation,
+            cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
     public async Task MissingVersionMetadataIsRebuiltFromExplicitLoaderIdentity()
     {
         const string versionName = "Recovered Vanilla";
@@ -288,7 +327,7 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task PostInstallValidationDoesNotRehashFilesVerifiedByCurrentDownloadOperation()
+    public async Task PostInstallValidationReusesUnchangedFileSnapshots()
     {
         const string versionName = "Fabric-1.20.6";
         const string relativeLibraryPath = "example/library/1.0/library-1.0.jar";
@@ -318,14 +357,189 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
         MarkVerified(operation, assetPath, assetContent);
         var service = new GameFileIntegrityService(new HttpClient(new ContentHandler(new Dictionary<string, string>())), downloadSpeedLimitState: null);
 
-        using var clientLock = new FileStream(clientPath, FileMode.Open, FileAccess.Read, FileShare.None);
-        using var libraryLock = new FileStream(libraryPath, FileMode.Open, FileAccess.Read, FileShare.None);
-        using var assetLock = new FileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.None);
+        Assert.True(operation.IsVerified(
+            libraryPath,
+            DownloadIntegrityExpectation.Sha1(Sha1(libraryContent), Encoding.UTF8.GetByteCount(libraryContent))));
         var result = await service.ValidateInstalledVersionAsync(
             new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
             operation);
 
         Assert.True(result.LaunchAllowed);
+    }
+
+    [Fact]
+    public async Task PostInstallValidationRehashesSameSizeReplacementWithRestoredWriteTime()
+    {
+        const string versionName = "Snapshot Replacement";
+        const string relativePath = "example/library/1.0/library-1.0.jar";
+        const string expectedContent = "library";
+        const string corruptContent = "corrupt";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        CreateVersion(minecraftDirectory, versionName, relativePath, expectedContent);
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        var libraryPath = Path.Combine(minecraftDirectory, "libraries", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var originalWriteTime = File.GetLastWriteTimeUtc(libraryPath);
+        using var operation = new MinecraftDownloadOperationContext(minecraftDirectory);
+        MarkVerified(operation, libraryPath, expectedContent);
+        var replacementPath = Path.Combine(TempRoot, "replacement.jar");
+        await File.WriteAllTextAsync(replacementPath, corruptContent);
+        File.SetLastWriteTimeUtc(replacementPath, originalWriteTime);
+        File.Move(replacementPath, libraryPath, overwrite: true);
+        File.SetLastWriteTimeUtc(libraryPath, originalWriteTime);
+        var service = new GameFileIntegrityService(new HttpClient(new ContentHandler(new Dictionary<string, string>
+        {
+            ["https://example.test/" + relativePath] = expectedContent
+        })), downloadSpeedLimitState: null);
+
+        var result = await service.ValidateInstalledVersionAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
+            operation);
+
+        Assert.True(result.LaunchAllowed);
+        Assert.Equal(1, result.RepairedCount);
+        Assert.Equal(expectedContent, await File.ReadAllTextAsync(libraryPath));
+    }
+
+    [Fact]
+    public async Task VerificationSnapshotRejectsInPlaceMutationWithRestoredWriteTime()
+    {
+        const string expectedContent = "library";
+        const string corruptContent = "corrupt";
+        Directory.CreateDirectory(TempRoot);
+        var path = Path.Combine(TempRoot, "in-place.jar");
+        await File.WriteAllTextAsync(path, expectedContent);
+        var writeTime = File.GetLastWriteTimeUtc(path);
+        using var operation = new MinecraftDownloadOperationContext(TempRoot);
+        var expectation = DownloadIntegrityExpectation.Sha1(
+            Sha1(expectedContent),
+            Encoding.UTF8.GetByteCount(expectedContent));
+        operation.MarkVerified(path, expectation);
+
+        await File.WriteAllTextAsync(path, corruptContent);
+        File.SetLastWriteTimeUtc(path, writeTime);
+
+        Assert.False(operation.IsVerified(path, expectation));
+    }
+
+    [Fact]
+    public async Task VerifiedFileLeaseBlocksConcurrentWrites()
+    {
+        const string content = "library";
+        Directory.CreateDirectory(TempRoot);
+        var path = Path.Combine(TempRoot, "leased.jar");
+        await File.WriteAllTextAsync(path, content);
+        using var operation = new MinecraftDownloadOperationContext(TempRoot);
+        var expectation = DownloadIntegrityExpectation.Sha1(Sha1(content), Encoding.UTF8.GetByteCount(content));
+        operation.MarkVerified(path, expectation);
+
+        using var lease = operation.AcquireVerifiedFileLease(path, expectation);
+
+        Assert.NotNull(lease);
+        Assert.ThrowsAny<IOException>(() => File.WriteAllText(path, "corrupt"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExplicitlyAllowedUserAgentIsAcceptedInsideOrOutsideMinecraftDirectory(bool insideMinecraftDirectory)
+    {
+        const string versionName = "Custom Agent";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var agentPath = insideMinecraftDirectory
+            ? Path.Combine(versionDirectory, "custom-agent.jar")
+            : Path.Combine(TempRoot, "external-agent.jar");
+        await File.WriteAllTextAsync(agentPath, "agent");
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add($"-javaagent:{agentPath}=option");
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+
+        var result = await service.ValidateFinalLaunchCommandAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                AllowedAdditionalCommandFilePaths = [agentPath]
+            },
+            startInfo);
+
+        Assert.True(result.LaunchAllowed);
+    }
+
+    [Fact]
+    public async Task UnapprovedAgentIsRejectedEvenWhenItExists()
+    {
+        const string versionName = "Unapproved Agent";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var agentPath = Path.Combine(TempRoot, "unapproved-agent.jar");
+        await File.WriteAllTextAsync(agentPath, "agent");
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add($"-javaagent:{agentPath}");
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+
+        var result = await service.ValidateFinalLaunchCommandAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory),
+            startInfo);
+
+        var failure = Assert.Single(result.Failures.Where(item => item.Category == "JavaAgent"));
+        Assert.False(result.LaunchAllowed);
+        Assert.Contains("explicitly allowed", failure.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AllowedAgentReparsePointIsRejectedWhenSupported()
+    {
+        const string versionName = "Linked Agent";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var targetPath = Path.Combine(TempRoot, "agent-target.jar");
+        var linkPath = Path.Combine(TempRoot, "agent-link.jar");
+        await File.WriteAllTextAsync(targetPath, "agent");
+        try
+        {
+            File.CreateSymbolicLink(linkPath, targetPath);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        var startInfo = new ProcessStartInfo { UseShellExecute = false };
+        startInfo.ArgumentList.Add($"-javaagent:{linkPath}");
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+
+        var result = await service.ValidateFinalLaunchCommandAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                AllowedAdditionalCommandFilePaths = [linkPath]
+            },
+            startInfo);
+
+        Assert.False(result.LaunchAllowed);
+        Assert.Contains(result.Failures, item => item.Category == "JavaAgent"
+            && item.Source == "Allowed additional path is not an ordinary file.");
+    }
+
+    [Fact]
+    public void UserJvmFileReaderNormalizesAgentAndLoggingPathsOnly()
+    {
+        var workingDirectory = Path.Combine(TempRoot, "working");
+        Directory.CreateDirectory(workingDirectory);
+
+        var paths = FinalLaunchCommandPathReader.ReadAllowedUserFilePaths(
+            "-javaagent:\"agent with spaces.jar\" -Dlog4j2.configurationFile=\"config with spaces.xml\" -Djava.library.path=natives",
+            workingDirectory);
+
+        Assert.Equal(
+            [Path.Combine(workingDirectory, "agent with spaces.jar"), Path.Combine(workingDirectory, "config with spaces.xml")],
+            paths);
     }
 
     [Fact]

@@ -25,6 +25,7 @@ using CmlLib.Core.Files;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Tests.Infrastructure.Minecraft;
 
@@ -1025,13 +1026,89 @@ public sealed class MinecraftDownloadRetryTests
         Assert.True(tracker.ShouldAvoid("BmclApiMojang", "slow.example"));
     }
 
+    [Fact]
+    public async Task SuccessNoResultAndFailureLogsRedactSensitiveUriComponents()
+    {
+        const string signedUrl = "https://example.test/files/mod.jar?token=super-secret#private-fragment";
+        var logger = new CollectingLogger();
+
+        using (var successClient = CreateClient(new CallbackRequestHandler((_, request, _) =>
+                   Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)))))
+        {
+            var executor = CreateExecutor(successClient, logger: logger);
+            await executor.ExecuteAsync(
+                signedUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: null,
+                static (_, _) => Task.FromResult(true),
+                CancellationToken.None);
+        }
+
+        using (var noResultClient = CreateClient(new CallbackRequestHandler((_, request, _) =>
+                   Task.FromResult(CreateResponse(HttpStatusCode.NotFound, string.Empty, request)))))
+        {
+            var executor = CreateExecutor(noResultClient, logger: logger);
+            var result = await executor.ExecuteLookupAsync(
+                signedUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: null,
+                static (_, _) => Task.FromResult(true),
+                status => status == HttpStatusCode.NotFound,
+                CancellationToken.None);
+            Assert.False(result.Found);
+        }
+
+        using (var failureClient = CreateClient(new CallbackRequestHandler((_, request, _) =>
+                   Task.FromResult(CreateResponse(HttpStatusCode.Forbidden, string.Empty, request)))))
+        {
+            var executor = CreateExecutor(failureClient, logger: logger);
+            await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(() =>
+                executor.ExecuteAsync(
+                    signedUrl,
+                    DownloadSourcePreference.Official,
+                    categoryHint: null,
+                    static (_, _) => Task.FromResult(true),
+                    CancellationToken.None));
+        }
+
+        Assert.NotEmpty(logger.Messages);
+        Assert.Contains(logger.Messages, message => message.Contains("https://example.test/files/mod.jar", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("super-secret", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("private-fragment", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void UriLogSanitizerRemovesUserInfoQueryAndFragment()
+    {
+        var sanitized = DownloadUriLogSanitizer.Sanitize(
+            "https://username:password@example.test:8443/files/mod.jar?signature=secret#fragment");
+
+        Assert.Equal("https://example.test:8443/files/mod.jar", sanitized);
+        Assert.Equal("<invalid-uri>", DownloadUriLogSanitizer.Sanitize("not a uri"));
+    }
+
+    [Fact]
+    public void PublishMutexNameIsCaseInsensitiveOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var path = Path.Combine(Path.GetTempPath(), "Launcher", "Libraries", "Example.jar");
+
+        Assert.Equal(
+            ResumableDownloadFileSession.GetFinalPublishMutexName(path),
+            ResumableDownloadFileSession.GetFinalPublishMutexName(path.ToLowerInvariant()));
+    }
+
     private static MinecraftDownloadRequestExecutor CreateExecutor(
         HttpClient httpClient,
-        DownloadRetryOptions? options = null)
+        DownloadRetryOptions? options = null,
+        ILogger? logger = null)
     {
         return new MinecraftDownloadRequestExecutor(
             httpClient,
             limiter: new ImportConcurrencyLimiter(),
+            logger: logger,
             retryOptions: options ?? new DownloadRetryOptions
             {
                 MaxAttemptsPerSource = 4,
@@ -1088,6 +1165,25 @@ public sealed class MinecraftDownloadRetryTests
                 header => string.Join(",", header.Value),
                 StringComparer.OrdinalIgnoreCase));
             return callback(Interlocked.Increment(ref requestCount), request, cancellationToken);
+        }
+    }
+
+    private sealed class CollectingLogger : ILogger
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
         }
     }
 

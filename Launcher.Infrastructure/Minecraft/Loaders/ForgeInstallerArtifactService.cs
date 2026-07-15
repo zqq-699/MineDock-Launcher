@@ -133,7 +133,8 @@ internal sealed partial class LoaderInstallerArtifactService
         foreach (var library in plan.AllLibraries)
         {
             var path = ResolveLibraryPath(minecraftDirectory, library.Artifact.RelativePath);
-            var verifiedByCurrentOperation = IsVerifiedByCurrentOperation(path, library.Artifact, operationContext);
+            using var verifiedLease = AcquireCurrentOperationVerificationLease(path, library.Artifact, operationContext);
+            var verifiedByCurrentOperation = verifiedLease is not null;
             var verification = verifiedByCurrentOperation
                 ? MinecraftFileVerification.SizeOnly
                 : MinecraftFileVerification.Full;
@@ -229,7 +230,8 @@ internal sealed partial class LoaderInstallerArtifactService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var destinationPath = ResolveLibraryPath(minecraftDirectory, library.Artifact.RelativePath);
-                var verification = IsVerifiedByCurrentOperation(destinationPath, library.Artifact, operationContext)
+                using var verifiedLease = AcquireCurrentOperationVerificationLease(destinationPath, library.Artifact, operationContext);
+                var verification = verifiedLease is not null
                     ? MinecraftFileVerification.SizeOnly
                     : MinecraftFileVerification.Full;
                 var status = await MinecraftFileIntegrity.EvaluateAsync(destinationPath, library.Artifact.Sha1, library.Artifact.Size,
@@ -306,16 +308,16 @@ internal sealed partial class LoaderInstallerArtifactService
             : null;
     }
 
-    private static bool IsVerifiedByCurrentOperation(
+    private static MinecraftVerifiedFileLease? AcquireCurrentOperationVerificationLease(
         string destinationPath,
         ManagedLibraryArtifact artifact,
         MinecraftDownloadOperationContext? operationContext)
     {
-        return operationContext is not null
-            && MinecraftFileIntegrity.IsSha1(artifact.Sha1)
-            && operationContext.IsVerified(
+        return operationContext is not null && MinecraftFileIntegrity.IsSha1(artifact.Sha1)
+            ? operationContext.AcquireVerifiedFileLease(
                 destinationPath,
-                DownloadIntegrityExpectation.Sha1(artifact.Sha1!, artifact.Size));
+                DownloadIntegrityExpectation.Sha1(artifact.Sha1!, artifact.Size))
+            : null;
     }
 
     private static void MarkVerified(

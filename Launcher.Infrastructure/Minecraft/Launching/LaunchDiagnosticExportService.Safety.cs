@@ -85,23 +85,8 @@ private static bool TryValidateSafePath(string path, out string reason)
         return normalized.Length <= 512 ? normalized : normalized[..512] + "…";
     }
 
-    private static bool TryGetFileIdentity(SafeFileHandle handle, out FileIdentity identity)
-    {
-        identity = default;
-        if (!GetFileInformationByHandle(handle, out var information))
-            return false;
-
-        identity = new FileIdentity(
-            information.VolumeSerialNumber,
-            ((ulong)information.FileIndexHigh << 32) | information.FileIndexLow);
-        return true;
-    }
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetFileInformationByHandle(
-        SafeFileHandle fileHandle,
-        out ByHandleFileInformation fileInformation);
+    private static bool TryGetFileIdentity(SafeFileHandle handle, out WindowsFileIdentity identity) =>
+        WindowsFileSnapshot.TryGetIdentity(handle, out identity);
 
     private static void TryDelete(string path)
     {
@@ -126,20 +111,4 @@ private static bool TryValidateSafePath(string path, out string reason)
         string? Reason,
         long SourceBytes);
 
-    private readonly record struct FileIdentity(uint VolumeSerialNumber, ulong FileIndex);
-
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
-    private struct ByHandleFileInformation
-    {
-        public uint FileAttributes;
-        public long CreationTime;
-        public long LastAccessTime;
-        public long LastWriteTime;
-        public uint VolumeSerialNumber;
-        public uint FileSizeHigh;
-        public uint FileSizeLow;
-        public uint NumberOfLinks;
-        public uint FileIndexHigh;
-        public uint FileIndexLow;
-    }
 }

@@ -48,6 +48,13 @@ public sealed record GameFileIntegrityRequest(
     /// when the installed version metadata is absent or no longer trustworthy.
     /// </summary>
     public GameFileLoaderIdentity? LoaderIdentity { get; init; }
+
+    /// <summary>
+    /// Additional files explicitly trusted by the caller for final Java command
+    /// validation, such as user-configured agents or logging configuration files.
+    /// The integrity service still requires every entry to be an ordinary file.
+    /// </summary>
+    public IReadOnlyList<string> AllowedAdditionalCommandFilePaths { get; init; } = [];
 }
 
 public sealed record GameFileLoaderIdentity(

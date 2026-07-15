@@ -266,6 +266,37 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task IntegrityCancellationDoesNotWriteRepairFailureDiagnostic()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var integrity = new RecordingIntegrityService
+        {
+            OnValidate = token =>
+            {
+                cancellation.Cancel();
+                return Task.FromCanceled<GameFileRepairResult>(token);
+            }
+        };
+        var launcher = new FakeLauncherFactory();
+        var service = CreateService(integrity: integrity, launcher: launcher);
+        var settings = CreateSettings();
+        var instance = CreateInstance(settings.MinecraftDirectory, "Canceled Integrity");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.LaunchAsync(
+            instance,
+            CreateAccount(),
+            settings,
+            progress: null,
+            cancellationToken: cancellation.Token));
+
+        Assert.Null(launcher.Launcher.LastVersionName);
+        Assert.False(Directory.Exists(Path.Combine(
+            instance.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs")));
+    }
+
+    [Fact]
     public async Task ThirdPartyLaunchPrependsInjectorArgumentsAndUsesMojangIdentity()
     {
         var injectorPath = Path.Combine(TempRoot, "path with spaces", "authlib-injector.jar");
@@ -279,8 +310,10 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 "https://example.test/api/yggdrasil/",
                 "eyJtZXRhIjp7fX0=")));
         var launcher = new FakeLauncherFactory();
+        var integrity = new RecordingIntegrityService();
         var service = CreateService(
             launcher: launcher,
+            integrity: integrity,
             accountSession: accountSession,
             authlibInjector: new FakeAuthlibInjector(injectorPath));
         var settings = CreateSettings();
@@ -304,22 +337,47 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Equal("{}", option.UserProperties);
         Assert.Equal("ThirdPartyPlayer", option.Session?.Username);
         Assert.Equal("00112233445566778899aabbccddeeff", option.Session?.UUID);
+        Assert.Contains(
+            Path.GetFullPath(injectorPath),
+            Assert.IsType<GameFileIntegrityRequest>(integrity.FinalRequest).AllowedAdditionalCommandFilePaths,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private static LaunchService CreateService(
         FakeRepairService? repair = null,
         FakeLauncherFactory? launcher = null,
+        IGameFileIntegrityService? integrity = null,
         ILaunchCrashMonitor? crashMonitor = null,
         IJavaRuntimeSelectionService? javaSelection = null,
         IJavaRuntimeProvisioningService? javaProvisioning = null,
         ILaunchAccountSessionService? accountSession = null,
         IAuthlibInjectorProvisioningService? authlibInjector = null,
-        IGameWindowReadinessWaiter? windowReadinessWaiter = null) =>
-        new(accountSession ?? new FakeAccountSession(), repair ?? new FakeRepairService(), launcher ?? new FakeLauncherFactory(),
-            crashMonitor ?? new NoOpCrashMonitor(), javaRuntimeSelectionService: javaSelection,
-            javaRuntimeProvisioningService: javaProvisioning,
-            authlibInjectorProvisioningService: authlibInjector,
-            gameWindowReadinessWaiter: windowReadinessWaiter ?? new ImmediateWindowReadinessWaiter());
+        IGameWindowReadinessWaiter? windowReadinessWaiter = null)
+    {
+        var resolvedAccountSession = accountSession ?? new FakeAccountSession();
+        var resolvedLauncher = launcher ?? new FakeLauncherFactory();
+        var resolvedCrashMonitor = crashMonitor ?? new NoOpCrashMonitor();
+        var resolvedWindowWaiter = windowReadinessWaiter ?? new ImmediateWindowReadinessWaiter();
+        return integrity is not null
+            ? new LaunchService(
+                resolvedAccountSession,
+                integrity,
+                resolvedLauncher,
+                resolvedCrashMonitor,
+                javaRuntimeSelectionService: javaSelection,
+                javaRuntimeProvisioningService: javaProvisioning,
+                authlibInjectorProvisioningService: authlibInjector,
+                gameWindowReadinessWaiter: resolvedWindowWaiter)
+            : new LaunchService(
+                resolvedAccountSession,
+                repair ?? new FakeRepairService(),
+                resolvedLauncher,
+                resolvedCrashMonitor,
+                javaRuntimeSelectionService: javaSelection,
+                javaRuntimeProvisioningService: javaProvisioning,
+                authlibInjectorProvisioningService: authlibInjector,
+                gameWindowReadinessWaiter: resolvedWindowWaiter);
+    }
 
     private LauncherSettings CreateSettings() => new()
     {
@@ -375,6 +433,28 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new AuthlibInjectorArtifact(filePath, "1.2.7", 55));
+    }
+
+    private sealed class RecordingIntegrityService : IGameFileIntegrityService
+    {
+        public Func<CancellationToken, Task<GameFileRepairResult>>? OnValidate { get; init; }
+        public GameFileIntegrityRequest? FinalRequest { get; private set; }
+
+        public Task<GameFileRepairResult> ValidateAndRepairAsync(
+            GameFileIntegrityRequest request,
+            GameFileRepairOptions options,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            OnValidate?.Invoke(cancellationToken) ?? Task.FromResult(GameFileRepairResult.Empty);
+
+        public Task<GameFileRepairResult> ValidateFinalLaunchCommandAsync(
+            GameFileIntegrityRequest request,
+            ProcessStartInfo startInfo,
+            CancellationToken cancellationToken = default)
+        {
+            FinalRequest = request;
+            return Task.FromResult(GameFileRepairResult.Empty);
+        }
     }
 
     private sealed class FakeRepairService : IManagedVersionRepairService

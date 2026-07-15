@@ -68,14 +68,26 @@ public sealed class DownloadBandwidthLimiterTests
     }
 
     [Fact]
-    public void CreateReturnsNullWhenEffectiveLimitIsDisabledAtRequestCreation()
+    public async Task StateBackedLimiterCreatedWhileDisabledRespectsLaterEnable()
     {
         var speedLimitState = new TestDownloadSpeedLimitState();
         speedLimitState.SetDownloadSpeedLimitMbPerSecond(0);
 
         var limiter = DownloadBandwidthLimiter.Create(4, speedLimitState);
+        Assert.NotNull(limiter);
 
-        Assert.Null(limiter);
+        var unlimitedStopwatch = Stopwatch.StartNew();
+        await limiter!.ThrottleAsync(1024 * 1024, CancellationToken.None);
+        unlimitedStopwatch.Stop();
+
+        speedLimitState.SetDownloadSpeedLimitMbPerSecond(1);
+        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
+        var throttledStopwatch = Stopwatch.StartNew();
+        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
+        throttledStopwatch.Stop();
+
+        Assert.True(unlimitedStopwatch.Elapsed < TimeSpan.FromMilliseconds(250));
+        Assert.True(throttledStopwatch.Elapsed >= TimeSpan.FromMilliseconds(850));
     }
 
     [Fact]

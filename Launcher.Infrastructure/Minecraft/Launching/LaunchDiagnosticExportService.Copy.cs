@@ -37,7 +37,7 @@ private static async Task<ExportOutcome> TryAddDiagnosticAsync(
             long initialLength;
             DateTime initialLastWriteTimeUtc;
             DateTime initialCreationTimeUtc;
-            FileIdentity initialIdentity;
+            WindowsFileIdentity initialIdentity;
             try
             {
                 await using var source = new FileStream(

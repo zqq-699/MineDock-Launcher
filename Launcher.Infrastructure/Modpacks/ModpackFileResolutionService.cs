@@ -378,7 +378,7 @@ internal sealed class ModpackFileResolutionService
                         file.ProjectId,
                         file.FileId,
                         file.FileName,
-                        sourceUrl);
+                        DownloadUriLogSanitizer.Sanitize(sourceUrl));
                 }
             }
             if (context.Package.PackageKind is not ModpackPackageKind.CurseForge)
@@ -432,7 +432,7 @@ internal sealed class ModpackFileResolutionService
             file.FileName,
             file.ProjectId,
             file.FileId,
-            sourceUrl,
+            DownloadUriLogSanitizer.Sanitize(sourceUrl),
             !string.Equals(sourceUrl, file.PrimaryUrl, StringComparison.OrdinalIgnoreCase));
     }
 

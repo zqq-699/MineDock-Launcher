@@ -17,7 +17,7 @@ namespace Launcher.Infrastructure.Minecraft;
 internal sealed class MinecraftDownloadOperationContext : IDisposable
 {
     private readonly ConcurrentDictionary<string, AssetIdentity> assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, byte> verifiedAssets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, MinecraftFileVerificationSnapshot> verifiedAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> assetLocks = new(StringComparer.OrdinalIgnoreCase);
     public MinecraftDownloadOperationContext(string managedRoot)
     {
@@ -47,11 +47,37 @@ internal sealed class MinecraftDownloadOperationContext : IDisposable
             && expected.Size == size;
     }
 
-    public bool IsVerified(string destinationPath, DownloadIntegrityExpectation integrity) =>
-        verifiedAssets.ContainsKey(CreateVerificationKey(destinationPath, integrity));
+    public bool IsVerified(string destinationPath, DownloadIntegrityExpectation integrity)
+    {
+        using var lease = AcquireVerifiedFileLease(destinationPath, integrity);
+        return lease is not null;
+    }
 
-    public void MarkVerified(string destinationPath, DownloadIntegrityExpectation integrity) =>
-        verifiedAssets.TryAdd(CreateVerificationKey(destinationPath, integrity), 0);
+    public void MarkVerified(string destinationPath, DownloadIntegrityExpectation integrity)
+    {
+        var key = CreateVerificationKey(destinationPath, integrity);
+        if (WindowsFileSnapshot.TryCapture(destinationPath, out var snapshot))
+            verifiedAssets[key] = snapshot;
+        else
+            verifiedAssets.TryRemove(key, out _);
+    }
+
+    public MinecraftVerifiedFileLease? AcquireVerifiedFileLease(
+        string destinationPath,
+        DownloadIntegrityExpectation integrity)
+    {
+        var key = CreateVerificationKey(destinationPath, integrity);
+        if (!verifiedAssets.TryGetValue(key, out var expectedSnapshot))
+            return null;
+
+        var lease = WindowsFileSnapshot.TryAcquire(destinationPath);
+        if (lease is not null && lease.Snapshot == expectedSnapshot)
+            return lease;
+
+        lease?.Dispose();
+        verifiedAssets.TryRemove(key, out _);
+        return null;
+    }
 
     public async ValueTask<IDisposable> AcquireAssetLockAsync(string destinationPath, CancellationToken cancellationToken)
     {

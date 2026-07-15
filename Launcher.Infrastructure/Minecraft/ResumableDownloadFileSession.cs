@@ -58,25 +58,22 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         string destinationPath,
         string? expectedSha1,
         long? expectedSize,
-        string logicalResourceIdentity,
         CancellationToken cancellationToken,
         DownloadFileOptions? options = null)
     {
         if (string.IsNullOrWhiteSpace(expectedSha1) || !MinecraftFileIntegrity.IsSha1(expectedSha1))
             throw new InvalidDataException("A resumable game download requires a valid SHA-1 value.");
         return AcquireAsync(destinationPath, DownloadIntegrityExpectation.Sha1(expectedSha1, expectedSize),
-            logicalResourceIdentity, cancellationToken, options);
+            cancellationToken, options);
     }
 
     public static async Task<ResumableDownloadFileSession> AcquireAsync(
         string destinationPath,
         DownloadIntegrityExpectation integrity,
-        string logicalResourceIdentity,
         CancellationToken cancellationToken,
         DownloadFileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(integrity);
-        _ = logicalResourceIdentity;
         options ??= new DownloadFileOptions();
         var normalizedDestination = Path.GetFullPath(destinationPath);
         var destinationDirectory = Path.GetDirectoryName(normalizedDestination)
@@ -96,8 +93,11 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
             if (File.Exists(normalizedDestination))
             {
+                using var verifiedLease = options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic
+                    ? options.OperationContext?.AcquireVerifiedFileLease(normalizedDestination, integrity)
+                    : null;
                 var trusted = options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic
-                    && options.OperationContext?.IsVerified(normalizedDestination, integrity) is true;
+                    && verifiedLease is not null;
                 if (trusted || await integrity.VerifyFileAsync(normalizedDestination, cancellationToken).ConfigureAwait(false))
                 {
                     options.OperationContext?.MarkVerified(normalizedDestination, integrity);
@@ -389,8 +389,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
     private static IDisposable AcquireFinalPublishLock(string path, CancellationToken cancellationToken)
     {
-        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(path))));
-        var mutex = new Mutex(false, $"Local\\BlockHelm.Download.Publish.{hash}");
+        var mutex = new Mutex(false, GetFinalPublishMutexName(path));
         try
         {
             while (true)
@@ -412,6 +411,15 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
             mutex.Dispose();
             throw;
         }
+    }
+
+    internal static string GetFinalPublishMutexName(string path)
+    {
+        var normalizedPath = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows())
+            normalizedPath = normalizedPath.ToUpperInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(normalizedPath)));
+        return $"Local\\BlockHelm.Download.Publish.{hash}";
     }
 
     private sealed class PublishMutexLease(Mutex mutex) : IDisposable

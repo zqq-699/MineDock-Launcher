@@ -166,7 +166,6 @@ internal sealed class MinecraftDownloadRequestExecutor
                 destinationPath,
                 expectedSha1,
                 expectedSize,
-                logicalResourceIdentity: originalUrl,
                 cancellationToken,
                 options).ConfigureAwait(false);
             if (session.IsComplete)
@@ -216,7 +215,6 @@ internal sealed class MinecraftDownloadRequestExecutor
             await using var session = await ResumableDownloadFileSession.AcquireAsync(
                 destinationPath,
                 integrity,
-                logicalResourceIdentity: originalUrl,
                 cancellationToken,
                 options).ConfigureAwait(false);
             if (session.IsComplete)
@@ -313,8 +311,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                         "Download source explicitly reported no result. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
                         preference,
                         resolution.ResourceCategory,
-                        resolution.OriginalUrl,
-                        resolution.ActualUrl,
+                        DownloadUriLogSanitizer.Sanitize(resolution.OriginalUrl),
+                        DownloadUriLogSanitizer.Sanitize(resolution.ActualUrl),
                         resolution.ResolvedSourceKind,
                         attempt);
                     break;
@@ -436,8 +434,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                 "Download transport completed. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} FinalHost={FinalHost} RedirectCount={RedirectCount} Attempt={Attempt} StatusCode={StatusCode} ResponseHeadersDuration={ResponseHeadersDuration} ResponseBodyDuration={ResponseBodyDuration} ContentLength={ContentLength} DownloadedBytes={DownloadedBytes} AverageBytesPerSecond={AverageBytesPerSecond} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget}",
                 resolution.RequestedSourcePreference,
                 resolution.ResolvedSourceKind,
-                RedactUri(transportResult.OriginalUri),
-                RedactUri(transportResult.FinalUri),
+                DownloadUriLogSanitizer.Sanitize(transportResult.OriginalUri),
+                DownloadUriLogSanitizer.Sanitize(transportResult.FinalUri),
                 transportResult.FinalHost,
                 transportResult.RedirectCount,
                 attempt,
@@ -627,20 +625,14 @@ internal sealed class MinecraftDownloadRequestExecutor
     private static string GetCandidateHost(ResolvedDownloadRequest resolution) =>
         Uri.TryCreate(resolution.ActualUrl, UriKind.Absolute, out var uri) ? uri.Host : string.Empty;
 
-    private static string RedactUri(Uri uri)
-    {
-        var builder = new UriBuilder(uri) { Query = string.Empty, Fragment = string.Empty };
-        return builder.Uri.AbsoluteUri;
-    }
-
     private void LogResolvedRequest(ResolvedDownloadRequest resolution, int attempt)
     {
         logger.LogInformation(
             "Download resource completed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
             resolution.RequestedSourcePreference,
             resolution.ResourceCategory,
-            resolution.OriginalUrl,
-            resolution.ActualUrl,
+            DownloadUriLogSanitizer.Sanitize(resolution.OriginalUrl),
+            DownloadUriLogSanitizer.Sanitize(resolution.ActualUrl),
             resolution.ResolvedSourceKind,
             attempt);
     }
@@ -656,8 +648,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             "Download resource attempt failed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} FinalHost={FinalHost} Attempt={Attempt} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} RetryCurrentSource={RetryCurrentSource}",
             resolution.RequestedSourcePreference,
             resolution.ResourceCategory,
-            RedactUri(new Uri(resolution.OriginalUrl, UriKind.Absolute)),
-            RedactUri(new Uri(resolution.ActualUrl, UriKind.Absolute)),
+            DownloadUriLogSanitizer.Sanitize(resolution.OriginalUrl),
+            DownloadUriLogSanitizer.Sanitize(resolution.ActualUrl),
             resolution.ResolvedSourceKind,
             failure.FinalHost,
             attempt,
