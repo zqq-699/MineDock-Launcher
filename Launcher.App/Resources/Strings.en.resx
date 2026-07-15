@@ -1522,6 +1522,15 @@ Longer content wraps automatically.</value>
   <data name="Status_LaunchRunningLoaderInstaller" xml:space="preserve">
     <value>Rebuilding Loader runtime files...</value>
   </data>
+  <data name="Status_LaunchFinalizingLoaderVersion" xml:space="preserve">
+    <value>Finalizing and validating the Loader sandbox...</value>
+  </data>
+  <data name="Status_LaunchPublishingLoaderArtifacts" xml:space="preserve">
+    <value>Publishing Loader files...</value>
+  </data>
+  <data name="Status_LaunchRevalidatingFiles" xml:space="preserve">
+    <value>Revalidating all game files...</value>
+  </data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve">
     <value>Repairing current instance jar...</value>
   </data>

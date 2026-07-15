@@ -41,7 +41,19 @@ public sealed record GameFileIntegrityRequest(
     string VersionName,
     string InstanceDirectory,
     DownloadSourcePreference DownloadSourcePreference = DownloadSourcePreference.Auto,
-    int DownloadSpeedLimitMbPerSecond = 0);
+    int DownloadSpeedLimitMbPerSecond = 0)
+{
+    /// <summary>
+    /// The authoritative instance identity used to recover loader-owned files
+    /// when the installed version metadata is absent or no longer trustworthy.
+    /// </summary>
+    public GameFileLoaderIdentity? LoaderIdentity { get; init; }
+}
+
+public sealed record GameFileLoaderIdentity(
+    LoaderKind LoaderKind,
+    string MinecraftVersion,
+    string? LoaderVersion);
 
 public sealed record GameFileRepairOptions(bool AllowRepair);
 
@@ -61,6 +73,7 @@ public enum GameFileRepairFailureReason
 public enum GameFileVerificationLevel
 {
     HashVerified,
+    TrustedAcquisitionHash,
     SizeVerified,
     StructureVerified,
     ExistenceOnly,

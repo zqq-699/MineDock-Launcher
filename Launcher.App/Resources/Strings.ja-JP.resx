@@ -1522,6 +1522,15 @@
   <data name="Status_LaunchRunningLoaderInstaller" xml:space="preserve">
     <value>Loader ランタイムファイルを再構築しています...</value>
   </data>
+  <data name="Status_LaunchFinalizingLoaderVersion" xml:space="preserve">
+    <value>Loader サンドボックスを整理して検証しています...</value>
+  </data>
+  <data name="Status_LaunchPublishingLoaderArtifacts" xml:space="preserve">
+    <value>Loader ファイルを公開しています...</value>
+  </data>
+  <data name="Status_LaunchRevalidatingFiles" xml:space="preserve">
+    <value>すべてのゲームファイルを再検証しています...</value>
+  </data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve">
     <value>現在のインスタンスの jar ファイルを補完中...</value>
   </data>

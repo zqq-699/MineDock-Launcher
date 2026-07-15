@@ -102,7 +102,7 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
         }
     }
 
-    private sealed class JavaRuntimeProvisioningProgress : IProgress<LauncherProgress>, ISpeedMeterProgress
+    internal sealed class JavaRuntimeProvisioningProgress : IProgress<LauncherProgress>, ISpeedMeterProgress
     {
         private readonly IProgress<LauncherProgress> inner;
 
@@ -115,11 +115,20 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
 
         public void Report(LauncherProgress value)
         {
+            if (value.DownloadSpeedTelemetry is not null)
+            {
+                inner.Report(value);
+                return;
+            }
             var percent = value.Percent is double progressPercent
                 ? ProgressStartPercent + Math.Clamp(progressPercent, 0, 100) / 100d * (ProgressEndPercent - ProgressStartPercent)
                 : value.Percent;
 
-            inner.Report(value with { Percent = percent });
+            inner.Report(value with
+            {
+                Stage = LaunchProgressStages.CheckingJava,
+                Percent = percent
+            });
         }
     }
 }

@@ -10,6 +10,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
@@ -29,6 +30,7 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
         Assert.Equal(
             [
                 "com/example/classpath/1.0/classpath-1.0.jar",
+                "com/example/input/1.0/input-1.0.jar",
                 "com/example/processor/1.0/processor-1.0.jar",
                 "com/example/profile/1.0/profile-1.0.jar"
             ],
@@ -89,6 +91,66 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
             version["libraries"]!.AsArray().Select(item => item!["name"]!.GetValue<string>()));
     }
 
+    [Fact]
+    public async Task ManifestStoreCapturesCompleteInstallerClosureAndRejectsDifferentIdentity()
+    {
+        var installerPath = await WriteInstallerAsync(includeEmbeddedExternal: true);
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "Arbitrary Pack");
+        Directory.CreateDirectory(versionDirectory);
+        var service = new LoaderInstallerArtifactService(new HttpClient(new TestHandler("external")));
+        var plan = await service.ReadPlanAsync(installerPath, CancellationToken.None);
+        await service.MaterializePrerequisitesAsync(
+            installerPath,
+            plan,
+            minecraftDirectory,
+            DownloadSourcePreference.Official,
+            0,
+            CancellationToken.None);
+        await service.MaterializeRuntimeLibrariesAsync(
+            installerPath,
+            plan,
+            minecraftDirectory,
+            DownloadSourcePreference.Official,
+            0,
+            CancellationToken.None);
+        var output = Assert.Single(plan.ProcessorOutputs);
+        var outputPath = Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            output.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        await File.WriteAllTextAsync(outputPath, "generated");
+        var identity = new GameFileLoaderIdentity(LoaderKind.Forge, "9.9.9", "77.0.1");
+
+        await LoaderArtifactManifestStore.WriteAsync(
+            versionDirectory,
+            minecraftDirectory,
+            identity,
+            installerPath,
+            plan,
+            CancellationToken.None);
+
+        var result = await LoaderArtifactManifestStore.ReadAsync(
+            versionDirectory,
+            identity,
+            CancellationToken.None);
+        Assert.True(result.IsValid);
+        Assert.Equal(6, result.Manifest!.Artifacts.Count);
+        Assert.Contains(result.Manifest.Artifacts, artifact => artifact.Kind == LoaderArtifactKind.InstallerPrerequisite);
+        Assert.Contains(result.Manifest.Artifacts, artifact => artifact.Kind == LoaderArtifactKind.RuntimeLibrary);
+        Assert.Contains(result.Manifest.Artifacts, artifact => artifact.Kind == LoaderArtifactKind.ProcessorOutput);
+        Assert.All(result.Manifest.Artifacts, artifact => Assert.True(MinecraftFileIntegrity.IsSha1(artifact.Sha1)));
+        Assert.All(result.Manifest.Artifacts, artifact => Assert.Equal(64, artifact.Sha256.Length));
+
+        var mismatched = await LoaderArtifactManifestStore.ReadAsync(
+            versionDirectory,
+            identity with { LoaderVersion = "77.0.2" },
+            CancellationToken.None);
+        Assert.False(mismatched.IsValid);
+        Assert.Contains("identity", mismatched.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<string> WriteInstallerAsync(bool includeEmbeddedExternal)
     {
         Directory.CreateDirectory(TempRoot);
@@ -97,7 +159,10 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
         WriteEntry(archive, "install_profile.json", $$"""
             {
-              "data": { "OUTPUT": { "client": "[com.example:output:1.0]" } },
+              "data": {
+                "INPUT": { "client": "[com.example:input:1.0]" },
+                "OUTPUT": { "client": "[com.example:output:1.0]" }
+              },
               "libraries": [
                 {
                   "name": "com.example:profile:1.0",
@@ -110,7 +175,12 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
                   "sides": ["client"],
                   "jar": "com.example:processor:1.0",
                   "classpath": ["com.example:classpath:1.0"],
-                  "args": ["--output", "{OUTPUT}"]
+                  "args": ["--input", "{INPUT}", "--output", "{OUTPUT}"]
+                },
+                {
+                  "sides": ["client"],
+                  "jar": "com.example:processor:1.0",
+                  "args": ["--consume-generated", "{OUTPUT}"]
                 }
               ]
             }

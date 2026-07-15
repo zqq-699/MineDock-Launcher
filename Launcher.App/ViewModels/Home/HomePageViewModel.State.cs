@@ -121,7 +121,7 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
             : instance.MinimizeLauncherAfterLaunch;
     }
 
-    private static string FormatLaunchProgress(LauncherProgress progress)
+    internal static string FormatLaunchProgress(LauncherProgress progress)
     {
         // 已知阶段使用本地化稳定文案；仅对扩展阶段回退到服务提供的消息。
         return progress.Stage switch
@@ -130,6 +130,9 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
             LaunchProgressStages.RepairingMetadata => Strings.Status_LaunchRepairingMetadata,
             LaunchProgressStages.RepairingLoaderInstaller => Strings.Status_LaunchRepairingLoaderInstaller,
             LaunchProgressStages.RunningLoaderInstaller => Strings.Status_LaunchRunningLoaderInstaller,
+            LaunchProgressStages.FinalizingLoaderVersion => Strings.Status_LaunchFinalizingLoaderVersion,
+            LaunchProgressStages.PublishingLoaderArtifacts => Strings.Status_LaunchPublishingLoaderArtifacts,
+            LaunchProgressStages.RevalidatingFiles => Strings.Status_LaunchRevalidatingFiles,
             LaunchProgressStages.RepairingJar => Strings.Status_LaunchRepairingJar,
             LaunchProgressStages.RepairingLibraries => Strings.Status_LaunchRepairingLibraries,
             LaunchProgressStages.RepairingAssets => Strings.Status_LaunchRepairingAssets,

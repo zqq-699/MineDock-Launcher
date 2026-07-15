@@ -524,6 +524,9 @@
   <data name="Status_LaunchRepairingMetadata" xml:space="preserve"><value>正在整理当前版本信息...</value></data>
   <data name="Status_LaunchRepairingLoaderInstaller" xml:space="preserve"><value>正在下载 Loader 安装器...</value></data>
   <data name="Status_LaunchRunningLoaderInstaller" xml:space="preserve"><value>正在重建 Loader 运行库...</value></data>
+  <data name="Status_LaunchFinalizingLoaderVersion" xml:space="preserve"><value>正在整理并验证 Loader 沙箱...</value></data>
+  <data name="Status_LaunchPublishingLoaderArtifacts" xml:space="preserve"><value>正在发布 Loader 文件...</value></data>
+  <data name="Status_LaunchRevalidatingFiles" xml:space="preserve"><value>正在重新检查全部游戏文件...</value></data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve"><value>正在补齐当前实例 jar 文件...</value></data>
   <data name="Status_LaunchRepairingLibraries" xml:space="preserve"><value>正在补齐共享 libraries...</value></data>
   <data name="Status_LaunchRepairingAssets" xml:space="preserve"><value>正在补齐游戏资源...</value></data>

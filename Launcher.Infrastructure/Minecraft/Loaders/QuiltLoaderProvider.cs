@@ -226,7 +226,13 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
                         finalVersionName,
                         Path.Combine(versionWorkspaceDirectory, "versions", finalVersionName),
                         downloadSourcePreference,
-                        downloadSpeedLimitMbPerSecond),
+                        downloadSpeedLimitMbPerSecond)
+                    {
+                        LoaderIdentity = new GameFileLoaderIdentity(
+                            LoaderKind.Quilt,
+                            minecraftVersion,
+                            selectedLoaderVersion)
+                    },
                     downloadOperation,
                     progress,
                     cancellationToken).ConfigureAwait(false);

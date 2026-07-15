@@ -79,12 +79,16 @@ public sealed partial class HomePageViewModel
         var message = FormatLaunchProgress(progress);
         LaunchStatusMessage = message;
 
-        if (progress.Percent is double percent)
-            LaunchProgressPercent = Math.Clamp(percent, 0, 100);
+        LaunchProgressPercent = MergeLaunchProgressPercent(LaunchProgressPercent, progress.Percent);
 
         statusService.Report(message);
         reportProgressPercent(LaunchProgressPercent);
     }
+
+    internal static double MergeLaunchProgressPercent(double current, double? reported) =>
+        reported is double percent
+            ? Math.Clamp(Math.Max(current, percent), 0, 100)
+            : Math.Clamp(current, 0, 100);
 
     partial void OnIsLaunchingChanged(bool value)
     {

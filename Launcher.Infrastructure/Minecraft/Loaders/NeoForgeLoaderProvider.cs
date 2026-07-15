@@ -289,6 +289,16 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
+            await installerArtifactService.MaterializeRuntimeLibrariesAsync(
+                installerJarPath,
+                installerPlan,
+                installerMinecraftDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken,
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
+
             await installerArtifactService.ValidatePublishedArtifactsAsync(
                 installerMinecraftDirectory,
                 installerPlan,
@@ -350,6 +360,13 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 installerPlan,
                 cancellationToken,
                 downloadOperation).ConfigureAwait(false);
+            await LoaderArtifactManifestStore.WriteAsync(
+                Path.Combine(installerMinecraftDirectory, "versions", finalVersionName),
+                sharedMinecraftDirectory,
+                new GameFileLoaderIdentity(LoaderKind.NeoForge, minecraftVersion, selectedLoaderVersion),
+                installerJarPath,
+                installerPlan,
+                cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
                 installerMinecraftDirectory,

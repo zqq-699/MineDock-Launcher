@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
@@ -13,7 +12,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
@@ -43,21 +41,11 @@ internal sealed record ForgeInstallerPlan(
 /// </summary>
 internal sealed partial class LoaderInstallerArtifactService
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> RepairLocks = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Regex ForgeVersionArgumentRegex = new(
-        @"(?:^|\s)--fml\.forgeVersion(?:=|\s+)(?<version>[^\s]+)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    private static readonly Regex MinecraftVersionArgumentRegex = new(
-        @"(?:^|\s)--fml\.mcVersion(?:=|\s+)(?<version>[^\s]+)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly HttpClient httpClient;
-    private readonly IForgeInstallerRunner installerRunner;
-    private readonly IFinalVersionInstaller finalVersionInstaller;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly ILogger logger;
-    private readonly string tempRootDirectory;
 
     public LoaderInstallerArtifactService(
         HttpClient httpClient,
@@ -68,15 +56,9 @@ internal sealed partial class LoaderInstallerArtifactService
         string? tempRootDirectory = null)
     {
         this.httpClient = httpClient;
-        this.installerRunner = installerRunner ?? new ForgeInstallerRunner();
-        this.finalVersionInstaller = finalVersionInstaller ?? new FinalVersionInstaller();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger.Instance;
-        this.tempRootDirectory = string.IsNullOrWhiteSpace(tempRootDirectory) ? Path.GetTempPath() : tempRootDirectory;
     }
-
-    public static bool HasLegacyManifest(JsonObject versionJson, string metadataKey) =>
-        versionJson["launcher"] is JsonObject launcher && launcher.ContainsKey(metadataKey);
 
     public async Task<ForgeInstallerPlan> ReadPlanAsync(string installerJarPath, CancellationToken cancellationToken)
     {
@@ -93,13 +75,16 @@ internal sealed partial class LoaderInstallerArtifactService
                 entry => entry.FullName["maven/".Length..].Replace('\\', '/'),
                 entry => entry.FullName,
                 StringComparer.OrdinalIgnoreCase);
+        AddLegacyInstallerPayload(profile, archive, embeddedEntries);
 
         var prerequisiteLibraries = new Dictionary<string, ForgeInstallerLibrary>(StringComparer.OrdinalIgnoreCase);
         AddLibraries(profile["libraries"] as JsonArray, embeddedEntries, prerequisiteLibraries);
         var processorOutputs = ReadProcessorRequirements(profile, embeddedEntries, prerequisiteLibraries);
 
         var runtimeLibraries = new Dictionary<string, ForgeInstallerLibrary>(StringComparer.OrdinalIgnoreCase);
-        var runtimeMetadata = installerVersion["libraries"] as JsonArray ?? new JsonArray();
+        var runtimeMetadata = installerVersion["libraries"] as JsonArray
+            ?? profile["versionInfo"]?["libraries"] as JsonArray
+            ?? new JsonArray();
         AddLibraries(runtimeMetadata, embeddedEntries, runtimeLibraries);
 
         return new ForgeInstallerPlan(
@@ -215,162 +200,6 @@ internal sealed partial class LoaderInstallerArtifactService
             plan.RuntimeLibraryMetadata,
             versionJson["libraries"] as JsonArray);
         RemoveLegacyManifest(versionJson, legacyMetadataKey);
-    }
-
-    public async Task<JsonObject> RepairLegacyVersionAsync(
-        string minecraftDirectory,
-        string versionJsonPath,
-        JsonObject versionJson,
-        string minecraftVersion,
-        string loaderVersion,
-        string legacyMetadataKey,
-        string loaderName,
-        string installerUrl,
-        IProgress<LauncherProgress>? progress,
-        bool allowRepair,
-        DownloadSourcePreference downloadSourcePreference,
-        int downloadSpeedLimitMbPerSecond,
-        CancellationToken cancellationToken)
-    {
-        if (!HasLegacyManifest(versionJson, legacyMetadataKey))
-            return versionJson;
-        if (!allowRepair)
-        {
-            throw new InstanceRepairException(
-                $"{loaderName} runtime metadata requires repair and automatic repair is disabled.");
-        }
-
-        var repairKey = $"{Path.GetFullPath(minecraftDirectory)}|{loaderName}|{minecraftVersion}|{loaderVersion}";
-        var repairLock = RepairLocks.GetOrAdd(repairKey, static _ => new SemaphoreSlim(1, 1));
-        await repairLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var currentVersionJson = await ReadVersionJsonAsync(versionJsonPath, cancellationToken).ConfigureAwait(false);
-            if (!HasLegacyManifest(currentVersionJson, legacyMetadataKey))
-                return currentVersionJson;
-
-            var sessionDirectory = Path.Combine(tempRootDirectory, $"launcher-{loaderName.ToLowerInvariant()}-repair", Guid.NewGuid().ToString("N"));
-            var installerJarPath = Path.Combine(sessionDirectory, $"{loaderName.ToLowerInvariant()}-{loaderVersion}-installer.jar");
-            var installerMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
-            Directory.CreateDirectory(sessionDirectory);
-            try
-            {
-                progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLoaderInstaller, string.Empty, 21));
-                var speedMeter = SpeedMeterProgress.TryGet(progress);
-                await DownloadInstallerAsync(installerJarPath, installerUrl, loaderName, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter).ConfigureAwait(false);
-                var plan = await ReadPlanAsync(installerJarPath, cancellationToken).ConfigureAwait(false);
-
-                progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLibraries, string.Empty, 24));
-                LoaderVersionDirectoryTransaction.EnsureLauncherProfileExists(installerMinecraftDirectory);
-                Directory.CreateDirectory(Path.Combine(installerMinecraftDirectory, "versions"));
-                var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
-                var snapshot = await prerequisiteSeeder.SeedAsync(minecraftDirectory, installerMinecraftDirectory, minecraftVersion,
-                    installerJarPath, cancellationToken).ConfigureAwait(false);
-                await MaterializePrerequisitesAsync(installerJarPath, plan, installerMinecraftDirectory, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter: speedMeter).ConfigureAwait(false);
-                await EnsureVanillaVersionAsync(installerMinecraftDirectory, minecraftVersion, downloadSourcePreference,
-                    progress, downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter).ConfigureAwait(false);
-                progress?.Report(new LauncherProgress(LaunchProgressStages.RunningLoaderInstaller, string.Empty, 27));
-                await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken)
-                    .ConfigureAwait(false);
-                progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLibraries, string.Empty, 29));
-                await MaterializeRuntimeLibrariesAsync(installerJarPath, plan, installerMinecraftDirectory, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter: speedMeter).ConfigureAwait(false);
-                await ValidatePublishedArtifactsAsync(installerMinecraftDirectory, plan, cancellationToken).ConfigureAwait(false);
-
-                await prerequisiteSeeder.PublishDeltaAsync(snapshot, minecraftDirectory, cancellationToken).ConfigureAwait(false);
-                await ValidatePublishedArtifactsAsync(minecraftDirectory, plan, cancellationToken).ConfigureAwait(false);
-
-                ApplyRuntimeLibraries(currentVersionJson, plan, legacyMetadataKey);
-                await AtomicJsonFileWriter.WriteAsync(versionJsonPath, currentVersionJson, JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-                logger.LogInformation(
-                    "Migrated legacy loader runtime metadata. Loader={Loader} MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} LibraryCount={LibraryCount} ProcessorOutputCount={ProcessorOutputCount}",
-                    loaderName, minecraftVersion, loaderVersion, plan.RuntimeLibraries.Count, plan.ProcessorOutputs.Count);
-                return currentVersionJson;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (InstanceRepairException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                throw new InstanceRepairException($"{loaderName} {loaderVersion} runtime metadata could not be repaired.", exception);
-            }
-            finally
-            {
-                LoaderVersionDirectoryTransaction.TryDeleteDirectory(sessionDirectory);
-            }
-        }
-        finally
-        {
-            repairLock.Release();
-        }
-    }
-
-    public static bool TryResolveForgeIdentity(JsonObject versionJson, out string minecraftVersion, out string forgeVersion)
-    {
-        minecraftVersion = LauncherVersionMetadata.ReadMinecraftVersion(JsonSerializer.SerializeToElement(versionJson));
-        forgeVersion = string.Empty;
-        var argumentText = string.Join(' ', EnumerateStringValues(versionJson));
-        var forgeArgument = ForgeVersionArgumentRegex.Match(argumentText);
-        if (forgeArgument.Success)
-            forgeVersion = forgeArgument.Groups["version"].Value.Trim();
-        var minecraftArgument = MinecraftVersionArgumentRegex.Match(argumentText);
-        if (string.IsNullOrWhiteSpace(minecraftVersion) && minecraftArgument.Success)
-            minecraftVersion = minecraftArgument.Groups["version"].Value.Trim();
-
-        if (versionJson["libraries"] is JsonArray libraries)
-        {
-            foreach (var library in libraries.OfType<JsonObject>())
-            {
-                var name = library["name"]?.GetValue<string>();
-                var parts = name?.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (parts is null || parts.Length < 3 || !parts[0].Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
-                    || (!parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase) && !parts[1].Equals("fmlloader", StringComparison.OrdinalIgnoreCase)))
-                    continue;
-                var separator = parts[2].IndexOf('-');
-                if (string.IsNullOrWhiteSpace(minecraftVersion) && separator > 0)
-                    minecraftVersion = parts[2][..separator];
-                if (string.IsNullOrWhiteSpace(forgeVersion))
-                    forgeVersion = separator >= 0 && separator < parts[2].Length - 1 ? parts[2][(separator + 1)..] : parts[2];
-            }
-        }
-        return !string.IsNullOrWhiteSpace(minecraftVersion) && !string.IsNullOrWhiteSpace(forgeVersion);
-    }
-
-    public static bool TryResolveNeoForgeIdentity(JsonObject versionJson, out string minecraftVersion, out string neoForgeVersion)
-    {
-        minecraftVersion = LauncherVersionMetadata.ReadMinecraftVersion(JsonSerializer.SerializeToElement(versionJson));
-        neoForgeVersion = string.Empty;
-        var argumentText = string.Join(' ', EnumerateStringValues(versionJson));
-        var neoForgeArgument = Regex.Match(argumentText, @"(?:^|\s)--fml\.neoForgeVersion(?:=|\s+)(?<version>[^\s]+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (neoForgeArgument.Success)
-            neoForgeVersion = neoForgeArgument.Groups["version"].Value.Trim();
-        var minecraftArgument = MinecraftVersionArgumentRegex.Match(argumentText);
-        if (string.IsNullOrWhiteSpace(minecraftVersion) && minecraftArgument.Success)
-            minecraftVersion = minecraftArgument.Groups["version"].Value.Trim();
-        if (versionJson["libraries"] is JsonArray libraries)
-        {
-            foreach (var library in libraries.OfType<JsonObject>())
-            {
-                var parts = library["name"]?.GetValue<string>()?.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (parts is { Length: >= 3 }
-                    && parts[0].Equals("net.neoforged", StringComparison.OrdinalIgnoreCase)
-                    && parts[1].Equals("neoforge", StringComparison.OrdinalIgnoreCase)
-                    && string.IsNullOrWhiteSpace(neoForgeVersion))
-                {
-                    neoForgeVersion = parts[2];
-                }
-            }
-        }
-        return !string.IsNullOrWhiteSpace(minecraftVersion) && !string.IsNullOrWhiteSpace(neoForgeVersion);
     }
 
     private async Task MaterializeLibrariesAsync(
@@ -535,6 +364,29 @@ internal sealed partial class LoaderInstallerArtifactService
         }
     }
 
+    private static void AddLegacyInstallerPayload(
+        JsonObject profile,
+        ZipArchive archive,
+        IDictionary<string, string> embeddedEntries)
+    {
+        if (profile["install"] is not JsonObject install)
+            return;
+        var coordinate = install["path"]?.GetValue<string>()?.Trim();
+        var entryName = install["filePath"]?.GetValue<string>()?.Trim();
+        if (string.IsNullOrWhiteSpace(coordinate)
+            || string.IsNullOrWhiteSpace(entryName)
+            || archive.GetEntry(entryName) is null
+            || !ManagedLibraryArtifactResolver.TryBuildMavenPath(
+                coordinate,
+                classifierOverride: null,
+                out var relativePath)
+            || !IsSafeRelativePath(relativePath))
+        {
+            return;
+        }
+        embeddedEntries[relativePath.Replace('\\', '/')] = entryName;
+    }
+
     private static IReadOnlyList<ForgeProcessorOutput> ReadProcessorRequirements(
         JsonObject profile,
         IReadOnlyDictionary<string, string> embeddedEntries,
@@ -544,10 +396,16 @@ internal sealed partial class LoaderInstallerArtifactService
             return [];
         var data = ReadClientData(profile["data"] as JsonObject);
         var outputs = new Dictionary<string, ForgeProcessorOutput>(StringComparer.OrdinalIgnoreCase);
-        foreach (var processor in processors.OfType<JsonObject>())
+        var clientProcessors = processors
+            .OfType<JsonObject>()
+            .Where(RunsOnClient)
+            .ToArray();
+
+        // Forge processor chains commonly feed an earlier generated Maven-shaped
+        // output into a later processor. Resolve the complete output set first so
+        // those values are not mistaken for remotely downloadable prerequisites.
+        foreach (var processor in clientProcessors)
         {
-            if (!RunsOnClient(processor))
-                continue;
             AddCoordinate(processor["jar"]?.GetValue<string>(), embeddedEntries, prerequisites);
             if (processor["classpath"] is JsonArray classpath)
             {
@@ -561,11 +419,30 @@ internal sealed partial class LoaderInstallerArtifactService
             }
             if (processor["args"] is not JsonArray arguments)
                 continue;
-            for (var index = 0; index < arguments.Count - 1; index++)
+            for (var index = 0; index < arguments.Count; index++)
             {
                 var argument = arguments[index]?.GetValue<string>();
-                if (argument is "--output" or "--slim" or "--extra")
+                if ((argument is "--output" or "--slim" or "--extra") && index + 1 < arguments.Count)
+                {
                     AddOutput(outputs, arguments[index + 1]?.GetValue<string>(), hashExpression: null, data);
+                    index++;
+                }
+            }
+        }
+
+        foreach (var processor in clientProcessors)
+        {
+            if (processor["args"] is not JsonArray arguments)
+                continue;
+            for (var index = 0; index < arguments.Count; index++)
+            {
+                var argument = arguments[index]?.GetValue<string>();
+                if ((argument is "--output" or "--slim" or "--extra") && index + 1 < arguments.Count)
+                {
+                    index++;
+                    continue;
+                }
+                AddArgumentCoordinate(argument, data, outputs, embeddedEntries, prerequisites);
             }
         }
         return outputs.Values.ToArray();
@@ -577,6 +454,30 @@ internal sealed partial class LoaderInstallerArtifactService
         if (string.IsNullOrWhiteSpace(coordinate))
             return;
         AddLibraries(new JsonArray(new JsonObject { ["name"] = coordinate.Trim() }), embeddedEntries, prerequisites);
+    }
+
+    private static void AddArgumentCoordinate(
+        string? expression,
+        IReadOnlyDictionary<string, string> data,
+        IReadOnlyDictionary<string, ForgeProcessorOutput> outputs,
+        IReadOnlyDictionary<string, string> embeddedEntries,
+        IDictionary<string, ForgeInstallerLibrary> prerequisites)
+    {
+        var resolved = ResolveExpression(expression, data).Trim();
+        if (resolved.Length < 3 || resolved[0] != '[' || resolved[^1] != ']')
+            return;
+        var coordinate = resolved[1..^1];
+        if (!ManagedLibraryArtifactResolver.TryBuildMavenPath(
+                coordinate,
+                classifierOverride: null,
+                out var relativePath)
+            || !IsSafeRelativePath(relativePath))
+        {
+            throw new InvalidDataException($"Forge processor input cannot be resolved: {expression}");
+        }
+        if (outputs.ContainsKey(relativePath))
+            return;
+        AddCoordinate(coordinate, embeddedEntries, prerequisites);
     }
 
     private static void AddLibrary(ManagedLibraryArtifact artifact, IReadOnlyDictionary<string, string> embeddedEntries,
@@ -647,30 +548,6 @@ internal sealed partial class LoaderInstallerArtifactService
         outputs[relativePath] = new ForgeProcessorOutput(relativePath, existing?.TrustedSha1 ?? resolvedHash);
     }
 
-    private async Task DownloadInstallerAsync(string installerJarPath, string installerUrl, string loaderName,
-        DownloadSourcePreference preference, int speedLimit, CancellationToken cancellationToken,
-        SpeedMeter? speedMeter = null)
-    {
-        var executor = new MinecraftDownloadRequestExecutor(httpClient, logger,
-            DownloadBandwidthLimiter.Create(speedLimit, downloadSpeedLimitState), category: DownloadConcurrencyCategory.Runtime);
-        await executor.DownloadFileAsync(installerUrl, preference, loaderName, installerJarPath,
-            expectedSha1: null,
-            expectedSize: null,
-            cancellationToken,
-            speedMeter: speedMeter).ConfigureAwait(false);
-    }
-
-    private async Task EnsureVanillaVersionAsync(string installerMinecraftDirectory, string minecraftVersion,
-        DownloadSourcePreference preference, IProgress<LauncherProgress>? progress, int speedLimit,
-        CancellationToken cancellationToken, SpeedMeter? speedMeter)
-    {
-        var directory = Path.Combine(installerMinecraftDirectory, "versions", minecraftVersion);
-        if (File.Exists(Path.Combine(directory, $"{minecraftVersion}.json")) && File.Exists(Path.Combine(directory, $"{minecraftVersion}.jar")))
-            return;
-        await finalVersionInstaller.InstallAsync(new MinecraftPath(installerMinecraftDirectory), minecraftVersion, preference,
-            progress, cancellationToken, speedLimit, speedMeter).ConfigureAwait(false);
-    }
-
     private static void RemoveLegacyManifest(JsonObject versionJson, string metadataKey)
     {
         if (versionJson["launcher"] is not JsonObject launcher)
@@ -680,33 +557,19 @@ internal sealed partial class LoaderInstallerArtifactService
             versionJson.Remove("launcher");
     }
 
-    private static async Task<JsonObject> ReadVersionJsonAsync(string versionJsonPath, CancellationToken cancellationToken)
+    private static async Task<JsonObject> ReadVersionJsonAsync(
+        string versionJsonPath,
+        CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(versionJsonPath, FileMode.Open, FileAccess.Read, FileShare.Read, 16 * 1024,
+        await using var stream = new FileStream(
+            versionJsonPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         return await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject
-            ?? throw new InstanceRepairException($"Version metadata is empty: {versionJsonPath}");
-    }
-
-    private static IEnumerable<string> EnumerateStringValues(JsonNode node)
-    {
-        if (node is JsonValue value && value.TryGetValue<string>(out var text))
-        {
-            yield return text;
-            yield break;
-        }
-        if (node is JsonObject obj)
-        {
-            foreach (var child in obj.Select(pair => pair.Value).Where(child => child is not null))
-            foreach (var childText in EnumerateStringValues(child!))
-                yield return childText;
-        }
-        else if (node is JsonArray array)
-        {
-            foreach (var child in array.Where(child => child is not null))
-            foreach (var childText in EnumerateStringValues(child!))
-                yield return childText;
-        }
+            ?? throw new InvalidDataException($"Version metadata is empty: {versionJsonPath}");
     }
 
     private static bool RunsOnClient(JsonObject processor) =>

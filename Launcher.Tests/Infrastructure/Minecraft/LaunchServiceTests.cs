@@ -34,6 +34,34 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task DisabledFileCheckSkipsFileStagesAndReportsHundredOnlyAfterProcessStarts()
+    {
+        var repair = new FakeRepairService();
+        var launcher = new FakeLauncherFactory();
+        var service = CreateService(repair, launcher);
+        var settings = CreateSettings();
+        settings.DefaultCheckFilesBeforeLaunch = false;
+        var reports = new List<LauncherProgress>();
+
+        await service.LaunchAsync(
+            CreateInstance(settings.MinecraftDirectory, "No File Check"),
+            CreateAccount(),
+            settings,
+            new InlineProgress(reports));
+
+        Assert.Null(repair.LastVersionName);
+        Assert.DoesNotContain(
+            reports,
+            report => report.Stage is LaunchProgressStages.CheckingFiles
+                or LaunchProgressStages.RevalidatingFiles);
+        Assert.Equal(
+            [99d, 100d],
+            reports
+                .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
+                .Select(report => report.Percent!.Value));
+    }
+
+    [Fact]
     public async Task AutomaticJavaProvisioningRetriesSelection()
     {
         var javaDirectory = Path.Combine(TempRoot, "java", "bin");
@@ -247,6 +275,11 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 "super-secret-access-token",
                 account.Uuid!,
                 account.IsOffline));
+    }
+
+    private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
+    {
+        public void Report(LauncherProgress value) => reports.Add(value);
     }
 
     private sealed class FakeAuthlibInjector(string filePath) : IAuthlibInjectorProvisioningService

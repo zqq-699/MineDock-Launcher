@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.IO.Compression;
@@ -25,6 +26,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CmlLib.Core;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
@@ -159,6 +161,27 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LegacyForgeInstallerPlanUsesVersionInfoAndEmbeddedUniversalPayload()
+    {
+        var installerPath = Path.Combine(TempRoot, "legacy-forge-installer.jar");
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllBytesAsync(installerPath, CreateLegacyForgeInstallerBytes());
+        var service = new LoaderInstallerArtifactService(new HttpClient(new ForgeHttpHandler()));
+
+        var plan = await service.ReadPlanAsync(installerPath, CancellationToken.None);
+
+        var forge = Assert.Single(
+            plan.RuntimeLibraries,
+            library => library.Artifact.LibraryName == "net.minecraftforge:forge:1.10.2-12.18.3.2511");
+        Assert.Equal(
+            "forge-1.10.2-12.18.3.2511-universal.jar",
+            forge.EmbeddedEntryName);
+        Assert.Contains(
+            plan.RuntimeLibraries,
+            library => library.Artifact.LibraryName == "net.minecraft:launchwrapper:1.12");
+    }
+
+    [Fact]
     public async Task ForgeLoaderProviderInstallCreatesOnlyFinalVersionDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -220,6 +243,134 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.1", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
         Assert.False(json.RootElement.GetProperty("launcher").TryGetProperty("forgeProcessorArtifacts", out _));
+    }
+
+    [Fact]
+    public async Task ForgeIntegrityRepairUsesInstallerManifestWithoutLegacyMarkerAndPreservesUserContent()
+    {
+        const string versionName = "Better MC [FORGE] BMC4";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
+        var httpClient = new HttpClient(new ForgeHttpHandler());
+        var provider = new ForgeLoaderProvider(
+            httpClient,
+            new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+                CreateSandboxForgeInstallAsync(
+                    gameDirectory,
+                    "forge-1.20.1-47.4.20",
+                    "1.20.1",
+                    "1.20.1-47.4.20")),
+            new NoOpFinalVersionInstaller(),
+            TempRoot);
+        await provider.InstallAsync(
+            "1.20.1",
+            minecraftDirectory,
+            versionName,
+            "47.4.20",
+            progress: null);
+        await EnsureUnverifiedVersionLibrariesExistAsync(minecraftDirectory, versionName);
+        var versionJsonPath = Path.Combine(minecraftDirectory, "versions", versionName, $"{versionName}.json");
+        var versionJson = JsonNode.Parse(await File.ReadAllTextAsync(versionJsonPath))!.AsObject();
+        versionJson["launcher"]!.AsObject()["forgeProcessorArtifacts"] = new JsonObject
+        {
+            ["schemaVersion"] = 2
+        };
+        await File.WriteAllTextAsync(versionJsonPath, versionJson.ToJsonString());
+
+        var missingRelativePaths = new[]
+        {
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar",
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-extra.jar",
+            "net/minecraftforge/forge/1.20.1-47.4.20/forge-1.20.1-47.4.20-client.jar"
+        };
+        foreach (var relativePath in missingRelativePaths)
+            File.Delete(GetGeneratedLibraryPath(minecraftDirectory, relativePath));
+
+        var userFiles = new Dictionary<string, string>
+        {
+            [Path.Combine(minecraftDirectory, "mods", "keep.jar")] = "mod",
+            [Path.Combine(minecraftDirectory, "config", "keep.toml")] = "config",
+            [Path.Combine(minecraftDirectory, "saves", "World", "level.dat")] = "save"
+        };
+        foreach (var userFile in userFiles)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(userFile.Key)!);
+            await File.WriteAllTextAsync(userFile.Key, userFile.Value);
+        }
+
+        var service = new GameFileIntegrityService(
+            httpClient,
+            downloadSpeedLimitState: null,
+            logger: null,
+            loaderProviders: [provider],
+            gameInstallCoordinator: new GameInstallCoordinator());
+        var progressReports = new ConcurrentQueue<LauncherProgress>();
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(
+                minecraftDirectory,
+                versionName,
+                Path.Combine(minecraftDirectory, "versions", versionName))
+            {
+                LoaderIdentity = new GameFileLoaderIdentity(
+                    LoaderKind.Forge,
+                    "1.20.1",
+                    "47.4.20")
+            },
+            new GameFileRepairOptions(AllowRepair: true),
+            new InlineProgress(progressReports));
+
+        Assert.True(
+            result.LaunchAllowed,
+            string.Join(Environment.NewLine, result.Failures.Select(failure =>
+                $"{failure.Category}: {failure.Reason} {failure.TargetPath} {failure.Source}")));
+        Assert.True(result.RepairedCount >= missingRelativePaths.Length);
+        Assert.All(missingRelativePaths, relativePath =>
+            Assert.True(File.Exists(GetGeneratedLibraryPath(minecraftDirectory, relativePath))));
+        foreach (var userFile in userFiles)
+            Assert.Equal(userFile.Value, await File.ReadAllTextAsync(userFile.Key));
+
+        var manifest = await LoaderArtifactManifestStore.ReadAsync(
+            Path.Combine(minecraftDirectory, "versions", versionName),
+            new GameFileLoaderIdentity(LoaderKind.Forge, "1.20.1", "47.4.20"),
+            CancellationToken.None);
+        Assert.True(manifest.IsValid);
+        Assert.All(missingRelativePaths, relativePath =>
+            Assert.Contains(
+                manifest.Manifest!.Artifacts,
+                artifact => artifact.RelativePath == $"libraries/{relativePath}"));
+        using var repairedVersionJson = JsonDocument.Parse(await File.ReadAllTextAsync(versionJsonPath));
+        Assert.False(
+            repairedVersionJson.RootElement.GetProperty("launcher").TryGetProperty(
+                "forgeProcessorArtifacts",
+                out _));
+
+        var visibleProgress = progressReports
+            .Where(report => report.DownloadSpeedTelemetry is null)
+            .ToArray();
+        Assert.DoesNotContain(
+            visibleProgress,
+            report => report.Stage.StartsWith("Install.", StringComparison.Ordinal));
+        var expectedStages = new[]
+        {
+            LaunchProgressStages.RepairingLoaderInstaller,
+            LaunchProgressStages.RunningLoaderInstaller,
+            LaunchProgressStages.FinalizingLoaderVersion,
+            LaunchProgressStages.PublishingLoaderArtifacts,
+            LaunchProgressStages.RevalidatingFiles
+        };
+        var previousIndex = -1;
+        foreach (var stage in expectedStages)
+        {
+            var index = Array.FindIndex(visibleProgress, report => report.Stage == stage);
+            Assert.True(index > previousIndex, $"Launch progress stage {stage} was missing or out of order.");
+            previousIndex = index;
+        }
+        var percents = visibleProgress
+            .Where(report => report.Percent is not null)
+            .Select(report => report.Percent!.Value)
+            .ToArray();
+        Assert.Equal(percents.Order(), percents);
+        Assert.Equal(90, visibleProgress.Last(report => report.Stage == LaunchProgressStages.RevalidatingFiles).Percent);
     }
 
     [Fact]
@@ -519,6 +670,34 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         var path = GetGeneratedLibraryPath(minecraftDirectory, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
+    }
+
+    private sealed class InlineProgress(ConcurrentQueue<LauncherProgress> reports) : IProgress<LauncherProgress>
+    {
+        public void Report(LauncherProgress value) => reports.Enqueue(value);
+    }
+
+    private static async Task EnsureUnverifiedVersionLibrariesExistAsync(
+        string minecraftDirectory,
+        string versionName)
+    {
+        var versionPath = Path.Combine(minecraftDirectory, "versions", versionName, $"{versionName}.json");
+        var version = JsonNode.Parse(await File.ReadAllTextAsync(versionPath))!.AsObject();
+        if (version["libraries"] is not JsonArray libraries)
+            return;
+        foreach (var library in libraries.OfType<JsonObject>())
+        {
+            foreach (var artifact in ManagedLibraryArtifactResolver.EnumerateDownloads(library))
+            {
+                if (MinecraftFileIntegrity.IsSha1(artifact.Sha1))
+                    continue;
+                var path = GetGeneratedLibraryPath(minecraftDirectory, artifact.RelativePath);
+                if (File.Exists(path))
+                    continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await File.WriteAllTextAsync(path, "standard library");
+            }
+        }
     }
 
     private static string GetGeneratedLibraryPath(string minecraftDirectory, string relativePath) =>

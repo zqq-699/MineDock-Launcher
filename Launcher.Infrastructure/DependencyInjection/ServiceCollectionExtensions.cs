@@ -55,7 +55,22 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoaderProvider, ForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider, NeoForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider, QuiltLoaderProvider>();
-        services.AddSingleton<IGameFileIntegrityService, GameFileIntegrityService>();
+        services.AddSingleton<ILoaderFileManifestContributor>(
+            new ResolvedVersionLoaderFileManifestContributor(LoaderKind.Vanilla));
+        services.AddSingleton<ILoaderFileManifestContributor>(
+            new ResolvedVersionLoaderFileManifestContributor(LoaderKind.Fabric));
+        services.AddSingleton<ILoaderFileManifestContributor>(
+            new InstallerProfileLoaderFileManifestContributor(LoaderKind.Forge));
+        services.AddSingleton<ILoaderFileManifestContributor>(
+            new InstallerProfileLoaderFileManifestContributor(LoaderKind.NeoForge));
+        services.AddSingleton<ILoaderFileManifestContributor>(
+            new ResolvedVersionLoaderFileManifestContributor(LoaderKind.Quilt));
+        services.AddSingleton<IGameFileIntegrityService>(serviceProvider => new GameFileIntegrityService(
+            serviceProvider.GetServices<ILoaderProvider>(),
+            serviceProvider.GetRequiredService<IGameInstallCoordinator>(),
+            serviceProvider.GetService<IDownloadSpeedLimitState>(),
+            serviceProvider.GetService<Microsoft.Extensions.Logging.ILogger<GameFileIntegrityService>>(),
+            serviceProvider.GetServices<ILoaderFileManifestContributor>()));
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<ILaunchDiagnosticExportService, LaunchDiagnosticExportService>();
         services.AddSingleton<IGameLanguageService, GameLanguageService>();

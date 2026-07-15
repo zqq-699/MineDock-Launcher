@@ -76,7 +76,13 @@ public sealed partial class LaunchService
                         resolvedSettings.VersionName,
                         instance.InstanceDirectory,
                         settings.DownloadSourcePreference,
-                        settings.DownloadSpeedLimitMbPerSecond),
+                        settings.DownloadSpeedLimitMbPerSecond)
+                    {
+                        LoaderIdentity = new GameFileLoaderIdentity(
+                            instance.Loader,
+                            instance.MinecraftVersion,
+                            instance.LoaderVersion)
+                    },
                     new GameFileRepairOptions(resolvedSettings.AutoRepairMissingFiles),
                     progress,
                     cancellationToken)
@@ -188,7 +194,13 @@ public sealed partial class LaunchService
                     resolvedSettings.VersionName,
                     instance.InstanceDirectory,
                     settings.DownloadSourcePreference,
-                    settings.DownloadSpeedLimitMbPerSecond),
+                    settings.DownloadSpeedLimitMbPerSecond)
+                {
+                    LoaderIdentity = new GameFileLoaderIdentity(
+                        instance.Loader,
+                        instance.MinecraftVersion,
+                        instance.LoaderVersion)
+                },
                 process.StartInfo,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -203,9 +215,10 @@ public sealed partial class LaunchService
             resolvedSettings.VersionName);
         crashMonitorSession.Configure(process);
         ConfigurePostExitCommand(process, resolvedSettings.PostExitCommand, instance.InstanceDirectory);
-        progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Starting game process", 100));
+        progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Starting game process", 99));
         if (!process.Start())
             throw new InvalidOperationException("Minecraft process did not start.");
+        progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Game process started", 100));
 
         logger.LogInformation(
             "Minecraft process started. VersionName={VersionName} ProcessId={ProcessId}",

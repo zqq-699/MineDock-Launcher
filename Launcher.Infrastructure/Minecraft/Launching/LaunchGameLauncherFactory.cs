@@ -51,12 +51,15 @@ internal sealed class LaunchGameLauncherFactory : ILaunchGameLauncherFactory
         IProgress<LauncherProgress>? progress,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        var buildProgress = progress is null
+            ? null
+            : new LaunchProcessBuildProgressAdapter(progress);
         var launcher = VanillaLoaderProvider.CreateLauncher(
             minecraftDirectory,
-            progress,
+            buildProgress,
             downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState: downloadSpeedLimitState);
-        VanillaLoaderProvider.AttachProgress(launcher, progress);
+        VanillaLoaderProvider.AttachProgress(launcher, buildProgress);
         return new CmlLaunchGameLauncher(launcher);
     }
 

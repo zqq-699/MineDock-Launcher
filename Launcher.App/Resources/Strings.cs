@@ -813,6 +813,9 @@ public static class Strings
     public static string Status_LaunchRepairingMetadata => Get(nameof(Status_LaunchRepairingMetadata));
     public static string Status_LaunchRepairingLoaderInstaller => Get(nameof(Status_LaunchRepairingLoaderInstaller));
     public static string Status_LaunchRunningLoaderInstaller => Get(nameof(Status_LaunchRunningLoaderInstaller));
+    public static string Status_LaunchFinalizingLoaderVersion => Get(nameof(Status_LaunchFinalizingLoaderVersion));
+    public static string Status_LaunchPublishingLoaderArtifacts => Get(nameof(Status_LaunchPublishingLoaderArtifacts));
+    public static string Status_LaunchRevalidatingFiles => Get(nameof(Status_LaunchRevalidatingFiles));
     public static string Status_LaunchRepairingJar => Get(nameof(Status_LaunchRepairingJar));
     public static string Status_LaunchRepairingLibraries => Get(nameof(Status_LaunchRepairingLibraries));
     public static string Status_LaunchRepairingAssets => Get(nameof(Status_LaunchRepairingAssets));

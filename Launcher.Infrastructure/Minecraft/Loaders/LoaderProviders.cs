@@ -151,6 +151,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             cancellationToken).ConfigureAwait(false);
         await EnsureInstalledVersionIsValidAsync(
             finalVersionName,
+            minecraftVersion,
             sharedMinecraftDirectory,
             versionWorkspaceDirectory,
             downloadSourcePreference,
@@ -163,6 +164,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
 
     private async Task EnsureInstalledVersionIsValidAsync(
         string versionName,
+        string minecraftVersion,
         string sharedMinecraftDirectory,
         string versionWorkspaceDirectory,
         DownloadSourcePreference downloadSourcePreference,
@@ -178,7 +180,13 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
                     versionName,
                     Path.Combine(versionWorkspaceDirectory, "versions", versionName),
                     downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond),
+                    downloadSpeedLimitMbPerSecond)
+                {
+                    LoaderIdentity = new GameFileLoaderIdentity(
+                        LoaderKind.Vanilla,
+                        minecraftVersion,
+                        LoaderVersion: null)
+                },
                 downloadOperation,
                 progress,
                 cancellationToken).ConfigureAwait(false);

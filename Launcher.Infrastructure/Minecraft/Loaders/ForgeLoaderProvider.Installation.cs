@@ -164,6 +164,16 @@ private async Task<string> InstallCoreAsync(
                 selectedLoaderVersion,
                 installerRunStopwatch.ElapsedMilliseconds);
 
+            await installerArtifactService.MaterializeRuntimeLibrariesAsync(
+                installerJarPath,
+                installerPlan,
+                installerMinecraftDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken,
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
+
             var sandboxValidationStopwatch = Stopwatch.StartNew();
             await installerArtifactService.ValidatePublishedArtifactsAsync(
                 installerMinecraftDirectory,
@@ -255,6 +265,13 @@ private async Task<string> InstallCoreAsync(
                 installerPlan,
                 cancellationToken,
                 downloadOperation).ConfigureAwait(false);
+            await LoaderArtifactManifestStore.WriteAsync(
+                Path.Combine(installerMinecraftDirectory, "versions", finalVersionName),
+                sharedMinecraftDirectory,
+                new GameFileLoaderIdentity(LoaderKind.Forge, minecraftVersion, selectedLoaderVersion),
+                installerJarPath,
+                installerPlan,
+                cancellationToken).ConfigureAwait(false);
             logger.LogInformation(
                 "Forge final version content installation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} VersionName={VersionName} DurationMs={DurationMs}",
                 minecraftVersion,

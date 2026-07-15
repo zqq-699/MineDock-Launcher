@@ -211,7 +211,13 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
                         finalVersionName,
                         Path.Combine(versionWorkspaceDirectory, "versions", finalVersionName),
                         downloadSourcePreference,
-                        downloadSpeedLimitMbPerSecond),
+                        downloadSpeedLimitMbPerSecond)
+                    {
+                        LoaderIdentity = new GameFileLoaderIdentity(
+                            LoaderKind.Fabric,
+                            minecraftVersion,
+                            selectedLoaderVersion)
+                    },
                     downloadOperation,
                     progress,
                     cancellationToken).ConfigureAwait(false);

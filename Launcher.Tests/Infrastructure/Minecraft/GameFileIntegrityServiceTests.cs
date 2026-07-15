@@ -31,14 +31,206 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
         {
             ["https://example.test/" + relativePath] = libraryContent
         })), downloadSpeedLimitState: null);
+        var progressReports = new List<LauncherProgress>();
 
         var result = await service.ValidateAndRepairAsync(
             new GameFileIntegrityRequest(minecraftDirectory, versionName, Path.Combine(minecraftDirectory, "versions", versionName)),
-            new GameFileRepairOptions(AllowRepair: true));
+            new GameFileRepairOptions(AllowRepair: true),
+            new InlineProgress(progressReports));
 
         Assert.True(result.LaunchAllowed);
         Assert.Equal(1, result.RepairedCount);
         Assert.Equal(libraryContent, await File.ReadAllTextAsync(Path.Combine(minecraftDirectory, "libraries", relativePath.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.Contains(
+            progressReports,
+            report => report.Stage == LaunchProgressStages.RevalidatingFiles && report.Percent == 84);
+        Assert.Contains(
+            progressReports,
+            report => report.Stage == LaunchProgressStages.RevalidatingFiles && report.Percent == 90);
+        Assert.Equal(
+            progressReports.Where(report => report.Percent is not null).Select(report => report.Percent!.Value).Order(),
+            progressReports.Where(report => report.Percent is not null).Select(report => report.Percent!.Value));
+    }
+
+    [Fact]
+    public async Task CompleteVersionSkipsRepairRangesAndFinishesInitialValidationAtNinety()
+    {
+        const string versionName = "Complete Vanilla";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var reports = new List<LauncherProgress>();
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null);
+
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(
+                minecraftDirectory,
+                versionName,
+                Path.Combine(minecraftDirectory, "versions", versionName)),
+            new GameFileRepairOptions(AllowRepair: true),
+            new InlineProgress(reports));
+
+        Assert.True(result.LaunchAllowed);
+        Assert.Equal([4d, 12d, 90d], reports.Select(report => report.Percent!.Value));
+        Assert.All(reports, report => Assert.Equal(LaunchProgressStages.CheckingFiles, report.Stage));
+    }
+
+    [Fact]
+    public async Task MissingVersionMetadataIsRebuiltFromExplicitLoaderIdentity()
+    {
+        const string versionName = "Recovered Vanilla";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        Directory.CreateDirectory(versionDirectory);
+        var provider = new RecordingLoaderProvider(LoaderKind.Vanilla);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null,
+            logger: null,
+            loaderProviders: [provider],
+            gameInstallCoordinator: new GameInstallCoordinator());
+
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                LoaderIdentity = new GameFileLoaderIdentity(
+                    LoaderKind.Vanilla,
+                    "1.21.8",
+                    LoaderVersion: null)
+            },
+            new GameFileRepairOptions(AllowRepair: true));
+
+        Assert.True(result.LaunchAllowed);
+        Assert.Equal(1, provider.InstallCount);
+        Assert.True(File.Exists(Path.Combine(versionDirectory, $"{versionName}.json")));
+        Assert.True(File.Exists(Path.Combine(versionDirectory, $"{versionName}.jar")));
+    }
+
+    [Fact]
+    public async Task NestedLoaderDownloadFailureIsNotMisreportedAsCorruption()
+    {
+        const string versionName = "Forge Download Failure";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        Directory.CreateDirectory(versionDirectory);
+        var provider = new FailingLoaderProvider(
+            LoaderKind.Forge,
+            new InstanceRepairException(
+                "Forge sandbox repair failed.",
+                new DownloadAttemptException(
+                    DownloadFailureDisposition.SwitchSource,
+                    DownloadFailureReason.HttpStatus,
+                    "The source returned HTTP 404.",
+                    statusCode: HttpStatusCode.NotFound)));
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null,
+            logger: null,
+            loaderProviders: [provider],
+            gameInstallCoordinator: new GameInstallCoordinator());
+
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                LoaderIdentity = new GameFileLoaderIdentity(LoaderKind.Forge, "1.20.1", "47.4.20")
+            },
+            new GameFileRepairOptions(AllowRepair: true));
+
+        Assert.False(result.LaunchAllowed);
+        Assert.Equal(0, result.CorruptedCount);
+        Assert.Equal(GameFileRepairFailureReason.DownloadFailed, Assert.Single(result.Failures).Reason);
+    }
+
+    [Fact]
+    public async Task DisabledAutoRepairReportsLoaderArtifactWithoutRunningProviderOrPublishingFiles()
+    {
+        const string versionName = "Forge Check Only";
+        const string loaderRelativePath = "org/example/generated/3.7/generated-3.7-client.jar";
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        CreateVersion(minecraftDirectory, versionName, "example/library/1.0/library-1.0.jar", "library");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        var loaderPath = Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            loaderRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(loaderPath)!);
+        await File.WriteAllTextAsync(loaderPath, "generated");
+        var installerPath = Path.Combine(TempRoot, "arbitrary-installer.jar");
+        await File.WriteAllTextAsync(installerPath, "installer");
+        var identity = new GameFileLoaderIdentity(LoaderKind.Forge, "9.9.9", "3.7");
+        await LoaderArtifactManifestStore.WriteAsync(
+            versionDirectory,
+            minecraftDirectory,
+            identity,
+            installerPath,
+            new ForgeInstallerPlan(
+                PrerequisiteLibraries: [],
+                RuntimeLibraries: [],
+                ProcessorOutputs: [new ForgeProcessorOutput(loaderRelativePath, TrustedSha1: null)],
+                RuntimeLibraryMetadata: new JsonArray()),
+            CancellationToken.None);
+        File.Delete(loaderPath);
+        var provider = new RecordingLoaderProvider(LoaderKind.Forge);
+        var service = new GameFileIntegrityService(
+            new HttpClient(new ContentHandler(new Dictionary<string, string>())),
+            downloadSpeedLimitState: null,
+            logger: null,
+            loaderProviders: [provider],
+            gameInstallCoordinator: new GameInstallCoordinator());
+        var progressReports = new List<LauncherProgress>();
+
+        var result = await service.ValidateAndRepairAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                LoaderIdentity = identity
+            },
+            new GameFileRepairOptions(AllowRepair: false),
+            new InlineProgress(progressReports));
+
+        Assert.False(result.LaunchAllowed);
+        Assert.Equal(1, result.MissingCount);
+        Assert.Equal(0, provider.InstallCount);
+        Assert.False(File.Exists(loaderPath));
+        Assert.True(File.Exists(LoaderArtifactManifestStore.GetPath(versionDirectory)));
+        Assert.Equal(12, progressReports.Max(report => report.Percent));
+        Assert.DoesNotContain(
+            progressReports,
+            report => report.Stage.StartsWith("Install.", StringComparison.Ordinal));
+
+        var finalValidation = await service.ValidateFinalLaunchCommandAsync(
+            new GameFileIntegrityRequest(minecraftDirectory, versionName, versionDirectory)
+            {
+                LoaderIdentity = identity
+            },
+            new ProcessStartInfo { UseShellExecute = false });
+        Assert.False(finalValidation.LaunchAllowed);
+        Assert.Contains(
+            finalValidation.Failures,
+            failure => failure.Category == "LoaderProcessorOutput"
+                && failure.TargetPath == loaderPath);
+    }
+
+    [Fact]
+    public async Task LoaderPublicationRollbackRestoresReplacedFilesAndRemovesNewFiles()
+    {
+        var existingPath = Path.Combine(TempRoot, "libraries", "existing.jar");
+        var newPath = Path.Combine(TempRoot, "libraries", "new.jar");
+        Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
+        await File.WriteAllTextAsync(existingPath, "old");
+        var rollback = new LoaderArtifactRepairCoordinator.LoaderPublicationRollback(
+            Path.Combine(TempRoot, "rollback"));
+
+        rollback.Prepare(existingPath);
+        rollback.Prepare(newPath);
+        await File.WriteAllTextAsync(existingPath, "replacement");
+        await File.WriteAllTextAsync(newPath, "created");
+        rollback.Rollback();
+        rollback.Cleanup();
+
+        Assert.Equal("old", await File.ReadAllTextAsync(existingPath));
+        Assert.False(File.Exists(newPath));
+        Assert.False(Directory.Exists(Path.Combine(TempRoot, "rollback")));
     }
 
     [Fact]
@@ -350,5 +542,72 @@ public sealed class GameFileIntegrityServiceTests : TestTempDirectory
             }
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
+    }
+
+    private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
+    {
+        public void Report(LauncherProgress value) => reports.Add(value);
+    }
+
+    private sealed class RecordingLoaderProvider(LoaderKind kind) : ILoaderProvider
+    {
+        public LoaderKind Kind { get; } = kind;
+        public bool IsImplemented => true;
+        public int InstallCount { get; private set; }
+
+        public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+            string minecraftVersion,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("test")]);
+
+        public async Task<string> InstallAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            InstallCount++;
+            var directory = Path.Combine(gameDirectory, "versions", isolatedVersionName);
+            Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, $"{isolatedVersionName}.json"),
+                $$"""{ "id": "{{isolatedVersionName}}", "libraries": [] }""",
+                cancellationToken);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, $"{isolatedVersionName}.jar"),
+                "client",
+                cancellationToken);
+            return isolatedVersionName;
+        }
+    }
+
+    private sealed class FailingLoaderProvider(LoaderKind kind, Exception exception) : ILoaderProvider
+    {
+        public LoaderKind Kind { get; } = kind;
+        public bool IsImplemented => true;
+
+        public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+            string minecraftVersion,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("test")]);
+
+        public Task<string> InstallAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            Task.FromException<string>(exception);
     }
 }
