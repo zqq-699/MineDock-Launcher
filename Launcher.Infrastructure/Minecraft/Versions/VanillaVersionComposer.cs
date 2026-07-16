@@ -40,9 +40,7 @@ internal static class VanillaVersionComposer
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null,
-        CancellationToken cancellationToken = default,
-        MinecraftDownloadOperationContext? operationContext = null,
-        SpeedMeter? speedMeter = null)
+        CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareFinalVersionAsync(
             httpClient,
@@ -53,19 +51,8 @@ internal static class VanillaVersionComposer
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             logger,
-            cancellationToken,
-            operationContext,
-            speedMeter).ConfigureAwait(false);
-        try
-        {
-            await prepared.ClientJarDownload.ConfigureAwait(false);
-            return prepared.VersionName;
-        }
-        catch
-        {
-            await prepared.CleanupAsync().ConfigureAwait(false);
-            throw;
-        }
+            cancellationToken).ConfigureAwait(false);
+        return prepared.VersionName;
     }
 
     public static async Task<PreparedVersionInstall> PrepareFinalVersionAsync(
@@ -77,13 +64,10 @@ internal static class VanillaVersionComposer
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null,
-        CancellationToken cancellationToken = default,
-        MinecraftDownloadOperationContext? operationContext = null,
-        SpeedMeter? speedMeter = null)
+        CancellationToken cancellationToken = default)
     {
         var finalVersionDirectory = Path.Combine(minecraftDirectory, "versions", finalVersionName);
         var finalVersionJsonPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.json");
-        var finalVersionJarPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.jar");
 
         if (Directory.Exists(finalVersionDirectory))
             throw new IOException($"Version directory already exists: {finalVersionName}");
@@ -106,18 +90,7 @@ internal static class VanillaVersionComposer
                 finalVersionJsonPath,
                 finalVersionJson.ToJsonString(JsonOptions),
                 cancellationToken);
-            var clientJarDownload = DownloadClientJarAsync(
-                httpClient,
-                baseVersionJson,
-                finalVersionJarPath,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond,
-                downloadSpeedLimitState,
-                logger,
-                cancellationToken,
-                operationContext,
-                speedMeter);
-            return new PreparedVersionInstall(finalVersionName, finalVersionDirectory, clientJarDownload);
+            return new PreparedVersionInstall(finalVersionName, finalVersionDirectory);
         }
         catch
         {
@@ -159,39 +132,4 @@ internal static class VanillaVersionComposer
             cancellationToken);
     }
 
-    private static async Task DownloadClientJarAsync(
-        HttpClient httpClient,
-        JsonObject baseVersionJson,
-        string destinationJarPath,
-        DownloadSourcePreference downloadSourcePreference,
-        int downloadSpeedLimitMbPerSecond,
-        IDownloadSpeedLimitState? downloadSpeedLimitState,
-        ILogger? logger,
-        CancellationToken cancellationToken,
-        MinecraftDownloadOperationContext? operationContext,
-        SpeedMeter? speedMeter)
-    {
-        var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
-        if (string.IsNullOrWhiteSpace(clientUrl))
-            throw new InvalidDataException("Minecraft version metadata is missing downloads.client.url.");
-
-        var executor = new MinecraftDownloadRequestExecutor(
-            httpClient,
-            logger,
-            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-            category: DownloadConcurrencyCategory.Runtime);
-        var sha1 = VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson);
-        await executor.DownloadFileAsync(
-            clientUrl,
-            downloadSourcePreference,
-            categoryHint: "Mojang",
-            destinationJarPath,
-            sha1,
-            VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
-            cancellationToken,
-            options: operationContext is not null && MinecraftFileIntegrity.IsSha1(sha1)
-                ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
-                : null,
-            speedMeter: speedMeter);
-    }
 }

@@ -144,9 +144,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                token,
-                downloadOperation,
-                speedMeter),
+                token),
             async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
             cancellationToken).ConfigureAwait(false);
         await EnsureInstalledVersionIsValidAsync(

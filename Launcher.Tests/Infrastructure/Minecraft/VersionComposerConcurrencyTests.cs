@@ -62,6 +62,16 @@ public sealed class VersionComposerConcurrencyTests : TestTempDirectory
             "versions",
             "1.20.2-quilt-0.29.2",
             "1.20.2-quilt-0.29.2.json")));
+        Assert.False(File.Exists(Path.Combine(
+            fabricMinecraftDirectory,
+            "versions",
+            "1.20.2-fabric-0.19.3",
+            "1.20.2-fabric-0.19.3.jar")));
+        Assert.False(File.Exists(Path.Combine(
+            quiltMinecraftDirectory,
+            "versions",
+            "1.20.2-quilt-0.29.2",
+            "1.20.2-quilt-0.29.2.jar")));
     }
 
     private sealed class CoordinatedComposerInstallHandler : HttpMessageHandler
@@ -143,16 +153,13 @@ public sealed class VersionComposerConcurrencyTests : TestTempDirectory
                       }
                     }
                     """,
-                "https://example.test/mojang/1.20.2.jar" => null,
                 _ => throw new InvalidOperationException($"Unexpected request: {absoluteUri}")
             };
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 RequestMessage = request,
-                Content = content is null
-                    ? new ByteArrayContent("fake jar"u8.ToArray())
-                    : new StringContent(content)
+                Content = new StringContent(content)
             };
         }
     }

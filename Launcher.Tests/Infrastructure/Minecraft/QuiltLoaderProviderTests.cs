@@ -60,7 +60,7 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task QuiltVersionComposerCreatesOnlyFinalVersionDirectory()
+    public async Task QuiltVersionComposerCreatesVersionStructureWithoutClientJar()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         var finalVersionName = await QuiltVersionComposer.CreateFinalVersionAsync(
@@ -80,7 +80,7 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.2-quilt-0.29.2", finalVersionName);
         Assert.Equal(["1.20.2-quilt-0.29.2"], versionDirectories);
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-quilt-0.29.2", "1.20.2-quilt-0.29.2.json")));
-        Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-quilt-0.29.2", "1.20.2-quilt-0.29.2.jar")));
+        Assert.False(File.Exists(Path.Combine(versionsDirectory, "1.20.2-quilt-0.29.2", "1.20.2-quilt-0.29.2.jar")));
         using var quiltJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.2-quilt-0.29.2", "1.20.2-quilt-0.29.2.json")));
         Assert.Equal("1.20.2", quiltJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
         Assert.Contains(
@@ -196,20 +196,14 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
                       }
                     }
                     """,
-                "https://example.test/mojang/1.20.2.jar" => null,
                 _ => throw new InvalidOperationException($"Unexpected request: {request.RequestUri}")
             };
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                RequestMessage = request
-            };
-
-            response.Content = content is null
-                ? new ByteArrayContent("fake jar"u8.ToArray())
-                : new StringContent(content);
-
-            return Task.FromResult(response);
+                RequestMessage = request,
+                Content = new StringContent(content)
+            });
         }
     }
 }

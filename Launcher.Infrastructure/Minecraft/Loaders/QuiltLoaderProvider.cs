@@ -214,9 +214,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
                     downloadSpeedLimitMbPerSecond,
                     downloadSpeedLimitState,
                     logger,
-                    token,
-                    downloadOperation,
-                    speedMeter),
+                    token),
                 async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
             var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)

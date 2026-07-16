@@ -29,7 +29,7 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 public sealed class FabricLoaderProviderTests : TestTempDirectory
 {
     [Fact]
-    public async Task VanillaVersionComposerCreatesOnlyFinalVersionDirectory()
+    public async Task VanillaVersionComposerCreatesVersionStructureWithoutClientJar()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
@@ -48,7 +48,7 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.2", finalVersionName);
         Assert.Equal(["1.20.2"], versionDirectories);
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.json")));
-        Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.jar")));
+        Assert.False(File.Exists(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.jar")));
         using var vanillaJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.json")));
         Assert.Equal("1.20.2", vanillaJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
@@ -113,7 +113,7 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task FabricVersionComposerCreatesOnlyFinalVersionDirectory()
+    public async Task FabricVersionComposerCreatesVersionStructureWithoutClientJar()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         var finalVersionName = await FabricVersionComposer.CreateFinalVersionAsync(
@@ -133,18 +133,16 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.2-fabric-0.19.3", finalVersionName);
         Assert.Equal(["1.20.2-fabric-0.19.3"], versionDirectories);
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.json")));
-        Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.jar")));
+        Assert.False(File.Exists(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.jar")));
         using var fabricJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.json")));
         Assert.Equal("1.20.2", fabricJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
 
     [Fact]
-    public async Task FabricVersionComposerAllowsPrivateVersionRootInSplitInstallLayout()
+    public async Task FabricVersionComposerKeepsVersionStructureInPrivateSandbox()
     {
         var sandboxMinecraftDirectory = Path.Combine(TempRoot, "sandbox", ".minecraft");
         var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
-        var layout = MinecraftInstallPathLayout.Create(sandboxMinecraftDirectory, sharedMinecraftDirectory);
-        using var operationContext = VanillaLoaderProvider.CreateDownloadOperationContext(layout.Path);
 
         var finalVersionName = await FabricVersionComposer.CreateFinalVersionAsync(
             new HttpClient(new FabricInstallHandler()),
@@ -152,15 +150,13 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             "0.19.3",
             "1.20.2-fabric-0.19.3",
             sandboxMinecraftDirectory,
-            DownloadSourcePreference.Auto,
-            operationContext: operationContext);
+            DownloadSourcePreference.Auto);
 
-        var clientJar = Path.Combine(
-            layout.Path.Versions,
-            finalVersionName,
-            $"{finalVersionName}.jar");
-        Assert.True(File.Exists(clientJar));
-        Assert.Equal(Path.GetFullPath(layout.Path.Versions), operationContext.ResolveManagedRoot(clientJar));
+        var sandboxVersionDirectory = Path.Combine(sandboxMinecraftDirectory, "versions", finalVersionName);
+        var sharedVersionDirectory = Path.Combine(sharedMinecraftDirectory, "versions", finalVersionName);
+        Assert.True(File.Exists(Path.Combine(sandboxVersionDirectory, $"{finalVersionName}.json")));
+        Assert.False(File.Exists(Path.Combine(sandboxVersionDirectory, $"{finalVersionName}.jar")));
+        Assert.False(Directory.Exists(sharedVersionDirectory));
     }
 
     private sealed class NotFoundHandler : HttpMessageHandler
@@ -246,20 +242,14 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
                       ]
                     }
                     """,
-                "https://example.test/mojang/1.20.2.jar" => null,
                 _ => throw new InvalidOperationException($"Unexpected request: {request.RequestUri}")
             };
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                RequestMessage = request
-            };
-
-            response.Content = content is null
-                ? new ByteArrayContent("fake jar"u8.ToArray())
-                : new StringContent(content);
-
-            return Task.FromResult(response);
+                RequestMessage = request,
+                Content = new StringContent(content)
+            });
         }
     }
 
@@ -313,20 +303,14 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
                       }
                     }
                     """,
-                "https://example.test/mojang/1.20.2.jar" => null,
                 _ => throw new InvalidOperationException($"Unexpected request: {request.RequestUri}")
             };
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                RequestMessage = request
-            };
-
-            response.Content = content is null
-                ? new ByteArrayContent("fake jar"u8.ToArray())
-                : new StringContent(content);
-
-            return Task.FromResult(response);
+                RequestMessage = request,
+                Content = new StringContent(content)
+            });
         }
     }
 }

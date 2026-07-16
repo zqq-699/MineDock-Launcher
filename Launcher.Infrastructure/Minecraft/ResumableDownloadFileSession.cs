@@ -163,6 +163,11 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
         var existingLength = GetTemporaryLength();
         var candidateKey = CreateSourceCandidateKey(resolution);
+        if (existingLength > 0 && !string.Equals(sourceCandidateKey, candidateKey, StringComparison.Ordinal))
+        {
+            DiscardTemporaryForSourceSwitch();
+            existingLength = 0;
+        }
         if (existingLength <= 0 || knownTotalLength is null || existingLength >= knownTotalLength
             || sourceCandidateKey != candidateKey
             || string.IsNullOrWhiteSpace(strongETag) && string.IsNullOrWhiteSpace(lastModified))
@@ -222,13 +227,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             EnsureManagedDestinationIsSafe();
-            await using var destination = new FileStream(
-                temporaryPath,
-                resumed ? FileMode.Append : FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                BufferSize,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            await using var destination = OpenTemporaryFile(resumed);
             TryMarkTemporaryHidden(temporaryPath);
             var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             var persisted = existingLength;
@@ -240,7 +239,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     if (read == 0)
                         break;
                     capacityLease?.BeforeWrite(read);
-                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    await WriteLocalAsync(destination, buffer, read, cancellationToken).ConfigureAwait(false);
                     foreach (var hasher in hashers.Values)
                         hasher.AppendData(buffer, 0, read);
                     persisted += read;
@@ -252,9 +251,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 ArrayPool<byte>.Shared.Return(buffer);
             }
 
-            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
-            destination.Flush(flushToDisk: true);
-            await destination.DisposeAsync().ConfigureAwait(false);
+            await FlushLocalAsync(destination, cancellationToken).ConfigureAwait(false);
             ValidateCompletedLength(persisted, totalLength);
             if (!integrity.Verify(hashers))
             {
@@ -312,25 +309,42 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
             throw new DownloadBodyInterruptedException("The response body length did not match the expected file size.");
     }
 
-    private async Task<bool> VerifyTemporaryAsync(CancellationToken cancellationToken) =>
-        File.Exists(temporaryPath) && await integrity.VerifyFileAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+    private async Task<bool> VerifyTemporaryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return File.Exists(temporaryPath)
+                && await integrity.VerifyFileAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to verify the download temporary file.", exception);
+        }
+    }
 
     private async Task AppendExistingTemporaryToHashAsync(IEnumerable<IncrementalHash> hashers, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         try
         {
-            while (true)
+            await using var stream = new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            try
             {
-                var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                    break;
-                foreach (var hasher in hashers)
-                    hasher.AppendData(buffer, 0, read);
+                while (true)
+                {
+                    var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                        break;
+                    foreach (var hasher in hashers)
+                        hasher.AppendData(buffer, 0, read);
+                }
             }
+            finally { ArrayPool<byte>.Shared.Return(buffer); }
         }
-        finally { ArrayPool<byte>.Shared.Return(buffer); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to read the download temporary file.", exception);
+        }
     }
 
     private void Publish(CancellationToken cancellationToken)
@@ -366,7 +380,77 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, temporaryPath, "Managed download temporary file");
     }
 
-    private long GetTemporaryLength() => File.Exists(temporaryPath) ? new FileInfo(temporaryPath).Length : 0;
+    private long GetTemporaryLength()
+    {
+        try
+        {
+            return File.Exists(temporaryPath) ? new FileInfo(temporaryPath).Length : 0;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to inspect the download temporary file.", exception);
+        }
+    }
+
+    private void DiscardTemporaryForSourceSwitch()
+    {
+        try
+        {
+            if (managedRoot is not null)
+                MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, temporaryPath, "Managed download source switch");
+            File.Delete(temporaryPath);
+            capacityLease?.DiscardRetainedBytes();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to discard an incompatible partial download.", exception);
+        }
+    }
+
+    private FileStream OpenTemporaryFile(bool resumed)
+    {
+        try
+        {
+            return new FileStream(
+                temporaryPath,
+                resumed ? FileMode.Append : FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                BufferSize,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to open the download temporary file.", exception);
+        }
+    }
+
+    private async Task WriteLocalAsync(FileStream destination, byte[] buffer, int count, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to write the download temporary file.", exception);
+        }
+    }
+
+    private async Task FlushLocalAsync(FileStream destination, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            destination.Flush(flushToDisk: true);
+            await destination.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to flush the download temporary file.", exception);
+        }
+    }
+
     private void DeleteTemporary()
     {
         try

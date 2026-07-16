@@ -151,54 +151,49 @@ internal sealed class ResourceProjectStorage
         var speedMeter = SpeedMeterProgress.TryGet(progress);
 
         Exception? lastException = null;
-        for (var candidateIndex = 0; candidateIndex < urls.Length; candidateIndex++)
+        var tempPath = Path.Combine(targetDirectory, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.download");
+        try
         {
-            var tempPath = Path.Combine(targetDirectory, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.download");
-            try
-            {
-                await DownloadAndVerifyAsync(
-                    version,
-                    urls[candidateIndex],
-                    tempPath,
-                    expectation,
-                    progress,
-                    speedMeter,
-                    cancellationToken).ConfigureAwait(false);
-                MinecraftPathGuard.EnsureSafeFileDestination(
-                    target,
-                    targetDirectory,
-                    "Resource project file");
-                MinecraftPathGuard.EnsureNoReparsePoints(
-                    targetDirectory,
-                    tempPath,
-                    "Resource project temporary file");
-                File.Move(tempPath, target, overwrite: true);
-                return target;
-            }
-            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                lastException = exception;
-                logger.LogWarning(
-                    exception,
-                    "Resource project download candidate timed out. VersionId={VersionId} Candidate={Candidate} CandidateCount={CandidateCount}",
-                    version.VersionId,
-                    candidateIndex + 1,
-                    urls.Length);
-            }
-            catch (Exception exception) when (exception is HttpRequestException or IOException or ResourceProjectIntegrityException)
-            {
-                lastException = exception;
-                logger.LogWarning(
-                    exception,
-                    "Failed to verify resource project download candidate. VersionId={VersionId} Candidate={Candidate} CandidateCount={CandidateCount}",
-                    version.VersionId,
-                    candidateIndex + 1,
-                    urls.Length);
-            }
-            finally
-            {
-                TryDeleteTemporaryFile(tempPath, targetDirectory, version.VersionId);
-            }
+            await DownloadAndVerifyAsync(
+                version,
+                urls,
+                tempPath,
+                expectation,
+                progress,
+                speedMeter,
+                cancellationToken).ConfigureAwait(false);
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                target,
+                targetDirectory,
+                "Resource project file");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                targetDirectory,
+                tempPath,
+                "Resource project temporary file");
+            File.Move(tempPath, target, overwrite: true);
+            return target;
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            lastException = exception;
+            logger.LogWarning(
+                exception,
+                "Resource project download timed out. VersionId={VersionId} CandidateCount={CandidateCount}",
+                version.VersionId,
+                urls.Length);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or ResourceProjectIntegrityException)
+        {
+            lastException = exception;
+            logger.LogWarning(
+                exception,
+                "Failed to download or verify resource project. VersionId={VersionId} CandidateCount={CandidateCount}",
+                version.VersionId,
+                urls.Length);
+        }
+        finally
+        {
+            TryDeleteTemporaryFile(tempPath, targetDirectory, version.VersionId);
         }
 
         if (lastException is ResourceProjectIntegrityException integrityException)
@@ -253,7 +248,7 @@ internal sealed class ResourceProjectStorage
 
     private async Task DownloadAndVerifyAsync(
         ResourceProjectVersion version,
-        string url,
+        IReadOnlyList<string> urls,
         string tempPath,
         IntegrityExpectation expectation,
         IProgress<LauncherProgress>? progress,
@@ -268,14 +263,13 @@ internal sealed class ResourceProjectStorage
             logger,
             DownloadBandwidthLimiter.Create(settings?.DownloadSpeedLimitMbPerSecond ?? 0, downloadSpeedLimitState),
             limiter,
-            DownloadConcurrencyCategory.Modpack,
-            new DownloadRetryOptions { MaxAttemptsPerSource = 1 });
+            DownloadConcurrencyCategory.Modpack);
         try
         {
             if (expectation.Hash is { Algorithm: not ResourceFileHashAlgorithm.Md5 } hash)
             {
                 await executor.DownloadFileAsync(
-                    url,
+                    urls,
                     settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
                     "ThirdParty",
                     tempPath,
@@ -290,7 +284,7 @@ internal sealed class ResourceProjectStorage
             else
             {
                 await executor.DownloadFileAsync(
-                    url,
+                    urls,
                     settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
                     "ThirdParty",
                     tempPath,

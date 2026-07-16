@@ -112,8 +112,6 @@ internal sealed class DownloadHostConcurrencyController
         HttpStatusCode? statusCode = null)
     {
         var result = ClassifyResult(failureReason, statusCode);
-        if (result is DownloadHostResultKind.Neutral)
-            return null;
         var scheduler = hosts.GetOrAdd(
             origin,
             _ => new AdaptiveHostScheduler(
@@ -240,6 +238,9 @@ internal sealed class AdaptiveHostScheduler
     private DateTimeOffset windowStartedAt;
     private DateTimeOffset lastReductionAt = DateTimeOffset.MinValue;
     private DateTimeOffset lastUsedAt;
+    // Stagger only the initial burst. Reapplying jitter to steady-state work
+    // turns every successful high-volume batch into an artificial bottleneck.
+    private bool coldStartCompleted;
     private bool retired;
 
     public AdaptiveHostScheduler(
@@ -286,7 +287,7 @@ internal sealed class AdaptiveHostScheduler
                 lease = default;
                 return false;
             }
-            skipJitter = activeCount == 0 && waitingCount == 0;
+            skipJitter = coldStartCompleted || activeCount == 0 && waitingCount == 0;
             waitingCount++;
             lastUsedAt = timeProvider.GetUtcNow();
         }
@@ -296,13 +297,13 @@ internal sealed class AdaptiveHostScheduler
 
     public DownloadHostAdjustment? RecordResult(DownloadHostResultKind result)
     {
-        if (result is DownloadHostResultKind.Neutral)
-            return null;
-
         lock (syncRoot)
         {
             var now = timeProvider.GetUtcNow();
             lastUsedAt = now;
+            coldStartCompleted = true;
+            if (result is DownloadHostResultKind.Neutral)
+                return null;
             if (result is DownloadHostResultKind.Success)
                 successes++;
             else

@@ -97,6 +97,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             allowResponseStatus: null,
             sensitiveHeaders: null,
             speedMeter: null,
+            executionMode: DownloadExecutionMode.PerSourceRetries,
+            fileCandidates: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return result.Value!;
     }
@@ -120,6 +122,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             allowResponseStatus: null,
             sensitiveHeaders: null,
             speedMeter: null,
+            executionMode: DownloadExecutionMode.PerSourceRetries,
+            fileCandidates: null,
             cancellationToken: cancellationToken);
     }
 
@@ -134,8 +138,36 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
         DownloadFileOptions? options = null,
+        SpeedMeter? speedMeter = null) =>
+        DownloadFileAsync(
+            [originalUrl],
+            preference,
+            categoryHint,
+            destinationPath,
+            expectedSha1,
+            expectedSize,
+            cancellationToken,
+            reportAttemptProgress,
+            sensitiveHeaders,
+            options,
+            speedMeter);
+
+    public Task<ResolvedDownloadRequest> DownloadFileAsync(
+        IReadOnlyList<string> originalUrls,
+        DownloadSourcePreference preference,
+        string? categoryHint,
+        string destinationPath,
+        string? expectedSha1,
+        long? expectedSize,
+        CancellationToken cancellationToken,
+        Action<int, long, long?>? reportAttemptProgress = null,
+        DownloadRequestHeaders? sensitiveHeaders = null,
+        DownloadFileOptions? options = null,
         SpeedMeter? speedMeter = null)
     {
+        var fileCandidates = ResolveFileCandidates(originalUrls, preference, categoryHint);
+        var originalUrl = fileCandidates[0].OriginalUrl;
+
         // Some legacy installer metadata has no trusted hash. Preserve its existing
         // atomic one-shot behavior, but never persist it as a resumable part.
         if (string.IsNullOrWhiteSpace(expectedSha1))
@@ -169,6 +201,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                     allowResponseStatus: null,
                     sensitiveHeaders,
                     speedMeter: speedMeter,
+                    executionMode: DownloadExecutionMode.FileSourceRounds,
+                    fileCandidates: fileCandidates,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
                 return result.Value!;
             }
@@ -185,7 +219,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 cancellationToken,
                 options).ConfigureAwait(false);
             if (session.IsComplete)
-                return MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference, categoryHint).First();
+                return fileCandidates[0];
 
             var result = await ExecuteCoreAsync(
                 originalUrl,
@@ -207,6 +241,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders: sensitiveHeaders,
                 speedMeter: speedMeter,
+                executionMode: DownloadExecutionMode.FileSourceRounds,
+                fileCandidates: fileCandidates,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
@@ -222,8 +258,33 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadRequestHeaders? sensitiveHeaders = null,
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadFileOptions? options = null,
+        SpeedMeter? speedMeter = null) =>
+        DownloadFileAsync(
+            [originalUrl],
+            preference,
+            categoryHint,
+            destinationPath,
+            integrity,
+            cancellationToken,
+            sensitiveHeaders,
+            reportAttemptProgress,
+            options,
+            speedMeter);
+
+    public Task<ResolvedDownloadRequest> DownloadFileAsync(
+        IReadOnlyList<string> originalUrls,
+        DownloadSourcePreference preference,
+        string? categoryHint,
+        string destinationPath,
+        DownloadIntegrityExpectation integrity,
+        CancellationToken cancellationToken,
+        DownloadRequestHeaders? sensitiveHeaders = null,
+        Action<int, long, long?>? reportAttemptProgress = null,
+        DownloadFileOptions? options = null,
         SpeedMeter? speedMeter = null)
     {
+        var fileCandidates = ResolveFileCandidates(originalUrls, preference, categoryHint);
+        var originalUrl = fileCandidates[0].OriginalUrl;
         return DownloadCoreAsync();
 
         async Task<ResolvedDownloadRequest> DownloadCoreAsync()
@@ -234,7 +295,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 cancellationToken,
                 options).ConfigureAwait(false);
             if (session.IsComplete)
-                return MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference, categoryHint).First();
+                return fileCandidates[0];
 
             var result = await ExecuteCoreAsync(
                 originalUrl,
@@ -251,6 +312,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders,
                 speedMeter: speedMeter,
+                executionMode: DownloadExecutionMode.FileSourceRounds,
+                fileCandidates: fileCandidates,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
@@ -270,8 +333,26 @@ internal sealed class MinecraftDownloadRequestExecutor
         Func<HttpStatusCode, bool>? allowResponseStatus,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
+        DownloadExecutionMode executionMode,
+        IReadOnlyList<ResolvedDownloadRequest>? fileCandidates,
         CancellationToken cancellationToken)
     {
+        if (executionMode is DownloadExecutionMode.FileSourceRounds)
+        {
+            if (lookupMode || noResultStatus is not null)
+                throw new InvalidOperationException("File source rounds do not support lookup requests.");
+
+            return await ExecuteFileSourceRoundsAsync(
+                originalUrl,
+                fileCandidates ?? throw new InvalidOperationException("File source rounds require resolved candidates."),
+                operation,
+                configureRequest,
+                allowResponseStatus,
+                sensitiveHeaders,
+                speedMeter,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         // 候选顺序已经包含用户偏好和镜像回退策略；每个源内部重试耗尽后才切换下一源。
         var candidates = MinecraftDownloadSourceResolver
             .EnumerateRequests(originalUrl, preference, categoryHint)
@@ -402,6 +483,160 @@ internal sealed class MinecraftDownloadRequestExecutor
         throw new DownloadSourceRequestException(finalResolution, finalException, failures);
     }
 
+    private async Task<DownloadLookupResult<T>> ExecuteFileSourceRoundsAsync<T>(
+        string originalUrl,
+        IReadOnlyList<ResolvedDownloadRequest> candidates,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
+        Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
+        Func<HttpStatusCode, bool>? allowResponseStatus,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        CancellationToken cancellationToken)
+    {
+        var activeCandidateIndexes = Enumerable.Range(0, candidates.Count).ToList();
+        var failures = new List<Exception>();
+        var maxRounds = Math.Max(1, retryOptions.MaxFileSourceRounds);
+        ResolvedDownloadRequest? lastResolution = null;
+
+        for (var round = 1; round <= maxRounds && activeCandidateIndexes.Count > 0; round++)
+        {
+            var nextRoundCandidateIndexes = new List<int>();
+            var nextRoundFailures = new List<DownloadAttemptException>();
+
+            for (var position = 0; position < activeCandidateIndexes.Count; position++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var candidateIndex = activeCandidateIndexes[position];
+                var resolution = candidates[candidateIndex];
+                lastResolution = resolution;
+
+                if (round == 1
+                    && !resolution.ResolvedSourceKind.StartsWith("BmclApi", StringComparison.Ordinal)
+                    && hostHealthTracker.ShouldAvoid(resolution.ResolvedSourceKind, GetCandidateHost(resolution)))
+                {
+                    var avoided = new DownloadAttemptException(
+                        DownloadFailureDisposition.RetryCurrentSource,
+                        DownloadFailureReason.Network,
+                        "The download host is temporarily avoided after repeated transient failures.");
+                    failures.Add(avoided);
+                    var retryInLaterRound = round < maxRounds;
+                    if (retryInLaterRound)
+                    {
+                        nextRoundCandidateIndexes.Add(candidateIndex);
+                        nextRoundFailures.Add(avoided);
+                    }
+                    LogFailure(
+                        resolution,
+                        round,
+                        avoided,
+                        retryCurrentSource: false,
+                        sourceRound: round,
+                        retryInLaterRound: retryInLaterRound,
+                        remainingCandidateCount: activeCandidateIndexes.Count - position - 1);
+                    continue;
+                }
+
+                try
+                {
+                    var value = await ExecuteAttemptAsync(
+                        resolution,
+                        round,
+                        operation,
+                        noResultStatus: null,
+                        cancellationToken: cancellationToken,
+                        configureRequest: configureRequest,
+                        allowResponseStatus: allowResponseStatus,
+                        sensitiveHeaders: sensitiveHeaders,
+                        speedMeter: speedMeter,
+                        enableSlowBodyWatchdog: true).ConfigureAwait(false);
+                    hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, GetCandidateHost(resolution));
+                    LogResolvedRequest(resolution, round);
+                    return DownloadLookupResult<T>.Success(value);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    var failure = ClassifyException(exception);
+                    RecordHostResult(resolution, failure);
+                    hostHealthTracker.RecordFailure(
+                        resolution.ResolvedSourceKind,
+                        failure.FinalHost ?? GetCandidateHost(resolution),
+                        failure.Reason,
+                        failure.StatusCode);
+                    if (failure.Disposition is DownloadFailureDisposition.Abort)
+                        throw failure;
+
+                    failures.Add(failure);
+                    var retryInLaterRound = failure.Disposition is DownloadFailureDisposition.RetryCurrentSource
+                        && round < maxRounds;
+                    if (retryInLaterRound)
+                    {
+                        nextRoundCandidateIndexes.Add(candidateIndex);
+                        nextRoundFailures.Add(failure);
+                    }
+
+                    LogFailure(
+                        resolution,
+                        round,
+                        failure,
+                        retryCurrentSource: false,
+                        sourceRound: round,
+                        retryInLaterRound: retryInLaterRound,
+                        remainingCandidateCount: activeCandidateIndexes.Count - position - 1);
+                }
+            }
+
+            if (round >= maxRounds || nextRoundCandidateIndexes.Count == 0)
+                break;
+
+            var retryDelay = nextRoundFailures
+                .Select(failure => GetRetryDelay(failure, round))
+                .DefaultIfEmpty(TimeSpan.Zero)
+                .Max();
+            logger.LogInformation(
+                "File download source round exhausted. OriginalUrl={OriginalUrl} CompletedRound={CompletedRound} MaxRounds={MaxRounds} RetryCandidateCount={RetryCandidateCount} RetryDelay={RetryDelay}",
+                DownloadUriLogSanitizer.Sanitize(originalUrl),
+                round,
+                maxRounds,
+                nextRoundCandidateIndexes.Count,
+                retryDelay);
+            if (retryDelay > TimeSpan.Zero)
+                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+            activeCandidateIndexes = nextRoundCandidateIndexes;
+        }
+
+        var finalResolution = lastResolution
+            ?? throw new InvalidOperationException($"No download candidates were available for {originalUrl}.");
+        var finalException = failures.LastOrDefault()
+            ?? new InvalidOperationException($"No download source returned a usable result for {originalUrl}.");
+        throw new DownloadSourceRequestException(finalResolution, finalException, failures);
+    }
+
+    private static IReadOnlyList<ResolvedDownloadRequest> ResolveFileCandidates(
+        IReadOnlyList<string> originalUrls,
+        DownloadSourcePreference preference,
+        string? categoryHint)
+    {
+        ArgumentNullException.ThrowIfNull(originalUrls);
+        var candidates = new List<ResolvedDownloadRequest>();
+        var seenActualUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var originalUrl in originalUrls.Where(url => !string.IsNullOrWhiteSpace(url)))
+        {
+            foreach (var candidate in MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference, categoryHint))
+            {
+                if (seenActualUrls.Add(candidate.ActualUrl))
+                    candidates.Add(candidate);
+            }
+        }
+
+        if (candidates.Count == 0)
+            throw new ArgumentException("At least one file download URL is required.", nameof(originalUrls));
+        return candidates;
+    }
+
     /// <summary>
     /// 在并发租约内完成单次 HTTP 响应和调用方操作，并把状态码转换为统一失败类型。
     /// </summary>
@@ -428,7 +663,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         var globalConcurrency = GetGlobalConcurrencySnapshot();
         var hostConcurrency = transportResult.HostSnapshot;
 
-        if (hostHealthTracker.ShouldAvoid(resolution.ResolvedSourceKind, transportResult.FinalHost))
+        if (!string.Equals(GetCandidateHost(resolution), transportResult.FinalHost, StringComparison.OrdinalIgnoreCase)
+            && hostHealthTracker.ShouldAvoid(resolution.ResolvedSourceKind, transportResult.FinalHost))
         {
             throw new DownloadAttemptException(
                 DownloadFailureDisposition.SwitchSource,
@@ -753,12 +989,15 @@ internal sealed class MinecraftDownloadRequestExecutor
         ResolvedDownloadRequest resolution,
         int attempt,
         DownloadAttemptException failure,
-        bool retryCurrentSource)
+        bool retryCurrentSource,
+        int? sourceRound = null,
+        bool retryInLaterRound = false,
+        int remainingCandidateCount = 0)
     {
         var slowFailure = failure as DownloadBodyTooSlowException;
         logger.LogWarning(
             failure,
-            "Download resource attempt failed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} FinalHost={FinalHost} Attempt={Attempt} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} RetryCurrentSource={RetryCurrentSource} SlowReadDuration={SlowReadDuration} SlowReadBytes={SlowReadBytes} SlowReadBytesPerSecond={SlowReadBytesPerSecond}",
+            "Download resource attempt failed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} FinalHost={FinalHost} Attempt={Attempt} SourceRound={SourceRound} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} RetryCurrentSource={RetryCurrentSource} RetryInLaterRound={RetryInLaterRound} RemainingCandidateCount={RemainingCandidateCount} SlowReadDuration={SlowReadDuration} SlowReadBytes={SlowReadBytes} SlowReadBytesPerSecond={SlowReadBytesPerSecond}",
             resolution.RequestedSourcePreference,
             resolution.ResourceCategory,
             DownloadUriLogSanitizer.Sanitize(resolution.OriginalUrl),
@@ -766,13 +1005,22 @@ internal sealed class MinecraftDownloadRequestExecutor
             resolution.ResolvedSourceKind,
             failure.FinalHost,
             attempt,
+            sourceRound,
             failure.Reason,
             failure.Disposition,
             failure.StatusCode is null ? null : (int)failure.StatusCode.Value,
             retryCurrentSource,
+            retryInLaterRound,
+            remainingCandidateCount,
             slowFailure?.ReadDuration,
             slowFailure?.BytesRead,
             slowFailure?.BytesPerSecond);
+    }
+
+    private enum DownloadExecutionMode
+    {
+        PerSourceRetries,
+        FileSourceRounds
     }
 
     internal sealed class DownloadSourceRequestException : Exception

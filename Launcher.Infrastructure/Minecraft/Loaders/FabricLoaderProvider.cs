@@ -197,9 +197,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
                     downloadSpeedLimitMbPerSecond,
                     downloadSpeedLimitState,
                     logger,
-                    token,
-                    downloadOperation,
-                    speedMeter),
+                    token),
                 async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
             progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));

@@ -6,15 +6,19 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 public sealed class ComposedVersionInstallRunnerTests : TestTempDirectory
 {
     [Fact]
-    public async Task StartsIndependentFileInstallBeforeClientJarCompletes()
+    public async Task StartsFileInstallOnlyAfterVersionPreparationCompletes()
     {
-        var versionDirectory = Path.Combine(TempRoot, "versions", "parallel");
-        Directory.CreateDirectory(versionDirectory);
-        var clientGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var versionDirectory = Path.Combine(TempRoot, "versions", "sequential");
+        var preparationGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var installStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var runTask = ComposedVersionInstallRunner.RunAsync(
-            _ => Task.FromResult(new PreparedVersionInstall("parallel", versionDirectory, clientGate.Task)),
+            async token =>
+            {
+                await preparationGate.Task.WaitAsync(token);
+                Directory.CreateDirectory(versionDirectory);
+                return new PreparedVersionInstall("sequential", versionDirectory);
+            },
             (_, _) =>
             {
                 installStarted.TrySetResult();
@@ -22,34 +26,47 @@ public sealed class ComposedVersionInstallRunnerTests : TestTempDirectory
             },
             CancellationToken.None);
 
+        Assert.False(installStarted.Task.IsCompleted);
+        preparationGate.TrySetResult();
         await installStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.False(runTask.IsCompleted);
 
-        clientGate.TrySetResult();
-        Assert.Equal("parallel", await runTask);
+        Assert.Equal("sequential", await runTask);
+        Assert.True(Directory.Exists(versionDirectory));
     }
 
     [Fact]
-    public async Task FailedIndependentInstallCancelsClientDownloadAndCleansVersionDirectory()
+    public async Task FailedFileInstallCleansVersionDirectoryAndPreservesException()
     {
         var versionDirectory = Path.Combine(TempRoot, "versions", "failed");
         Directory.CreateDirectory(versionDirectory);
         await File.WriteAllTextAsync(Path.Combine(versionDirectory, "failed.json"), "{}");
-        var clientCanceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             ComposedVersionInstallRunner.RunAsync(
-                token => Task.FromResult(new PreparedVersionInstall(
-                    "failed",
-                    versionDirectory,
-                    Task.Delay(Timeout.InfiniteTimeSpan, token).ContinueWith(
-                        _ => clientCanceled.TrySetResult(),
-                        CancellationToken.None))),
+                _ => Task.FromResult(new PreparedVersionInstall("failed", versionDirectory)),
                 (_, _) => Task.FromException(new InvalidOperationException("install failed")),
                 CancellationToken.None));
 
         Assert.Equal("install failed", exception.Message);
-        await clientCanceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(Directory.Exists(versionDirectory));
+    }
+
+    [Fact]
+    public async Task CanceledFileInstallCleansVersionDirectoryAndPreservesCancellation()
+    {
+        var versionDirectory = Path.Combine(TempRoot, "versions", "canceled");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "canceled.json"), "{}");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ComposedVersionInstallRunner.RunAsync(
+                _ => Task.FromResult(new PreparedVersionInstall("canceled", versionDirectory)),
+                (_, token) => Task.FromCanceled(token),
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
         Assert.False(Directory.Exists(versionDirectory));
     }
 }

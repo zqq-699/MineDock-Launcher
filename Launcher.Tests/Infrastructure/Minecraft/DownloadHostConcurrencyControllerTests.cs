@@ -141,6 +141,41 @@ public sealed class DownloadHostConcurrencyControllerTests
     }
 
     [Fact]
+    public async Task CompletedColdStartDoesNotJitterSubsequentRequests()
+    {
+        var delays = new List<TimeSpan>();
+        var controller = new DownloadHostConcurrencyController(
+            maximumJitter: TimeSpan.FromSeconds(2),
+            nextJitter: () => 0.5,
+            delayAsync: (delay, _) =>
+            {
+                delays.Add(delay);
+                return ValueTask.CompletedTask;
+            });
+
+        await using var first = await controller.AcquireAsync(
+            CurseForgeUri,
+            AcquireNoopGlobalAsync,
+            applyColdStartJitter: true,
+            CancellationToken.None);
+        await using var initialBurstRequest = await controller.AcquireAsync(
+            CurseForgeUri,
+            AcquireNoopGlobalAsync,
+            applyColdStartJitter: true,
+            CancellationToken.None);
+
+        controller.RecordResult(CurseForgeUri, failureReason: null);
+
+        await using var steadyStateRequest = await controller.AcquireAsync(
+            CurseForgeUri,
+            AcquireNoopGlobalAsync,
+            applyColdStartJitter: true,
+            CancellationToken.None);
+
+        Assert.Equal([TimeSpan.FromSeconds(1)], delays);
+    }
+
+    [Fact]
     public async Task CancellationDuringJitterReleasesHostWithoutTakingGlobalSlot()
     {
         var globalAcquireCount = 0;

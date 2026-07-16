@@ -10,16 +10,13 @@ using System.IO;
 namespace Launcher.Infrastructure.Minecraft;
 
 /// <summary>
-/// A version JSON that is ready for CmlLib to inspect while its independent
-/// client archive download continues in parallel.
+/// A composed version directory and JSON that are ready for CmlLib to inspect.
 /// </summary>
 internal sealed class PreparedVersionInstall(
     string versionName,
-    string versionDirectory,
-    Task clientJarDownload)
+    string versionDirectory)
 {
     public string VersionName { get; } = versionName;
-    public Task ClientJarDownload { get; } = clientJarDownload;
 
     public Task CleanupAsync()
     {
@@ -42,51 +39,18 @@ internal static class ComposedVersionInstallRunner
         Func<string, CancellationToken, Task> installFilesAsync,
         CancellationToken cancellationToken)
     {
-        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         PreparedVersionInstall? prepared = null;
-        Task? installFilesTask = null;
         try
         {
-            prepared = await prepareAsync(linkedCancellation.Token).ConfigureAwait(false);
-            installFilesTask = installFilesAsync(prepared.VersionName, linkedCancellation.Token);
-            await AwaitTogetherOrCancelAsync(prepared.ClientJarDownload, installFilesTask, linkedCancellation)
-                .ConfigureAwait(false);
+            prepared = await prepareAsync(cancellationToken).ConfigureAwait(false);
+            await installFilesAsync(prepared.VersionName, cancellationToken).ConfigureAwait(false);
             return prepared.VersionName;
         }
         catch
         {
-            linkedCancellation.Cancel();
-            await ObserveAsync(prepared?.ClientJarDownload, installFilesTask).ConfigureAwait(false);
             if (prepared is not null)
                 await prepared.CleanupAsync().ConfigureAwait(false);
             throw;
-        }
-    }
-
-    private static async Task AwaitTogetherOrCancelAsync(
-        Task clientJarTask,
-        Task installFilesTask,
-        CancellationTokenSource cancellation)
-    {
-        var allTasks = Task.WhenAll(clientJarTask, installFilesTask);
-        var firstCompleted = await Task.WhenAny(clientJarTask, installFilesTask).ConfigureAwait(false);
-        if (firstCompleted.IsFaulted || firstCompleted.IsCanceled)
-            cancellation.Cancel();
-        await allTasks.ConfigureAwait(false);
-    }
-
-    private static async Task ObserveAsync(params Task?[] tasks)
-    {
-        foreach (var task in tasks)
-        {
-            if (task is null)
-                continue;
-            try
-            {
-                await task.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) { }
-            catch { }
         }
     }
 }

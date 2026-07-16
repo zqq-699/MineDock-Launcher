@@ -171,7 +171,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             cancellationToken,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
-            (sandboxMinecraftDirectory, operationContext, token) => VanillaVersionComposer.PrepareFinalVersionAsync(
+            (sandboxMinecraftDirectory, token) => VanillaVersionComposer.PrepareFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
                 target.LogicalVersionName,
@@ -180,8 +180,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                token,
-                operationContext));
+                token));
     }
 
     private async Task<string> InstallFabricInSandboxAsync(
@@ -219,7 +218,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             cancellationToken,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
-            (sandboxMinecraftDirectory, operationContext, token) => FabricVersionComposer.PrepareFinalVersionAsync(
+            (sandboxMinecraftDirectory, token) => FabricVersionComposer.PrepareFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -229,8 +228,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                token,
-                operationContext)).ConfigureAwait(false);
+                token)).ConfigureAwait(false);
     }
 
     private async Task<string> InstallQuiltInSandboxAsync(
@@ -268,7 +266,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             cancellationToken,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
-            (sandboxMinecraftDirectory, operationContext, token) => QuiltVersionComposer.PrepareFinalVersionAsync(
+            (sandboxMinecraftDirectory, token) => QuiltVersionComposer.PrepareFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -278,8 +276,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                token,
-                operationContext)).ConfigureAwait(false);
+                token)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -293,7 +290,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
-        Func<string, MinecraftDownloadOperationContext, CancellationToken, Task<PreparedVersionInstall>> composeAsync)
+        Func<string, CancellationToken, Task<PreparedVersionInstall>> composeAsync)
     {
         // Loader 安装器只能面向完整 .minecraft 工作；沙箱隔离其中间文件，避免污染真实实例。
         await using var sandboxSession = sandboxCleanupService.CreateSession(ModpackSandboxKind.ModpackVersion);
@@ -317,7 +314,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 target.MinecraftDirectory);
             using var composeDownloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(installLayout.Path);
             var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
-                token => composeAsync(sandboxMinecraftDirectory, composeDownloadOperation, token),
+                token => composeAsync(sandboxMinecraftDirectory, token),
                 (versionName, token) => finalVersionInstaller.InstallAsync(
                     installLayout.Path,
                     versionName,

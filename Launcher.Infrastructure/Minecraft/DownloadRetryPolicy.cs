@@ -27,6 +27,7 @@ internal sealed record DownloadRetryOptions
     public static DownloadRetryOptions Default { get; } = new();
 
     public int MaxAttemptsPerSource { get; init; } = 4;
+    public int MaxFileSourceRounds { get; init; } = 3;
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(1);
     public TimeSpan ResponseHeadersTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan FirstByteTimeout { get; init; } = TimeSpan.FromSeconds(10);
