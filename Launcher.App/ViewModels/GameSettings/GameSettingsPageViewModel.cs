@@ -72,6 +72,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
         // 壳层集中桥接子 ViewModel 事件，避免各子页面互相直接依赖。
         InstanceList.PropertyChanged += InstanceList_PropertyChanged;
+        InstanceList.LocalImportRequested += InstanceList_LocalImportRequested;
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;
         EditDialog.InstanceRenameFinished += EditDialog_InstanceRenameFinished;
@@ -102,6 +103,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public event Action<GameSettingsInstancesChangedEventArgs>? InstancesChanged;
 
     public event Action<GameInstance>? OnlineModInstallRequested;
+
+    public event Action? LocalImportRequested;
 
     public GameSettingsInstanceListViewModel InstanceList { get; }
 
@@ -424,6 +427,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 break;
         }
     }
+
+    private void InstanceList_LocalImportRequested() => LocalImportRequested?.Invoke();
 
     private void SelectedInstance_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

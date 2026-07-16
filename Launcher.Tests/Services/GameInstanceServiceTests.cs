@@ -402,6 +402,35 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task RenameAndDeleteRebaseManagedResourceProjectIconWithInstanceDirectory()
+    {
+        var (settings, repository, service, _) = CreateService();
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        var sourceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "first");
+        var sourceIconPath = Path.Combine(sourceDirectory, "BHL", "resource-project-icon.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourceIconPath)!);
+        await File.WriteAllBytesAsync(sourceIconPath, [1, 2, 3]);
+        var instance = CreateStoredInstance("first");
+        instance.IconSource = new Uri(sourceIconPath).AbsoluteUri;
+        await repository.SaveAllAsync([instance]);
+
+        var renamed = await service.RenameInstanceAsync(
+            "first",
+            "second",
+            instance.IconSource);
+
+        var destinationDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "second");
+        var destinationIconPath = Path.Combine(destinationDirectory, "BHL", "resource-project-icon.png");
+        Assert.Equal(new Uri(destinationIconPath).AbsoluteUri, renamed.IconSource);
+        Assert.True(File.Exists(destinationIconPath));
+        Assert.False(File.Exists(sourceIconPath));
+        Assert.Equal(renamed.IconSource, Assert.Single(await repository.GetAllAsync()).IconSource);
+
+        Assert.True(await service.DeleteInstanceAsync("first"));
+        Assert.False(Directory.Exists(destinationDirectory));
+    }
+
+    [Fact]
     public async Task StartupCleanupServiceDeletesPendingInstanceDirectories()
     {
         var settings = CreateSettings();

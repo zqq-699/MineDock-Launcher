@@ -154,7 +154,8 @@ internal async Task InstallAsync(
         var result = (await installationService!.ExecuteAsync(
             new ResourceProjectInstallationRequest(
                 context.Item.Version,
-                ResourceProjectInstallationTargetKind.NewModpackInstance),
+                ResourceProjectInstallationTargetKind.NewModpackInstance,
+                Project: context.Project?.Project),
             context.Session!.Progress,
             context.Session.CancellationToken).ConfigureAwait(false)).ModpackImportResult
             ?? ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);

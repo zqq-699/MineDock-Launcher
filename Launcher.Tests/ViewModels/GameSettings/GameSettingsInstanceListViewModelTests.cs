@@ -27,6 +27,26 @@ namespace Launcher.Tests.ViewModels.GameSettings;
 public sealed class GameSettingsInstanceListViewModelTests
 {
     [Fact]
+    public void LocalImportCategoryRaisesActionWithoutChangingTheActiveFilter()
+    {
+        var viewModel = new GameSettingsInstanceListViewModel(
+            new FakeGameInstanceService(),
+            new StubGameVersionService([]));
+        var selectedCategory = viewModel.SelectedCategory;
+        var requestCount = 0;
+        viewModel.LocalImportRequested += () => requestCount++;
+
+        var localImport = viewModel.Categories.Single(category =>
+            category.Id == GameSettingsInstanceListViewModel.LocalImportCategoryId);
+        viewModel.SelectCategory(localImport);
+
+        Assert.Equal("instance_download_page/localimport", localImport.IconKey);
+        Assert.Equal(1, requestCount);
+        Assert.Same(selectedCategory, viewModel.SelectedCategory);
+        Assert.False(localImport.IsSelected);
+    }
+
+    [Fact]
     public async Task ListOwnsLoadingClassificationAndCategoryFiltering()
     {
         var instances = new FakeGameInstanceService();
@@ -49,6 +69,62 @@ public sealed class GameSettingsInstanceListViewModelTests
         Assert.Equal(2, viewModel.AllInstances.Count);
         Assert.Equal("modded", Assert.Single(viewModel.VisibleInstances).Name);
         Assert.False(viewModel.HasLoadError);
+    }
+
+    [Fact]
+    public async Task AncientCategoryCombinesAlphaAndBetaInstancesWithTimeIcon()
+    {
+        var instances = new FakeGameInstanceService();
+        instances.CreatedInstances.AddRange(
+        [
+            CreateInstance("beta", "b1.7.3", LoaderKind.Vanilla),
+            CreateInstance("alpha", "a1.2.6", LoaderKind.Vanilla)
+        ]);
+        var viewModel = new GameSettingsInstanceListViewModel(
+            instances,
+            new StubGameVersionService(
+            [
+                new MinecraftVersionInfo("b1.7.3", "old_beta", false),
+                new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
+            ]));
+
+        await viewModel.EnsureLoadedAsync();
+
+        var ancient = viewModel.Categories.Single(category => category.Id == "ancient");
+        viewModel.SelectCategory(ancient);
+
+        Assert.Equal("instance_download_page/time", ancient.IconKey);
+        Assert.DoesNotContain(viewModel.Categories, category => category.Id is "old_beta" or "old_alpha");
+        Assert.Equal(["alpha", "beta"], viewModel.VisibleInstances.Select(instance => instance.Name).Order());
+    }
+
+    [Fact]
+    public async Task AprilFoolsCategoryUsesDedicatedIconAndDoesNotDuplicateSnapshots()
+    {
+        var instances = new FakeGameInstanceService();
+        instances.CreatedInstances.AddRange(
+        [
+            CreateInstance("fools", "26w14a", LoaderKind.Vanilla),
+            CreateInstance("snapshot", "26w15a", LoaderKind.Vanilla)
+        ]);
+        var viewModel = new GameSettingsInstanceListViewModel(
+            instances,
+            new StubGameVersionService(
+            [
+                new MinecraftVersionInfo("26w14a", "snapshot", false),
+                new MinecraftVersionInfo("26w15a", "snapshot", false)
+            ]));
+        await viewModel.EnsureLoadedAsync();
+
+        var aprilFools = viewModel.Categories.Single(category => category.Id == "april_fools");
+        viewModel.SelectCategory(aprilFools);
+
+        Assert.Equal("instance_download_page/winking-face-with-open-eyes", aprilFools.IconKey);
+        Assert.Equal("fools", Assert.Single(viewModel.VisibleInstances).Name);
+
+        var snapshot = viewModel.Categories.Single(category => category.Id == "snapshot");
+        viewModel.SelectCategory(snapshot);
+        Assert.Equal("snapshot", Assert.Single(viewModel.VisibleInstances).Name);
     }
 
     [Fact]

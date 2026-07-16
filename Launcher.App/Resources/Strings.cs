@@ -684,6 +684,9 @@ public static class Strings
     public static string Dialog_OpenFileButton => Get(nameof(Dialog_OpenFileButton));
     public static string Dialog_DeleteInstanceTitle => Get(nameof(Dialog_DeleteInstanceTitle));
     public static string Dialog_DeleteInstanceMessageFormat => Get(nameof(Dialog_DeleteInstanceMessageFormat));
+    public static string Dialog_DeleteInstanceBusyTitle => Get(nameof(Dialog_DeleteInstanceBusyTitle));
+    public static string Dialog_DeleteInstanceBusyMessageFormat => Get(nameof(Dialog_DeleteInstanceBusyMessageFormat));
+    public static string Dialog_DeleteInstanceFailedTitle => Get(nameof(Dialog_DeleteInstanceFailedTitle));
     public static string Dialog_DeleteModsTitle => Get(nameof(Dialog_DeleteModsTitle));
     public static string Dialog_DeleteSingleModMessageFormat => Get(nameof(Dialog_DeleteSingleModMessageFormat));
     public static string Dialog_DeleteMultipleModsMessageFormat => Get(nameof(Dialog_DeleteMultipleModsMessageFormat));
@@ -761,6 +764,8 @@ public static class Strings
     public static string Download_InstallButton => Get(nameof(Download_InstallButton));
     public static string Download_ReleaseCategory => Get(nameof(Download_ReleaseCategory));
     public static string Download_SnapshotCategory => Get(nameof(Download_SnapshotCategory));
+    public static string Download_AprilFoolsCategory => Get(nameof(Download_AprilFoolsCategory));
+    public static string Download_AncientCategory => Get(nameof(Download_AncientCategory));
     public static string Download_BetaCategory => Get(nameof(Download_BetaCategory));
     public static string Download_AlphaCategory => Get(nameof(Download_AlphaCategory));
     public static string Download_LocalImportCategory => Get(nameof(Download_LocalImportCategory));

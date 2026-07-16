@@ -5,6 +5,7 @@
  */
 
 using System.Reflection;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Download;
 using Launcher.App.ViewModels.GameSettings;
@@ -255,6 +256,115 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task DeletionDialogRemainsBusyUntilBackendCommits()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var instance = CreateInstanceItem();
+        var deletionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var deletionCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService
+        {
+            DeleteHandler = async (_, _) =>
+            {
+                deletionStarted.TrySetResult();
+                return await deletionCompletion.Task;
+            }
+        };
+        instanceService.CreatedInstances.Add(instance.Instance);
+        using var details = CreateDetails(monitor, instanceService: instanceService);
+        details.SetSelectedInstance(instance);
+        details.SetSelectedSection(CreateSection("mod_management"));
+        details.SetPageActive(true);
+        var dialogs = new GameSettingsDialogsViewModel(instanceService, Stub<IStatusService>(), details);
+        GameSettingsInstanceItem? deletedInstance = null;
+        dialogs.InstanceDeleted += deleted => deletedInstance = deleted;
+        dialogs.OpenDeleteInstance(instance);
+
+        var deletion = dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+        await deletionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.True(dialogs.IsDeleteInstanceDialogBusy);
+        Assert.False(dialogs.HasDeleteInstanceDialogError);
+        Assert.Same(instance, dialogs.InstancePendingDelete);
+        Assert.Equal(Strings.Dialog_DeleteInstanceBusyTitle, dialogs.DeleteInstanceDialogTitle);
+        Assert.Equal(
+            string.Format(Strings.Dialog_DeleteInstanceBusyMessageFormat, instance.Name),
+            dialogs.DeleteInstanceDialogMessage);
+        Assert.Equal(Strings.Dialog_DeleteInstanceBusyTitle, dialogs.DeleteInstanceDialogActionText);
+        Assert.False(dialogs.CanShowDeleteInstanceCancelButton);
+        Assert.False(dialogs.CancelDeleteInstanceDialogCommand.CanExecute(null));
+        Assert.False(dialogs.ConfirmDeleteInstanceDialogCommand.CanExecute(null));
+
+        dialogs.CancelDeleteInstanceDialogCommand.Execute(null);
+        dialogs.OpenDeleteInstance(CreateInstanceItem(Path.Combine(TempRoot, "other-instance")));
+        await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.Same(instance, dialogs.InstancePendingDelete);
+        Assert.Equal(1, instanceService.DeleteCallCount);
+
+        deletionCompletion.SetResult(true);
+        await deletion;
+
+        Assert.False(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.False(dialogs.IsDeleteInstanceDialogBusy);
+        Assert.Null(dialogs.InstancePendingDelete);
+        Assert.Same(instance, deletedInstance);
+        Assert.Null(details.SelectedInstance);
+        Assert.Empty(monitor.ActiveKinds);
+        details.SetPageActive(false);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedDeletionRemainsOpenAndCanBeRetried(bool throwException)
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var instance = CreateInstanceItem();
+        var instanceService = new FakeGameInstanceService
+        {
+            DeleteHandler = throwException
+                ? (_, _) => Task.FromException<bool>(new IOException("delete failed"))
+                : (_, _) => Task.FromResult(false)
+        };
+        instanceService.CreatedInstances.Add(instance.Instance);
+        using var details = CreateDetails(monitor, instanceService: instanceService);
+        details.SetSelectedInstance(instance);
+        details.SetSelectedSection(CreateSection("mod_management"));
+        details.SetPageActive(true);
+        var dialogs = new GameSettingsDialogsViewModel(instanceService, Stub<IStatusService>(), details);
+        dialogs.OpenDeleteInstance(instance);
+
+        await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.False(dialogs.IsDeleteInstanceDialogBusy);
+        Assert.True(dialogs.HasDeleteInstanceDialogError);
+        Assert.Same(instance, dialogs.InstancePendingDelete);
+        Assert.Equal(Strings.Dialog_DeleteInstanceFailedTitle, dialogs.DeleteInstanceDialogTitle);
+        Assert.Equal(Strings.Status_DeleteInstanceFailed, dialogs.DeleteInstanceDialogMessage);
+        Assert.Equal(Strings.Retry_Button, dialogs.DeleteInstanceDialogActionText);
+        Assert.True(dialogs.CanShowDeleteInstanceCancelButton);
+        Assert.True(dialogs.CancelDeleteInstanceDialogCommand.CanExecute(null));
+        Assert.True(dialogs.ConfirmDeleteInstanceDialogCommand.CanExecute(null));
+        Assert.Equal([InstanceDirectoryKind.Mods], monitor.ActiveKinds);
+        Assert.Same(instance, details.SelectedInstance);
+
+        instanceService.DeleteHandler = (_, _) => Task.FromResult(true);
+        await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.False(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.False(dialogs.IsDeleteInstanceDialogBusy);
+        Assert.False(dialogs.HasDeleteInstanceDialogError);
+        Assert.Null(dialogs.InstancePendingDelete);
+        Assert.Equal(2, instanceService.DeleteCallCount);
+        Assert.Empty(monitor.ActiveKinds);
+        Assert.Null(details.SelectedInstance);
+        details.SetPageActive(false);
+    }
+
+    [Fact]
     public async Task FailedDeletionRestoresOnlyCurrentResourceWatcher()
     {
         var monitor = new RecordingDirectoryMonitor();
@@ -269,6 +379,8 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
 
         await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
 
+        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
+        Assert.True(dialogs.HasDeleteInstanceDialogError);
         Assert.Equal([InstanceDirectoryKind.Mods], monitor.ActiveKinds);
         Assert.Equal(2, monitor.WatchStartCount);
         Assert.Same(instance, details.SelectedInstance);

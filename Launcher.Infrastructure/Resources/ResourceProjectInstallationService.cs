@@ -19,6 +19,7 @@
 
 using System.IO;
 using System.Text.Json;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Persistence;
@@ -31,18 +32,22 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
     private const string WorkspacePrefix = "launcher-modpack-install-";
     private const string MarkerFileName = ".launcher-resource-install.json";
     private const string ActiveLockFileName = ".launcher-resource-install.lock";
+    private const string ResourceProjectIconFileName = "resource-project-icon.png";
     private static readonly JsonSerializerOptions MarkerJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IResourceCatalogService resourceCatalogService;
     private readonly ILocalModpackImportService localModpackImportService;
+    private readonly IGameInstanceService gameInstanceService;
     private readonly ILogger<ResourceProjectInstallationService> logger;
 
     public ResourceProjectInstallationService(
         IResourceCatalogService resourceCatalogService,
         ILocalModpackImportService localModpackImportService,
+        IGameInstanceService gameInstanceService,
         ILogger<ResourceProjectInstallationService> logger)
     {
         this.resourceCatalogService = resourceCatalogService;
         this.localModpackImportService = localModpackImportService;
+        this.gameInstanceService = gameInstanceService;
         this.logger = logger;
     }
 
@@ -101,7 +106,7 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
                 return new ResourceProjectInstallationResult(InstalledPath: path);
             }
             case ResourceProjectInstallationTargetKind.NewModpackInstance:
-                return await ImportModpackAsNewInstanceAsync(request.Version, progress, cancellationToken)
+                return await ImportModpackAsNewInstanceAsync(request, progress, cancellationToken)
                     .ConfigureAwait(false);
             default:
                 throw new ArgumentOutOfRangeException(nameof(request));
@@ -127,7 +132,7 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             : resourceCatalogService.InstallProjectVersionAsync(version, instance, cancellationToken);
 
     private async Task<ResourceProjectInstallationResult> ImportModpackAsNewInstanceAsync(
-        ResourceProjectVersion version,
+        ResourceProjectInstallationRequest request,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -147,15 +152,31 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             .ConfigureAwait(false);
         try
         {
-            var archivePath = await DownloadProjectVersionAsync(
-                version,
+            var iconPreparationTask = PrepareResourceProjectIconAsync(
+                request.Project,
+                tempDirectory,
+                cancellationToken);
+            var archiveDownloadTask = DownloadProjectVersionAsync(
+                request.Version,
                 tempDirectory,
                 progress,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
+            await Task.WhenAll((Task)iconPreparationTask, archiveDownloadTask).ConfigureAwait(false);
+            var archivePath = await archiveDownloadTask.ConfigureAwait(false);
+            var preparedIconPath = await iconPreparationTask.ConfigureAwait(false);
             var result = await localModpackImportService.ImportFromArchiveAsync(
                 archivePath,
                 progress,
                 cancellationToken).ConfigureAwait(false);
+            if (result.IsSuccess
+                && result.ImportedInstance is not null
+                && preparedIconPath is not null)
+            {
+                await TryApplyResourceProjectIconAsync(
+                        preparedIconPath,
+                        result.ImportedInstance)
+                    .ConfigureAwait(false);
+            }
             return new ResourceProjectInstallationResult(archivePath, result);
         }
         finally
@@ -175,6 +196,93 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
                     "Failed to clean resource project installation workspace. Workspace={Workspace}",
                     tempDirectory);
             }
+        }
+    }
+
+    private async Task<string?> PrepareResourceProjectIconAsync(
+        ResourceProject? project,
+        string workspaceDirectory,
+        CancellationToken cancellationToken)
+    {
+        if (project is null
+            || string.IsNullOrWhiteSpace(project.IconUrl)
+            || resourceCatalogService is not IResourceThumbnailService thumbnailService)
+        {
+            return null;
+        }
+
+        try
+        {
+            var source = await thumbnailService
+                .GetOrCreateThumbnailSourceAsync(project, cancellationToken)
+                .ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(source)
+                || !Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+                || !sourceUri.IsFile
+                || !File.Exists(sourceUri.LocalPath))
+            {
+                logger.LogWarning(
+                    "Resource project thumbnail did not resolve to a local file. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                    project.Kind,
+                    project.Source,
+                    project.ProjectId);
+                return null;
+            }
+
+            var preparedPath = Path.Combine(workspaceDirectory, ResourceProjectIconFileName);
+            File.Copy(sourceUri.LocalPath, preparedPath, overwrite: true);
+            return preparedPath;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to prepare resource project icon. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                project.Kind,
+                project.Source,
+                project.ProjectId);
+            return null;
+        }
+    }
+
+    private async Task TryApplyResourceProjectIconAsync(
+        string preparedIconPath,
+        GameInstance instance)
+    {
+        var originalIconSource = instance.IconSource;
+        var iconDirectory = Path.Combine(
+            instance.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName);
+        var destinationPath = Path.Combine(iconDirectory, ResourceProjectIconFileName);
+        var temporaryPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            Directory.CreateDirectory(iconDirectory);
+            File.Copy(preparedIconPath, temporaryPath, overwrite: false);
+            File.Move(temporaryPath, destinationPath, overwrite: true);
+            instance.IconSource = new Uri(Path.GetFullPath(destinationPath)).AbsoluteUri;
+            await gameInstanceService.SaveInstanceAsync(instance, CancellationToken.None)
+                .ConfigureAwait(false);
+            logger.LogInformation(
+                "Resource project icon applied to imported instance. InstanceId={InstanceId}",
+                instance.Id);
+        }
+        catch (Exception exception)
+        {
+            instance.IconSource = originalIconSource;
+            TryDelete(destinationPath);
+            logger.LogWarning(
+                exception,
+                "Failed to apply resource project icon to imported instance. InstanceId={InstanceId}",
+                instance.Id);
+        }
+        finally
+        {
+            TryDelete(temporaryPath);
         }
     }
 
@@ -276,6 +384,21 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         foreach (var file in Directory.EnumerateFiles(path))
             File.Delete(file);
         Directory.Delete(path, recursive: false);
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static bool IsSharingViolation(IOException exception)

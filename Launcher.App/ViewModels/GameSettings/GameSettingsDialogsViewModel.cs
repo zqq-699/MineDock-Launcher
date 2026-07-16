@@ -36,6 +36,8 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
 
     [ObservableProperty] private bool isDeleteInstanceDialogOpen;
     [ObservableProperty] private GameSettingsInstanceItem? instancePendingDelete;
+    [ObservableProperty] private bool isDeleteInstanceDialogBusy;
+    [ObservableProperty] private bool hasDeleteInstanceDialogError;
     [ObservableProperty] private bool isDeleteContentDialogOpen;
     private PendingContentDeletion? pendingContentDeletion;
     [ObservableProperty] private bool isReplaceModImportDialogOpen;
@@ -58,9 +60,31 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
 
     public event Action<GameSettingsInstanceItem>? InstanceDeleted;
 
+    public string DeleteInstanceDialogTitle => IsDeleteInstanceDialogBusy
+        ? Strings.Dialog_DeleteInstanceBusyTitle
+        : HasDeleteInstanceDialogError
+            ? Strings.Dialog_DeleteInstanceFailedTitle
+            : Strings.Dialog_DeleteInstanceTitle;
+
     public string DeleteInstanceDialogMessage => InstancePendingDelete is null
         ? string.Empty
-        : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
+        : IsDeleteInstanceDialogBusy
+            ? string.Format(Strings.Dialog_DeleteInstanceBusyMessageFormat, InstancePendingDelete.Name)
+            : HasDeleteInstanceDialogError
+                ? Strings.Status_DeleteInstanceFailed
+                : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
+
+    public string DeleteInstanceDialogActionText => IsDeleteInstanceDialogBusy
+        ? Strings.Dialog_DeleteInstanceBusyTitle
+        : HasDeleteInstanceDialogError
+            ? Strings.Retry_Button
+            : Strings.Delete_Button;
+
+    public bool CanShowDeleteInstanceCancelButton => !IsDeleteInstanceDialogBusy;
+
+    private bool CanCancelDeleteInstanceDialog => !IsDeleteInstanceDialogBusy;
+
+    private bool CanConfirmDeleteInstanceDialog => !IsDeleteInstanceDialogBusy && InstancePendingDelete is not null;
 
     public string DeleteContentDialogTitle => pendingContentDeletion?.Kind switch
     {
@@ -81,6 +105,11 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
     [RelayCommand]
     public void OpenDeleteInstance(GameSettingsInstanceItem instance)
     {
+        if (IsDeleteInstanceDialogBusy)
+            return;
+
+        IsDeleteInstanceDialogBusy = false;
+        HasDeleteInstanceDialogError = false;
         InstancePendingDelete = instance;
         IsDeleteInstanceDialogOpen = true;
     }
@@ -112,21 +141,26 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
     public void OpenShaderPackImportFailure(ShaderPackImportFailureRequest request) =>
         OpenImportFailure(Strings.Dialog_InvalidShaderPackImportTitle, request.Message);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCancelDeleteInstanceDialog))]
     private void CancelDeleteInstanceDialog()
     {
+        if (IsDeleteInstanceDialogBusy)
+            return;
+
         IsDeleteInstanceDialogOpen = false;
         InstancePendingDelete = null;
+        HasDeleteInstanceDialogError = false;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanConfirmDeleteInstanceDialog))]
     private async Task ConfirmDeleteInstanceDialogAsync()
     {
-        if (InstancePendingDelete is null)
+        if (IsDeleteInstanceDialogBusy || InstancePendingDelete is null)
             return;
+
         var pending = InstancePendingDelete;
-        IsDeleteInstanceDialogOpen = false;
-        InstancePendingDelete = null;
+        HasDeleteInstanceDialogError = false;
+        IsDeleteInstanceDialogBusy = true;
         details.SuspendLocalWatchersForInstanceMove();
         var deletionCommitted = false;
         try
@@ -134,20 +168,26 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
             if (!await instanceService.DeleteInstanceAsync(pending.Instance.Id))
             {
                 statusService.Report(Strings.Status_DeleteInstanceFailed);
+                HasDeleteInstanceDialogError = true;
                 return;
             }
+
             deletionCommitted = true;
             details.ClearSelectedInstanceIf(pending.Instance.Id);
             statusService.Report(string.Format(Strings.Status_InstanceDeletedFormat, pending.Name));
             InstanceDeleted?.Invoke(pending);
+            IsDeleteInstanceDialogOpen = false;
+            InstancePendingDelete = null;
         }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Failed to delete game instance. InstanceId={InstanceId}", pending.Instance.Id);
             statusService.Report(Strings.Status_DeleteInstanceFailed);
+            HasDeleteInstanceDialogError = true;
         }
         finally
         {
+            IsDeleteInstanceDialogBusy = false;
             // 删除提交后只解除挂起，不能再用旧实例上下文重启 watcher；失败时恢复当前活动分区。
             details.ResumeLocalWatchersAfterInstanceMove(restart: !deletionCommitted);
         }
@@ -211,8 +251,28 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
         InvalidImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
     }
 
-    partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value) =>
+    partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value)
+    {
         OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
+        ConfirmDeleteInstanceDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsDeleteInstanceDialogBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DeleteInstanceDialogTitle));
+        OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
+        OnPropertyChanged(nameof(DeleteInstanceDialogActionText));
+        OnPropertyChanged(nameof(CanShowDeleteInstanceCancelButton));
+        CancelDeleteInstanceDialogCommand.NotifyCanExecuteChanged();
+        ConfirmDeleteInstanceDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnHasDeleteInstanceDialogErrorChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DeleteInstanceDialogTitle));
+        OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
+        OnPropertyChanged(nameof(DeleteInstanceDialogActionText));
+    }
 
     partial void OnPendingModImportConflictChanged(ModImportConflictRequest? value) =>
         OnPropertyChanged(nameof(ReplaceModImportDialogMessage));

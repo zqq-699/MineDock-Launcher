@@ -32,6 +32,8 @@ namespace Launcher.App.ViewModels.GameSettings;
 /// </summary>
 public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 {
+    public const string LocalImportCategoryId = "local_import";
+
     // AllInstances 是权威 UI 缓存，Instances 仅是当前分类的稳定可观察投影。
     private readonly IGameInstanceService instanceService;
     private readonly IGameVersionService gameVersionService;
@@ -77,10 +79,13 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         Categories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
         Categories.Add(new GameSettingsInstanceCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
         Categories.Add(new GameSettingsInstanceCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
-        Categories.Add(new GameSettingsInstanceCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
-        Categories.Add(new GameSettingsInstanceCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
+        Categories.Add(new GameSettingsInstanceCategory("april_fools", Strings.Download_AprilFoolsCategory, string.Empty, "instance_download_page/winking-face-with-open-eyes"));
+        Categories.Add(new GameSettingsInstanceCategory("ancient", Strings.Download_AncientCategory, string.Empty, "instance_download_page/time"));
+        Categories.Add(new GameSettingsInstanceCategory(LocalImportCategoryId, Strings.Download_LocalImportCategory, string.Empty, "instance_download_page/localimport"));
         SelectCategory(Categories[0], refreshVisibleInstances: false);
     }
+
+    public event Action? LocalImportRequested;
 
     public ObservableCollection<GameSettingsInstanceCategory> Categories { get; } = [];
 
@@ -120,6 +125,12 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     public void SelectCategory(GameSettingsInstanceCategory category, bool refreshVisibleInstances = true)
     {
+        if (string.Equals(category.Id, LocalImportCategoryId, StringComparison.Ordinal))
+        {
+            LocalImportRequested?.Invoke();
+            return;
+        }
+
         // 分类对象保持稳定，切换时只重建投影，不重新发现实例。
         var changed = !ReferenceEquals(SelectedCategory, category)
             && !string.Equals(SelectedCategory?.Id, category.Id, StringComparison.OrdinalIgnoreCase);

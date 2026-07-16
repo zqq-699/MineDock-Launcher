@@ -1363,6 +1363,12 @@
   <data name="Download_SnapshotCategory" xml:space="preserve">
     <value>快照版</value>
   </data>
+  <data name="Download_AprilFoolsCategory" xml:space="preserve">
+    <value>愚人節版</value>
+  </data>
+  <data name="Download_AncientCategory" xml:space="preserve">
+    <value>遠古版</value>
+  </data>
   <data name="Download_BetaCategory" xml:space="preserve">
     <value>Beta 版</value>
   </data>
@@ -2046,6 +2052,15 @@
   </data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve">
     <value>是否確定刪除版本“{0}”？</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyTitle" xml:space="preserve">
+    <value>正在刪除</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyMessageFormat" xml:space="preserve">
+    <value>正在刪除版本“{0}”，請稍候。</value>
+  </data>
+  <data name="Dialog_DeleteInstanceFailedTitle" xml:space="preserve">
+    <value>刪除失敗</value>
   </data>
   <data name="Status_InstanceDeletedFormat" xml:space="preserve">
     <value>已刪除版本 {0}</value>

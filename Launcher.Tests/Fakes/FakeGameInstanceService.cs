@@ -32,6 +32,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public bool ReturnNewInstanceOnRename { get; init; }
     public Action? RenameCallback { get; set; }
     public Action? DeleteCallback { get; set; }
+    public Func<string, CancellationToken, Task<bool>>? DeleteHandler { get; set; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
     public TaskCompletionSource<bool> GetInstancesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -217,16 +218,25 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         }
     }
 
-    public Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
     {
+        Func<string, CancellationToken, Task<bool>>? handler;
         lock (syncRoot)
         {
             DeleteCallback?.Invoke();
             LastDeletedInstanceId = instanceId;
             DeleteCallCount++;
-            var removed = CreatedInstances.RemoveAll(instance => instance.Id == instanceId) > 0;
-            return Task.FromResult(removed);
+            handler = DeleteHandler;
+            if (handler is null)
+                return CreatedInstances.RemoveAll(instance => instance.Id == instanceId) > 0;
         }
+
+        var deleted = await handler(instanceId, cancellationToken);
+        if (!deleted)
+            return false;
+
+        lock (syncRoot)
+            return CreatedInstances.RemoveAll(instance => instance.Id == instanceId) > 0;
     }
 
     private static GameInstance CloneGameInstance(GameInstance instance)

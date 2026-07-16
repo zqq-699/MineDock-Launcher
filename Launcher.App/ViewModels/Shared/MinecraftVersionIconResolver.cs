@@ -85,6 +85,8 @@ internal static class MinecraftVersionIconResolver
         {
             "release" => "release",
             "snapshot" => "snapshot",
+            "april_fools" or "aprilfools" => "april_fools",
+            "ancient" => "ancient",
             "old_beta" or "oldbeta" or "beta" => "old_beta",
             "old_alpha" or "oldalpha" or "alpha" => "old_alpha",
             _ => string.Empty

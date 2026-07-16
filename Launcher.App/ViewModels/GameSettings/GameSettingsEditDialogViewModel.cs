@@ -36,6 +36,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
     private readonly IStatusService statusService;
     private string originalResolvedIconSource = string.Empty;
     private string? originalExplicitIconSource;
+    private GameSettingsIconOption? transientIconOption;
 
     [ObservableProperty]
     private bool isEditInstanceDialogOpen;
@@ -124,6 +125,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
 
     public void Open(GameSettingsInstanceItem instance)
     {
+        RemoveTransientIconOption();
         InstancePendingEdit = instance;
         originalResolvedIconSource = instance.IconSource;
         originalExplicitIconSource = string.IsNullOrWhiteSpace(instance.Instance.IconSource)
@@ -285,8 +287,25 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
         var preferredIconSource = string.IsNullOrWhiteSpace(instance.Instance.IconSource)
             ? instance.IconSource
             : instance.Instance.IconSource;
-        return IconOptions.FirstOrDefault(option =>
+        var existingOption = IconOptions.FirstOrDefault(option =>
             string.Equals(option.IconSource, preferredIconSource, StringComparison.OrdinalIgnoreCase));
+        if (existingOption is not null || string.IsNullOrWhiteSpace(preferredIconSource))
+            return existingOption;
+
+        transientIconOption = new GameSettingsIconOption(
+            Strings.GameSettings_InstanceIconLabel,
+            preferredIconSource);
+        IconOptions.Insert(0, transientIconOption);
+        return transientIconOption;
+    }
+
+    private void RemoveTransientIconOption()
+    {
+        if (transientIconOption is null)
+            return;
+
+        IconOptions.Remove(transientIconOption);
+        transientIconOption = null;
     }
 
     private static bool IsValidInstanceName(string value)

@@ -48,6 +48,11 @@ public Task SyncCurrentStateAsync()
             UpdateAccountNavigationAvatar();
     }
 
+    private void GameSettingsPage_LocalImportRequested()
+    {
+        DownloadPage.LocalImportDialog.Open();
+    }
+
     private void UpdateSecondaryItems()
     {
         SecondaryItems.Clear();

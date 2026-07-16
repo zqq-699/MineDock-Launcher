@@ -1363,6 +1363,12 @@ Longer content wraps automatically.</value>
   <data name="Download_SnapshotCategory" xml:space="preserve">
     <value>Snapshot</value>
   </data>
+  <data name="Download_AprilFoolsCategory" xml:space="preserve">
+    <value>April Fools</value>
+  </data>
+  <data name="Download_AncientCategory" xml:space="preserve">
+    <value>Ancient</value>
+  </data>
   <data name="Download_BetaCategory" xml:space="preserve">
     <value>Beta</value>
   </data>
@@ -2046,6 +2052,15 @@ Longer content wraps automatically.</value>
   </data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve">
     <value>Delete version "{0}"?</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyTitle" xml:space="preserve">
+    <value>Deleting</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyMessageFormat" xml:space="preserve">
+    <value>Deleting version "{0}". Please wait.</value>
+  </data>
+  <data name="Dialog_DeleteInstanceFailedTitle" xml:space="preserve">
+    <value>Deletion failed</value>
   </data>
   <data name="Status_InstanceDeletedFormat" xml:space="preserve">
     <value>Deleted version {0}</value>

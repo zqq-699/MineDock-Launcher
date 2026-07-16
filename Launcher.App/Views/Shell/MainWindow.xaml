@@ -484,7 +484,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Dialog_DeleteInstanceTitle}"
+                    <TextBlock Text="{Binding DeleteInstanceDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"
@@ -496,10 +496,11 @@
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                 Content="{x:Static res:Strings.Cancel_Button}"
-                                Command="{Binding CancelDeleteInstanceDialogCommand}" />
+                                Command="{Binding CancelDeleteInstanceDialogCommand}"
+                                Visibility="{Binding CanShowDeleteInstanceCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
-                                Content="{x:Static res:Strings.Delete_Button}"
+                                Content="{Binding DeleteInstanceDialogActionText}"
                                 Command="{Binding ConfirmDeleteInstanceDialogCommand}" />
                     </StackPanel>
                 </Grid>

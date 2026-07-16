@@ -471,6 +471,8 @@
   <data name="Download_InstallButton" xml:space="preserve"><value>安装</value></data>
   <data name="Download_ReleaseCategory" xml:space="preserve"><value>正式版</value></data>
   <data name="Download_SnapshotCategory" xml:space="preserve"><value>快照版</value></data>
+  <data name="Download_AprilFoolsCategory" xml:space="preserve"><value>愚人节版</value></data>
+  <data name="Download_AncientCategory" xml:space="preserve"><value>远古版</value></data>
   <data name="Download_BetaCategory" xml:space="preserve"><value>beta版</value></data>
   <data name="Download_AlphaCategory" xml:space="preserve"><value>alpha版</value></data>
   <data name="Download_LocalImportCategory" xml:space="preserve"><value>本地导入</value></data>
@@ -699,6 +701,9 @@
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>
   <data name="Dialog_DeleteInstanceTitle" xml:space="preserve"><value>删除版本</value></data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve"><value>是否确定删除版本“{0}”？</value></data>
+  <data name="Dialog_DeleteInstanceBusyTitle" xml:space="preserve"><value>正在删除</value></data>
+  <data name="Dialog_DeleteInstanceBusyMessageFormat" xml:space="preserve"><value>正在删除版本“{0}”，请稍候。</value></data>
+  <data name="Dialog_DeleteInstanceFailedTitle" xml:space="preserve"><value>删除失败</value></data>
   <data name="Status_InstanceDeletedFormat" xml:space="preserve"><value>已删除版本 {0}</value></data>
   <data name="Status_DeleteInstanceFailed" xml:space="preserve"><value>删除版本失败，请稍后重试。</value></data>
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>

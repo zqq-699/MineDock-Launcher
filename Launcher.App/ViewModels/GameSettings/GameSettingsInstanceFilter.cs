@@ -48,6 +48,7 @@ internal static class GameSettingsInstanceFilter
                 category?.Id,
                 instance => instance.IsRelease,
                 instance => instance.IsSnapshot,
+                instance => instance.IsAprilFools,
                 instance => instance.IsBeta,
                 instance => instance.IsAlpha);
 

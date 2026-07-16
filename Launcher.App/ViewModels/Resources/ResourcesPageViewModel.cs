@@ -58,8 +58,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             new ResourcesSectionItem { Id = "mods", Title = Strings.Resources_SectionMods, IconKey = "instance_setting_page/mod" },
             new ResourcesSectionItem { Id = "resource_packs", Title = Strings.Resources_SectionResourcePacks, IconKey = "main_menu_library" },
             new ResourcesSectionItem { Id = "shader_packs", Title = Strings.Resources_SectionShaderPacks, IconKey = "instance_setting_page/shader" },
-            new ResourcesSectionItem { Id = "worlds", Title = Strings.Resources_SectionWorlds, IconKey = "instance_setting_page/saves" },
-            new ResourcesSectionItem { Id = "modpacks", Title = Strings.Resources_SectionModpacks, IconKey = "general/general_extention" }
+            new ResourcesSectionItem { Id = "worlds", Title = Strings.Resources_SectionWorlds, IconKey = "world" },
+            new ResourcesSectionItem { Id = "modpacks", Title = Strings.Resources_SectionModpacks, IconKey = "modpack" }
         ];
 
         ModPage = new ResourcesModPageViewModel(

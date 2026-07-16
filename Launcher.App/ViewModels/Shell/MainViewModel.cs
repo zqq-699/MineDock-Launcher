@@ -132,6 +132,7 @@ public sealed partial class MainViewModel : ObservableObject
         sessionCoordinator.ProgressChanged += progress => ProgressPercent = progress;
         HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
         HomePage.LaunchFailureReported += HomePage_LaunchFailureReported;
+        GameSettingsPage.LocalImportRequested += GameSettingsPage_LocalImportRequested;
 
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;

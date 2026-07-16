@@ -32,7 +32,8 @@ public sealed record ResourceProjectInstallationRequest(
     ResourceProjectVersion Version,
     ResourceProjectInstallationTargetKind TargetKind,
     string? TargetDirectory = null,
-    GameInstance? Instance = null);
+    GameInstance? Instance = null,
+    ResourceProject? Project = null);
 
 public sealed record ResourceProjectInstallationPreparationResult(bool TargetExists);
 

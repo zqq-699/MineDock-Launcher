@@ -1363,6 +1363,12 @@
   <data name="Download_SnapshotCategory" xml:space="preserve">
     <value>スナップショット版</value>
   </data>
+  <data name="Download_AprilFoolsCategory" xml:space="preserve">
+    <value>エイプリルフール版</value>
+  </data>
+  <data name="Download_AncientCategory" xml:space="preserve">
+    <value>古代版</value>
+  </data>
   <data name="Download_BetaCategory" xml:space="preserve">
     <value>ベータ版</value>
   </data>
@@ -2046,6 +2052,15 @@
   </data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve">
     <value>バージョン「{0}」を削除してもよろしいですか？</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyTitle" xml:space="preserve">
+    <value>削除しています</value>
+  </data>
+  <data name="Dialog_DeleteInstanceBusyMessageFormat" xml:space="preserve">
+    <value>バージョン「{0}」を削除しています。しばらくお待ちください。</value>
+  </data>
+  <data name="Dialog_DeleteInstanceFailedTitle" xml:space="preserve">
+    <value>削除に失敗しました</value>
   </data>
   <data name="Status_InstanceDeletedFormat" xml:space="preserve">
     <value>バージョン {0} を削除しました</value>

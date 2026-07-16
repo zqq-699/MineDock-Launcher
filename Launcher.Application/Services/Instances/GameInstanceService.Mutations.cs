@@ -29,6 +29,8 @@ namespace Launcher.Application.Services;
 
 public sealed partial class GameInstanceService
 {
+private const string ResourceProjectIconFileName = "resource-project-icon.png";
+
 public async Task<GameInstance> CreateInstanceAsync(
         string minecraftVersion,
         LoaderKind loader,
@@ -99,6 +101,7 @@ public async Task<GameInstance> CreateInstanceAsync(
 
         var sanitizedName = NormalizeUserInstanceName(newName);
         var normalizedIconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
+        var persistedIconSource = normalizedIconSource;
         var currentVersionName = GetVersionName(instance);
 
         if (instances.Any(existing =>
@@ -122,13 +125,20 @@ public async Task<GameInstance> CreateInstanceAsync(
         {
             // 先完成目录及版本 JSON 的事务性重命名，再更新内存模型，失败时不会保存失配路径。
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var sourceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, currentVersionName);
+            var destinationDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, sanitizedName);
+            persistedIconSource = RebaseManagedResourceProjectIcon(
+                instance.IconSource,
+                normalizedIconSource,
+                sourceDirectory,
+                destinationDirectory);
             try
             {
                 await repository.RenameVersionAsync(
                     settings.MinecraftDirectory,
                     instance,
                     sanitizedName,
-                    normalizedIconSource,
+                    persistedIconSource,
                     updatedAt,
                     cancellationToken).ConfigureAwait(false);
             }
@@ -142,7 +152,7 @@ public async Task<GameInstance> CreateInstanceAsync(
         }
 
         instance.Name = sanitizedName;
-        instance.IconSource = normalizedIconSource;
+        instance.IconSource = persistedIconSource;
         instance.UpdatedAt = updatedAt;
 
         var index = instances.FindIndex(existing =>
@@ -167,6 +177,34 @@ public async Task<GameInstance> CreateInstanceAsync(
         {
             pendingInstanceMutations.TryRemove(mutationKey, out _);
         }
+    }
+
+    private static string? RebaseManagedResourceProjectIcon(
+        string? currentIconSource,
+        string? requestedIconSource,
+        string sourceDirectory,
+        string destinationDirectory)
+    {
+        if (!string.Equals(currentIconSource, requestedIconSource, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(requestedIconSource)
+            || !Uri.TryCreate(requestedIconSource, UriKind.Absolute, out var iconUri)
+            || !iconUri.IsFile)
+        {
+            return requestedIconSource;
+        }
+
+        var expectedSourcePath = Path.Combine(
+            sourceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            ResourceProjectIconFileName);
+        if (!PathsEqual(iconUri.LocalPath, expectedSourcePath))
+            return requestedIconSource;
+
+        var destinationPath = Path.Combine(
+            destinationDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            ResourceProjectIconFileName);
+        return new Uri(Path.GetFullPath(destinationPath)).AbsoluteUri;
     }
 
     public async Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)

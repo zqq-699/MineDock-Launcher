@@ -49,6 +49,51 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public async Task AncientCategoryCombinesAlphaAndBetaVersionsWithTimeIcon()
+    {
+        using var viewModel = new DownloadVersionListViewModel(
+            new StubGameVersionService(
+            [
+                new MinecraftVersionInfo("b1.7.3", "old_beta", false),
+                new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
+            ]),
+            ImmediateUiDispatcher.Instance);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        var ancient = viewModel.VersionCategories.Single(category => category.Id == "ancient");
+        viewModel.SelectVersionCategoryCommand.Execute(ancient);
+
+        Assert.Equal("instance_download_page/time", ancient.IconKey);
+        Assert.DoesNotContain(viewModel.VersionCategories, category => category.Id is "old_beta" or "old_alpha");
+        Assert.Equal(["a1.2.6", "b1.7.3"], viewModel.VisibleVersions.Select(version => version.Name).Order());
+    }
+
+    [Fact]
+    public async Task AprilFoolsCategoryUsesDedicatedIconAndDoesNotDuplicateSnapshots()
+    {
+        using var viewModel = new DownloadVersionListViewModel(
+            new StubGameVersionService(
+            [
+                new MinecraftVersionInfo("26w14a", "snapshot", false),
+                new MinecraftVersionInfo("25w14craftmine", "snapshot", false),
+                new MinecraftVersionInfo("26w15a", "snapshot", false)
+            ]),
+            ImmediateUiDispatcher.Instance);
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        var aprilFools = viewModel.VersionCategories.Single(category => category.Id == "april_fools");
+        viewModel.SelectVersionCategoryCommand.Execute(aprilFools);
+
+        Assert.Equal("instance_download_page/winking-face-with-open-eyes", aprilFools.IconKey);
+        Assert.Equal(["25w14craftmine", "26w14a"], viewModel.VisibleVersions.Select(version => version.Name).Order());
+
+        var snapshot = viewModel.VersionCategories.Single(category => category.Id == "snapshot");
+        viewModel.SelectVersionCategoryCommand.Execute(snapshot);
+        Assert.Equal("26w15a", Assert.Single(viewModel.VisibleVersions).Name);
+    }
+
+    [Fact]
     public async Task SwitchingLoaderCancelsOlderVersionRequest()
     {
         var fabricGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -75,8 +75,8 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
         this.uiDispatcher = uiDispatcher;
         VersionCategories.Add(new DownloadVersionCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
         VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
-        VersionCategories.Add(new DownloadVersionCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
-        VersionCategories.Add(new DownloadVersionCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
+        VersionCategories.Add(new DownloadVersionCategory("april_fools", Strings.Download_AprilFoolsCategory, string.Empty, "instance_download_page/winking-face-with-open-eyes"));
+        VersionCategories.Add(new DownloadVersionCategory("ancient", Strings.Download_AncientCategory, string.Empty, "instance_download_page/time"));
         VersionCategories.Add(new DownloadVersionCategory(
             LocalImportCategoryId,
             Strings.Download_LocalImportCategory,

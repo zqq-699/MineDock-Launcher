@@ -164,6 +164,33 @@ public sealed class ResourcesProjectInstallViewModelTests
     }
 
     [Fact]
+    public async Task NewModpackInstallIncludesSelectedResourceProject()
+    {
+        var installation = new RecordingInstallationService();
+        var viewModel = CreateViewModel(
+            installation,
+            new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1)),
+            _ => { });
+        var project = new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project",
+            IconUrl = "https://example.invalid/icon.png"
+        };
+
+        await viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.Modpack),
+            ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance"),
+            new ResourcesModProjectItemViewModel(project));
+
+        var request = Assert.Single(installation.ExecutedRequests);
+        Assert.Equal(ResourceProjectInstallationTargetKind.NewModpackInstance, request.TargetKind);
+        Assert.Same(project, request.Project);
+    }
+
+    [Fact]
     public async Task CancelingOneConcurrentModpackInstallDoesNotCancelTheOther()
     {
         var installation = new ControllableInstallationService();

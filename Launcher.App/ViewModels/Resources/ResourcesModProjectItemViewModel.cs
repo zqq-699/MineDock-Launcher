@@ -78,7 +78,7 @@ public sealed partial class ResourcesModProjectItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IconKey))]
     private string? iconSource;
 
-    public bool ShowsLoaders => Project.Kind is ResourceProjectKind.Mod;
+    public bool ShowsLoaders => Project.Kind is ResourceProjectKind.Mod or ResourceProjectKind.Modpack;
 
     public string IconKey => string.IsNullOrWhiteSpace(IconSource)
         ? fallbackIconKey

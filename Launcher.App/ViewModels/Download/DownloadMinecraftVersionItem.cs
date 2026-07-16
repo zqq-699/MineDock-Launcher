@@ -48,6 +48,8 @@ public sealed partial class DownloadMinecraftVersionItem : ObservableObject
 
     public bool IsSnapshot => VersionType.Equals("snapshot", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsAprilFools => MinecraftAprilFoolsVersionClassifier.IsAprilFoolsVersion(Name);
+
     public bool IsBeta => VersionType.Equals("old_beta", StringComparison.OrdinalIgnoreCase);
 
     public bool IsAlpha => VersionType.Equals("old_alpha", StringComparison.OrdinalIgnoreCase);

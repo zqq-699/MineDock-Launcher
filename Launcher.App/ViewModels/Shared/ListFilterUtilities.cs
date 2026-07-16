@@ -26,12 +26,15 @@ internal static class ListFilterUtilities
         string? categoryId,
         Func<T, bool> isRelease,
         Func<T, bool> isSnapshot,
+        Func<T, bool> isAprilFools,
         Func<T, bool> isBeta,
         Func<T, bool> isAlpha)
     {
         return categoryId switch
         {
-            "snapshot" => items.Where(isSnapshot),
+            "snapshot" => items.Where(item => isSnapshot(item) && !isAprilFools(item)),
+            "april_fools" => items.Where(isAprilFools),
+            "ancient" => items.Where(item => isBeta(item) || isAlpha(item)),
             "old_beta" => items.Where(isBeta),
             "old_alpha" => items.Where(isAlpha),
             _ => items.Where(isRelease)
@@ -40,7 +43,7 @@ internal static class ListFilterUtilities
 
     public static bool IsKnownMinecraftCategory(string? categoryId)
     {
-        return categoryId is "release" or "snapshot" or "old_beta" or "old_alpha";
+        return categoryId is "release" or "snapshot" or "april_fools" or "ancient" or "old_beta" or "old_alpha";
     }
 
     public static string CreateEmptyMessage(

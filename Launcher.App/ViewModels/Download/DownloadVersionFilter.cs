@@ -63,6 +63,7 @@ internal static class DownloadVersionFilter
             categoryId,
             version => version.IsRelease,
             version => version.IsSnapshot,
+            version => version.IsAprilFools,
             version => version.IsBeta,
             version => version.IsAlpha);
 
@@ -99,7 +100,7 @@ internal static class DownloadVersionFilter
         IEnumerable<DownloadMinecraftVersionItem> versions,
         string? categoryId)
     {
-        if (categoryId is "snapshot" or "old_beta" or "old_alpha")
+        if (categoryId is "snapshot" or "april_fools" or "ancient" or "old_beta" or "old_alpha")
         {
             return versions
                 .OrderByDescending(version => version.Version.ReleaseTime ?? DateTimeOffset.MinValue)
