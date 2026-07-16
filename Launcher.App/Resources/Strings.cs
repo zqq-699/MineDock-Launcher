@@ -252,6 +252,7 @@ public static class Strings
     public static string Resources_ModRequiredDependenciesAutoInstallButton => Get(nameof(Resources_ModRequiredDependenciesAutoInstallButton));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
+    public static string Settings_SectionDownload => Get(nameof(Settings_SectionDownload));
     public static string Settings_SectionLanguage => Get(nameof(Settings_SectionLanguage));
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
     public static string Settings_SectionJava => Get(nameof(Settings_SectionJava));
@@ -281,6 +282,7 @@ public static class Strings
     public static string Settings_GeneralDirectorySection => Get(nameof(Settings_GeneralDirectorySection));
     public static string Settings_DownloadSection => Get(nameof(Settings_DownloadSection));
     public static string Settings_DownloadSourceLabel => Get(nameof(Settings_DownloadSourceLabel));
+    public static string Settings_MaximumDownloadThreadsLabel => Get(nameof(Settings_MaximumDownloadThreadsLabel));
     public static string Settings_DownloadSpeedLimitLabel => Get(nameof(Settings_DownloadSpeedLimitLabel));
     public static string Settings_DownloadSpeedLimitUnit => Get(nameof(Settings_DownloadSpeedLimitUnit));
     public static string DownloadSpeed_BytesPerSecondFormat => Get(nameof(DownloadSpeed_BytesPerSecondFormat));

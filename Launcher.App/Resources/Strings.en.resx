@@ -666,6 +666,9 @@
   <data name="Settings_SectionGeneral" xml:space="preserve">
     <value>General</value>
   </data>
+  <data name="Settings_SectionDownload" xml:space="preserve">
+    <value>Downloads</value>
+  </data>
   <data name="Settings_SectionLanguage" xml:space="preserve">
     <value>Language</value>
   </data>
@@ -2715,7 +2718,7 @@ The current game folder will be backed up first.</value>
     <value>Choose Backup Folder</value>
   </data>
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve">
-    <value>Launcher Log Folder</value>
+    <value>Launcher Logs</value>
   </data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>Launcher runtime logs and diagnostic logs are stored here.</value>
@@ -2728,6 +2731,9 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="Settings_DownloadSourceLabel" xml:space="preserve">
     <value>Game Download Source</value>
+  </data>
+  <data name="Settings_MaximumDownloadThreadsLabel" xml:space="preserve">
+    <value>Maximum Download Threads</value>
   </data>
   <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve">
     <value>Download Speed Limit</value>

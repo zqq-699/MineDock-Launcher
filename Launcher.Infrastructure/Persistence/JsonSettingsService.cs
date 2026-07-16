@@ -302,6 +302,11 @@ public sealed class JsonSettingsService : ISettingsService
         if (settings.DownloadSpeedLimitMbPerSecond < 0)
             settings.DownloadSpeedLimitMbPerSecond = 0;
 
+        settings.MaximumDownloadConcurrency = Math.Clamp(
+            settings.MaximumDownloadConcurrency,
+            LauncherDefaults.MinimumDownloadConcurrency,
+            LauncherDefaults.MaximumDownloadConcurrency);
+
         if (settings.UpdateChannel is not LauncherUpdateChannel.Release
             && settings.UpdateChannel is not LauncherUpdateChannel.Beta)
         {

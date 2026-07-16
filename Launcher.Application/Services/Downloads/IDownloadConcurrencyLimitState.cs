@@ -17,17 +17,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-namespace Launcher.App.ViewModels.Settings;
+namespace Launcher.Application.Services;
 
-public enum SettingsPageSection
+public interface IDownloadConcurrencyLimitState
 {
-    General,
-    Download,
-    Language,
-    LaunchMemory,
-    Java,
-    Theme,
-    Info,
-    Feedback,
-    ControlList
+    int MaximumDownloadConcurrency { get; }
+
+    void SetMaximumDownloadConcurrency(int maximumDownloadConcurrency);
 }

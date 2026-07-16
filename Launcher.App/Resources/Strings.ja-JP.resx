@@ -666,6 +666,9 @@
   <data name="Settings_SectionGeneral" xml:space="preserve">
     <value>一般</value>
   </data>
+  <data name="Settings_SectionDownload" xml:space="preserve">
+    <value>ダウンロード</value>
+  </data>
   <data name="Settings_SectionLanguage" xml:space="preserve">
     <value>言語</value>
   </data>
@@ -2715,7 +2718,7 @@
     <value>バックアップディレクトリを選択</value>
   </data>
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve">
-    <value>ランチャーログディレクトリ</value>
+    <value>ランチャーログ</value>
   </data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>ここにはランチャーの実行ログと診断ログファイルが保存されます。</value>
@@ -2728,6 +2731,9 @@
   </data>
   <data name="Settings_DownloadSourceLabel" xml:space="preserve">
     <value>ゲームのダウンロードソース</value>
+  </data>
+  <data name="Settings_MaximumDownloadThreadsLabel" xml:space="preserve">
+    <value>最大ダウンロードスレッド数</value>
   </data>
   <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve">
     <value>ダウンロード速度を制限</value>

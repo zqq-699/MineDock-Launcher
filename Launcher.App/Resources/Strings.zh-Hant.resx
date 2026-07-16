@@ -666,6 +666,9 @@
   <data name="Settings_SectionGeneral" xml:space="preserve">
     <value>一般</value>
   </data>
+  <data name="Settings_SectionDownload" xml:space="preserve">
+    <value>下載</value>
+  </data>
   <data name="Settings_SectionLanguage" xml:space="preserve">
     <value>語言</value>
   </data>
@@ -2715,7 +2718,7 @@
     <value>選擇備份目錄</value>
   </data>
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve">
-    <value>啟動器日誌目錄</value>
+    <value>啟動器日誌</value>
   </data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>這裡存放啟動器執行日誌和診斷日誌檔案。</value>
@@ -2728,6 +2731,9 @@
   </data>
   <data name="Settings_DownloadSourceLabel" xml:space="preserve">
     <value>遊戲下載來源</value>
+  </data>
+  <data name="Settings_MaximumDownloadThreadsLabel" xml:space="preserve">
+    <value>最大下載執行緒</value>
   </data>
   <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve">
     <value>限制下載速度</value>

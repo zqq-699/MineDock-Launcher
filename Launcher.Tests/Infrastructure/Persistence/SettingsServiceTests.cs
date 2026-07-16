@@ -118,6 +118,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         settings.DefaultMemorySettingsMode = MemorySettingsMode.Manual;
         settings.DefaultMemoryMb = 6144;
         settings.DownloadSourcePreference = DownloadSourcePreference.BmclApi;
+        settings.MaximumDownloadConcurrency = 96;
         settings.DownloadSpeedLimitMbPerSecond = 32;
         settings.HasAcceptedUserAgreement = true;
 
@@ -131,6 +132,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(LauncherUpdateChannel.Beta, loaded.UpdateChannel);
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(DownloadSourcePreference.BmclApi, loaded.DownloadSourcePreference);
+        Assert.Equal(96, loaded.MaximumDownloadConcurrency);
         Assert.Equal(32, loaded.DownloadSpeedLimitMbPerSecond);
         Assert.True(loaded.HasAcceptedUserAgreement);
     }
@@ -140,7 +142,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
     {
         Directory.CreateDirectory(TempRoot);
         await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"),
-            """{"Theme":"Blue","AccentColor":"Unknown","LauncherLanguage":"xx","UpdateChannel":99,"LauncherBackgroundOpacityPercent":120,"DownloadSpeedLimitMbPerSecond":-1}""");
+            """{"Theme":"Blue","AccentColor":"Unknown","LauncherLanguage":"xx","UpdateChannel":99,"LauncherBackgroundOpacityPercent":120,"MaximumDownloadConcurrency":256,"DownloadSpeedLimitMbPerSecond":-1}""");
 
         var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
 
@@ -149,6 +151,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
         Assert.Equal(LauncherDefaults.DefaultUpdateChannel, loaded.UpdateChannel);
         Assert.Equal(100, loaded.LauncherBackgroundOpacityPercent);
+        Assert.Equal(LauncherDefaults.MaximumDownloadConcurrency, loaded.MaximumDownloadConcurrency);
         Assert.Equal(0, loaded.DownloadSpeedLimitMbPerSecond);
     }
 
@@ -201,6 +204,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
 
         Assert.Equal("Light", loaded.Theme);
         Assert.False(loaded.HasAcceptedUserAgreement);
+        Assert.Equal(LauncherDefaults.DefaultMaximumDownloadConcurrency, loaded.MaximumDownloadConcurrency);
     }
 
     [Fact]

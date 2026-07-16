@@ -17,8 +17,6 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Collections.ObjectModel;
-using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Logging;
@@ -54,20 +52,9 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         this.logger = logger;
         if (downloadTasksPage is not null)
             downloadTasksPage.ActivityChanged += DownloadTasksPage_ActivityChanged;
-        DownloadSourceOptions =
-        [
-            new(DownloadSourcePreference.Auto, Strings.Settings_DownloadSourceAuto),
-            new(DownloadSourcePreference.Official, Strings.Settings_DownloadSourceOfficial),
-            new(DownloadSourcePreference.BmclApi, Strings.Settings_DownloadSourceBmclApi)
-        ];
-        selectedDownloadSourceOption = DownloadSourceOptions[0];
     }
 
-    public event EventHandler<SettingsDownloadSourceChangedEventArgs>? DownloadSourceChanged;
-    public event EventHandler<SettingsDownloadSpeedLimitChangedEventArgs>? DownloadSpeedLimitChanged;
     public event EventHandler<SettingsMinecraftDirectoryChangedEventArgs>? MinecraftDirectoryChanged;
-
-    public ObservableCollection<SettingsDownloadSourceOption> DownloadSourceOptions { get; }
 
     public bool CanChangeMinecraftDirectory => downloadTasksPage?.HasActiveOperations != true;
 
@@ -79,21 +66,12 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
     [ObservableProperty]
     private string launcherLogDirectory = string.Empty;
 
-    [ObservableProperty]
-    private SettingsDownloadSourceOption? selectedDownloadSourceOption;
-
-    [ObservableProperty]
-    private string downloadSpeedLimitMbPerSecondText = string.Empty;
-
     public void Load(LauncherSettings settings)
     {
         LoadState(() =>
         {
             MinecraftDirectory = settings.MinecraftDirectory;
             LauncherLogDirectory = LauncherLogConfiguration.ResolveLogDirectory();
-            SelectedDownloadSourceOption = DownloadSourceOptions.FirstOrDefault(option =>
-                option.Preference == settings.DownloadSourcePreference) ?? DownloadSourceOptions[0];
-            DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
         });
     }
 
@@ -185,32 +163,6 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         ChangeMinecraftDirectoryCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedDownloadSourceOptionChanged(
-        SettingsDownloadSourceOption? oldValue,
-        SettingsDownloadSourceOption? newValue)
-    {
-        if (newValue is null)
-        {
-            LoadState(() => SelectedDownloadSourceOption = oldValue ?? DownloadSourceOptions[0]);
-            return;
-        }
-
-        if (!CanPersist)
-            return;
-        var preference = newValue.Preference;
-        Persist(settings => settings.DownloadSourcePreference = preference);
-        DownloadSourceChanged?.Invoke(this, new SettingsDownloadSourceChangedEventArgs(preference));
-    }
-
-    partial void OnDownloadSpeedLimitMbPerSecondTextChanged(string value)
-    {
-        if (!CanPersist)
-            return;
-        var limit = NormalizeDownloadSpeedLimit(value);
-        Persist(settings => settings.DownloadSpeedLimitMbPerSecond = limit);
-        DownloadSpeedLimitChanged?.Invoke(this, new SettingsDownloadSpeedLimitChangedEventArgs(limit));
-    }
-
     private bool TryOpenDirectory(string directory, string failureMessage)
     {
         try
@@ -227,14 +179,4 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         statusService.Report(failureMessage);
         return false;
     }
-
-    private static int NormalizeDownloadSpeedLimit(string? value)
-    {
-        return int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? Math.Max(parsed, 0)
-            : 0;
-    }
-
-    private static string FormatDownloadSpeedLimit(int value)
-        => value > 0 ? value.ToString(CultureInfo.InvariantCulture) : string.Empty;
 }

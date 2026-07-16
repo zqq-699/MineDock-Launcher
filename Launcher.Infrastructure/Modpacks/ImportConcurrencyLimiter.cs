@@ -5,18 +5,32 @@
  */
 
 using Launcher.Application.Services;
+using Launcher.Domain.Models;
+
 namespace Launcher.Infrastructure.Modpacks;
 
-internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
+internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter, IDownloadConcurrencyLimitState
 {
-    internal const int MinimumDownloadConcurrency = 4;
-    internal const int InitialDownloadConcurrency = 64;
-    internal const int MaximumDownloadConcurrency = 64;
+    internal const int MinimumDownloadConcurrency = LauncherDefaults.MinimumDownloadConcurrency;
+    internal const int InitialDownloadConcurrency = LauncherDefaults.DefaultMaximumDownloadConcurrency;
+    internal const int MaximumDownloadConcurrency = LauncherDefaults.MaximumDownloadConcurrency;
 
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
-    private readonly FixedDownloadScheduler downloadScheduler = new(MaximumDownloadConcurrency);
+    private readonly FixedDownloadScheduler downloadScheduler = new(
+        MaximumDownloadConcurrency,
+        InitialDownloadConcurrency);
+
+    int IDownloadConcurrencyLimitState.MaximumDownloadConcurrency => downloadScheduler.Snapshot.CurrentTarget;
+
+    public void SetMaximumDownloadConcurrency(int maximumDownloadConcurrency)
+    {
+        downloadScheduler.SetMaximum(Math.Clamp(
+            maximumDownloadConcurrency,
+            MinimumDownloadConcurrency,
+            MaximumDownloadConcurrency));
+    }
 
     public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default) =>
         downloadScheduler.AcquireAsync(cancellationToken);
@@ -49,45 +63,138 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
 
 internal sealed class FixedDownloadScheduler
 {
-    private readonly SemaphoreSlim semaphore;
+    private readonly object syncRoot = new();
+    private readonly Queue<Waiter> waiters = [];
     private readonly int maximum;
+    private int currentTarget;
     private int activeCount;
     private int waitingCount;
 
-    public FixedDownloadScheduler(int maximum)
+    public FixedDownloadScheduler(int maximum, int? initial = null)
     {
+        if (maximum < 1)
+            throw new ArgumentOutOfRangeException(nameof(maximum));
+
         this.maximum = maximum;
-        semaphore = new SemaphoreSlim(maximum, maximum);
+        currentTarget = Math.Clamp(initial ?? maximum, 1, maximum);
     }
 
     internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) Snapshot
     {
-        get => (
-            Volatile.Read(ref activeCount),
-            Volatile.Read(ref waitingCount),
-            maximum,
-            maximum);
+        get
+        {
+            lock (syncRoot)
+            {
+                return (
+                    activeCount,
+                    waitingCount,
+                    currentTarget,
+                    currentTarget);
+            }
+        }
     }
 
-    public async ValueTask<IImportConcurrencyLease> AcquireAsync(CancellationToken cancellationToken)
+    public ValueTask<IImportConcurrencyLease> AcquireAsync(CancellationToken cancellationToken)
     {
-        Interlocked.Increment(ref waitingCount);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (syncRoot)
         {
-            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (activeCount < currentTarget)
+            {
+                activeCount++;
+                return ValueTask.FromResult<IImportConcurrencyLease>(new Lease(this));
+            }
+
+            var waiter = new Waiter();
+            waiters.Enqueue(waiter);
+            waitingCount++;
+            return new ValueTask<IImportConcurrencyLease>(WaitForQueuedLeaseAsync(waiter, cancellationToken));
         }
-        finally
+    }
+
+    public void SetMaximum(int target)
+    {
+        List<Waiter>? grantedWaiters;
+        lock (syncRoot)
         {
-            Interlocked.Decrement(ref waitingCount);
+            currentTarget = Math.Clamp(target, 1, maximum);
+            grantedWaiters = GrantAvailableWaiters();
         }
-        Interlocked.Increment(ref activeCount);
-        return new Lease(this);
+
+        CompleteGrantedWaiters(grantedWaiters);
     }
 
     private void Release()
     {
-        Interlocked.Decrement(ref activeCount);
-        semaphore.Release();
+        List<Waiter>? grantedWaiters;
+        lock (syncRoot)
+        {
+            activeCount--;
+            grantedWaiters = GrantAvailableWaiters();
+        }
+
+        CompleteGrantedWaiters(grantedWaiters);
+    }
+
+    private async Task<IImportConcurrencyLease> WaitForQueuedLeaseAsync(
+        Waiter waiter,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await waiter.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            var releaseGrantedLease = false;
+            lock (syncRoot)
+            {
+                if (waiter.State is WaiterState.Queued)
+                {
+                    waiter.State = WaiterState.Canceled;
+                    waitingCount--;
+                }
+                else if (waiter.State is WaiterState.Granted)
+                {
+                    releaseGrantedLease = true;
+                }
+            }
+
+            if (releaseGrantedLease)
+            {
+                var lease = await waiter.Completion.Task.ConfigureAwait(false);
+                lease.Dispose();
+            }
+
+            throw;
+        }
+    }
+
+    private List<Waiter>? GrantAvailableWaiters()
+    {
+        List<Waiter>? grantedWaiters = null;
+        while (activeCount < currentTarget && waiters.Count > 0)
+        {
+            var waiter = waiters.Dequeue();
+            if (waiter.State is not WaiterState.Queued)
+                continue;
+
+            waiter.State = WaiterState.Granted;
+            waitingCount--;
+            activeCount++;
+            (grantedWaiters ??= []).Add(waiter);
+        }
+
+        return grantedWaiters;
+    }
+
+    private void CompleteGrantedWaiters(List<Waiter>? grantedWaiters)
+    {
+        if (grantedWaiters is null)
+            return;
+
+        foreach (var waiter in grantedWaiters)
+            waiter.Completion.TrySetResult(new Lease(this));
     }
 
     private sealed class Lease(FixedDownloadScheduler owner) : IImportConcurrencyLease
@@ -95,5 +202,20 @@ internal sealed class FixedDownloadScheduler
         private FixedDownloadScheduler? owner = owner;
         public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
         public void Dispose() => Interlocked.Exchange(ref owner, null)?.Release();
+    }
+
+    private sealed class Waiter
+    {
+        public TaskCompletionSource<IImportConcurrencyLease> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public WaiterState State { get; set; } = WaiterState.Queued;
+    }
+
+    private enum WaiterState
+    {
+        Queued,
+        Granted,
+        Canceled
     }
 }

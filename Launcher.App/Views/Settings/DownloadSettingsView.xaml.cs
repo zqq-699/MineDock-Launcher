@@ -17,17 +17,14 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-namespace Launcher.App.ViewModels.Settings;
+using System.Windows.Controls;
 
-public enum SettingsPageSection
+namespace Launcher.App.Views.Settings;
+
+public partial class DownloadSettingsView : UserControl
 {
-    General,
-    Download,
-    Language,
-    LaunchMemory,
-    Java,
-    Theme,
-    Info,
-    Feedback,
-    ControlList
+    public DownloadSettingsView()
+    {
+        InitializeComponent();
+    }
 }

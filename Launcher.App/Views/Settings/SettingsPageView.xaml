@@ -40,6 +40,10 @@
             <views:GeneralSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type settings:DownloadSettingsViewModel}">
+            <views:DownloadSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type settings:LanguageSettingsViewModel}">
             <views:LanguageSettingsView />
         </DataTemplate>

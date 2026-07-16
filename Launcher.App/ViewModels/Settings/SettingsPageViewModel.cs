@@ -68,6 +68,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             instanceFolderService,
             downloadTasksPage,
             resolvedLogger);
+        Download = new DownloadSettingsViewModel(persistence);
         Language = new LanguageSettingsViewModel(persistence);
         LaunchMemory = new LaunchMemorySettingsViewModel(persistence, systemMemoryService);
         Java = new JavaSettingsViewModel(
@@ -94,8 +95,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             infoSettingsLogger);
         ControlList = new ControlListSettingsViewModel(persistence);
 
-        General.DownloadSourceChanged += (_, args) => DownloadSourceChanged?.Invoke(this, args);
-        General.DownloadSpeedLimitChanged += (_, args) => DownloadSpeedLimitChanged?.Invoke(this, args);
+        Download.DownloadSourceChanged += (_, args) => DownloadSourceChanged?.Invoke(this, args);
+        Download.MaximumDownloadConcurrencyChanged += (_, args) =>
+            MaximumDownloadConcurrencyChanged?.Invoke(this, args);
+        Download.DownloadSpeedLimitChanged += (_, args) => DownloadSpeedLimitChanged?.Invoke(this, args);
         General.MinecraftDirectoryChanged += (_, args) => MinecraftDirectoryChanged?.Invoke(this, args);
         LaunchMemory.LaunchDefaultsChanged += (_, _) => LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
         Java.LaunchDefaultsChanged += (_, _) => LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
@@ -103,6 +106,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         Sections =
         [
             new(SettingsPageSection.General, Strings.Settings_SectionGeneral, "instance_setting_page/general_setting"),
+            new(SettingsPageSection.Download, Strings.Settings_SectionDownload, "setting_page/download"),
             new(SettingsPageSection.Language, Strings.Settings_SectionLanguage, "setting_page/earth"),
             new(SettingsPageSection.LaunchMemory, Strings.Settings_SectionLaunchMemory, "instance_setting_page/launch"),
             new(SettingsPageSection.Java, Strings.Settings_SectionJava, "instance_setting_page/java"),
@@ -115,6 +119,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
 
     public ObservableCollection<SettingsSectionItem> Sections { get; }
     public GeneralSettingsViewModel General { get; }
+    public DownloadSettingsViewModel Download { get; }
     public LanguageSettingsViewModel Language { get; }
     public LaunchMemorySettingsViewModel LaunchMemory { get; }
     public JavaSettingsViewModel Java { get; }
@@ -125,11 +130,13 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
 
     public event EventHandler? LaunchDefaultsChanged;
     public event EventHandler<SettingsDownloadSourceChangedEventArgs>? DownloadSourceChanged;
+    public event EventHandler<SettingsMaximumDownloadConcurrencyChangedEventArgs>? MaximumDownloadConcurrencyChanged;
     public event EventHandler<SettingsDownloadSpeedLimitChangedEventArgs>? DownloadSpeedLimitChanged;
     public event EventHandler<SettingsMinecraftDirectoryChangedEventArgs>? MinecraftDirectoryChanged;
 
     public string SectionTitle => SelectedSection?.Title ?? Strings.Settings_SectionGeneral;
     public bool IsGeneralSection => SelectedSection?.Section is SettingsPageSection.General;
+    public bool IsDownloadSection => SelectedSection?.Section is SettingsPageSection.Download;
     public bool IsLanguageSection => SelectedSection?.Section is SettingsPageSection.Language;
     public bool IsLaunchMemorySection => SelectedSection?.Section is SettingsPageSection.LaunchMemory;
     public bool IsJavaSection => SelectedSection?.Section is SettingsPageSection.Java;
@@ -140,6 +147,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
     {
         persistence.Prime(settings);
         General.Load(settings);
+        Download.Load(settings);
         Language.Load(settings);
         LaunchMemory.Load(settings);
         Java.Load(settings);
@@ -188,6 +196,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
 
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(IsGeneralSection));
+        OnPropertyChanged(nameof(IsDownloadSection));
         OnPropertyChanged(nameof(IsLanguageSection));
         OnPropertyChanged(nameof(IsLaunchMemorySection));
         OnPropertyChanged(nameof(IsJavaSection));
@@ -196,6 +205,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         CurrentSectionViewModel = value?.Section switch
         {
             SettingsPageSection.General => General,
+            SettingsPageSection.Download => Download,
             SettingsPageSection.Language => Language,
             SettingsPageSection.LaunchMemory => LaunchMemory,
             SettingsPageSection.Java => Java,

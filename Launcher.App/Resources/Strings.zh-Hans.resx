@@ -230,6 +230,7 @@
   <data name="Resources_ModpackDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
+  <data name="Settings_SectionDownload" xml:space="preserve"><value>下载</value></data>
   <data name="Settings_SectionLanguage" xml:space="preserve"><value>语言</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJava" xml:space="preserve"><value>Java</value></data>
@@ -924,11 +925,12 @@
   <data name="Status_BackupRestoreFailed" xml:space="preserve"><value>恢复备份失败，请稍后重试。</value></data>
   <data name="FilePicker_MinecraftDirectoryTitle" xml:space="preserve"><value>选择 .minecraft 目录</value></data>
   <data name="FilePicker_BackupDirectoryTitle" xml:space="preserve"><value>选择备份目录</value></data>
-  <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve"><value>启动器日志目录</value></data>
+  <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve"><value>启动器日志</value></data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve"><value>这里存放启动器运行日志和诊断日志文件。</value></data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve"><value>打开目录</value></data>
   <data name="Settings_DownloadSection" xml:space="preserve"><value>下载设置</value></data>
   <data name="Settings_DownloadSourceLabel" xml:space="preserve"><value>游戏下载源</value></data>
+  <data name="Settings_MaximumDownloadThreadsLabel" xml:space="preserve"><value>最大下载线程</value></data>
   <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve"><value>限制下载速度</value></data>
   <data name="Settings_DownloadSpeedLimitUnit" xml:space="preserve"><value>MB/s</value></data>
   <data name="Settings_DownloadSourceAuto" xml:space="preserve"><value>自动选择</value></data>

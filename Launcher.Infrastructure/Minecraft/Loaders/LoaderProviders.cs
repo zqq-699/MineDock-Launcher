@@ -356,11 +356,12 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             operationContext,
             sharedSpeedMeter);
         parameters.GameInstaller = gameInstaller;
+        var globalDownloadSnapshot = ImportConcurrencyLimiter.Shared.DownloadSnapshot;
         logger?.LogInformation(
-            "Minecraft game installer concurrency configured. CheckerConcurrency={CheckerConcurrency} DownloaderConcurrency={DownloaderConcurrency} GlobalMaximumConcurrency={GlobalMaximumConcurrency}",
+            "Minecraft game installer concurrency configured. CheckerConcurrency={CheckerConcurrency} DownloaderWorkerCapacity={DownloaderWorkerCapacity} GlobalTarget={GlobalTarget}",
             gameInstaller.ConfiguredMaxChecker,
             gameInstaller.ConfiguredMaxDownloader,
-            ImportConcurrencyLimiter.MaximumDownloadConcurrency);
+            globalDownloadSnapshot.CurrentTarget);
         var defaultAssetExtractor = parameters.FileExtractors!
             .Select((extractor, index) => (extractor, index))
             .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);

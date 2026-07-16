@@ -9,9 +9,11 @@ public sealed class DownloadConcurrencyTests
     [Fact]
     public async Task CategoriesShareOneGlobalDownloadBudget()
     {
+        const int configuredMaximum = 3;
         var limiter = new ImportConcurrencyLimiter();
+        limiter.SetMaximumDownloadConcurrency(configuredMaximum);
         var leases = new List<IImportConcurrencyLease>();
-        for (var index = 0; index < ImportConcurrencyLimiter.MaximumDownloadConcurrency; index++)
+        for (var index = 0; index < configuredMaximum; index++)
         {
             leases.Add((index % 3) switch
             {
@@ -23,7 +25,8 @@ public sealed class DownloadConcurrencyTests
 
         try
         {
-            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, limiter.DownloadSnapshot.ActiveCount);
+            Assert.Equal(configuredMaximum, limiter.DownloadSnapshot.ActiveCount);
+            Assert.Equal(configuredMaximum, limiter.DownloadSnapshot.CurrentTarget);
             var queued = limiter.AcquireRuntimeDownloadSlotAsync().AsTask();
             Assert.False(queued.IsCompleted);
 

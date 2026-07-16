@@ -44,7 +44,7 @@ public sealed class RequiredSelectionPersistenceTests
         using var viewModel = CreateSettingsPage(settingsService);
         viewModel.PrimeFromSettings(settings);
 
-        var downloadSource = viewModel.General.SelectedDownloadSourceOption;
+        var downloadSource = viewModel.Download.SelectedDownloadSourceOption;
         var language = viewModel.Language.SelectedLanguageOption;
         var memoryMode = viewModel.LaunchMemory.SelectedMemoryModeOption;
         var javaMode = viewModel.Java.Editor.SelectedJavaSelectionOption;
@@ -52,7 +52,7 @@ public sealed class RequiredSelectionPersistenceTests
         var accent = viewModel.Theme.SelectedAccentColorOption;
         var updateChannel = viewModel.Info.SelectedUpdateChannelOption;
 
-        viewModel.General.SelectedDownloadSourceOption = null;
+        viewModel.Download.SelectedDownloadSourceOption = null;
         viewModel.Language.SelectedLanguageOption = null;
         viewModel.LaunchMemory.SelectedMemoryModeOption = null;
         viewModel.Java.Editor.SelectedJavaSelectionOption = null;
@@ -61,7 +61,7 @@ public sealed class RequiredSelectionPersistenceTests
         viewModel.Info.SelectedUpdateChannelOption = null;
         await viewModel.FlushPendingSettingsAsync();
 
-        Assert.Same(downloadSource, viewModel.General.SelectedDownloadSourceOption);
+        Assert.Same(downloadSource, viewModel.Download.SelectedDownloadSourceOption);
         Assert.Same(language, viewModel.Language.SelectedLanguageOption);
         Assert.Same(memoryMode, viewModel.LaunchMemory.SelectedMemoryModeOption);
         Assert.Same(javaMode, viewModel.Java.Editor.SelectedJavaSelectionOption);
@@ -96,7 +96,7 @@ public sealed class RequiredSelectionPersistenceTests
         using var viewModel = CreateSettingsPage(settingsService);
         viewModel.PrimeFromSettings(settings);
 
-        viewModel.General.SelectedDownloadSourceOption = viewModel.General.DownloadSourceOptions.Single(option =>
+        viewModel.Download.SelectedDownloadSourceOption = viewModel.Download.DownloadSourceOptions.Single(option =>
             option.Preference is DownloadSourcePreference.Auto);
         viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single(option =>
             option.Id == LauncherLanguages.SimplifiedChinese);

@@ -26,9 +26,11 @@ namespace Launcher.Tests.Infrastructure.Modpacks;
 public sealed class ImportConcurrencyLimiterTests
 {
     [Fact]
-    public async Task GlobalSchedulerStartsAndRemainsAtSixtyFour()
+    public async Task GlobalSchedulerStartsAtSixtyFourWithinSupportedMaximum()
     {
-        var scheduler = new FixedDownloadScheduler(ImportConcurrencyLimiter.MaximumDownloadConcurrency);
+        var scheduler = new FixedDownloadScheduler(
+            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
+            ImportConcurrencyLimiter.InitialDownloadConcurrency);
         var leases = new List<IImportConcurrencyLease>();
 
         try
@@ -37,15 +39,67 @@ public sealed class ImportConcurrencyLimiterTests
                 leases.Add(await scheduler.AcquireAsync(CancellationToken.None));
 
             Assert.Equal(ImportConcurrencyLimiter.InitialDownloadConcurrency, scheduler.Snapshot.CurrentTarget);
-            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, scheduler.Snapshot.ConfiguredMaximum);
-
-            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, scheduler.Snapshot.CurrentTarget);
+            Assert.Equal(ImportConcurrencyLimiter.InitialDownloadConcurrency, scheduler.Snapshot.ConfiguredMaximum);
         }
         finally
         {
             foreach (var lease in leases)
                 lease.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task LowerLimitWaitsForExistingLeasesBeforeGrantingQueuedRequest()
+    {
+        var scheduler = new FixedDownloadScheduler(maximum: 4, initial: 2);
+        var first = await scheduler.AcquireAsync(CancellationToken.None);
+        var second = await scheduler.AcquireAsync(CancellationToken.None);
+        scheduler.SetMaximum(1);
+        var queued = scheduler.AcquireAsync(CancellationToken.None).AsTask();
+
+        first.Dispose();
+        Assert.False(queued.IsCompleted);
+
+        second.Dispose();
+        await using var released = await queued.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, scheduler.Snapshot.CurrentTarget);
+        Assert.Equal(1, scheduler.Snapshot.ActiveCount);
+    }
+
+    [Fact]
+    public async Task RaisingLimitImmediatelyGrantsWaitingRequests()
+    {
+        var scheduler = new FixedDownloadScheduler(maximum: 4, initial: 1);
+        await using var first = await scheduler.AcquireAsync(CancellationToken.None);
+        var second = scheduler.AcquireAsync(CancellationToken.None).AsTask();
+        var third = scheduler.AcquireAsync(CancellationToken.None).AsTask();
+
+        scheduler.SetMaximum(3);
+
+        await using var secondLease = await second.WaitAsync(TimeSpan.FromSeconds(1));
+        await using var thirdLease = await third.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(3, scheduler.Snapshot.ActiveCount);
+        Assert.Equal(3, scheduler.Snapshot.CurrentTarget);
+    }
+
+    [Fact]
+    public async Task CanceledQueuedRequestDoesNotConsumeCapacity()
+    {
+        var scheduler = new FixedDownloadScheduler(maximum: 1);
+        var first = await scheduler.AcquireAsync(CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var canceled = scheduler.AcquireAsync(cancellation.Token).AsTask();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
+        first.Dispose();
+
+        await using var replacement = await scheduler
+            .AcquireAsync(CancellationToken.None)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, scheduler.Snapshot.ActiveCount);
+        Assert.Equal(0, scheduler.Snapshot.WaitingCount);
     }
 
     [Fact]

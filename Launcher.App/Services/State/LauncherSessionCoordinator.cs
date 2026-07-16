@@ -40,6 +40,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 {
     // 页面 ViewModel 仍各自拥有局部状态；协调器只订阅跨页面事件并把同一个事实同步给相关页面。
     private readonly IDownloadSpeedLimitState downloadSpeedLimitState;
+    private readonly IDownloadConcurrencyLimitState downloadConcurrencyLimitState;
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
     private readonly DownloadPageViewModel downloadPage;
@@ -58,6 +59,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     public LauncherSessionCoordinator(
         IDownloadSpeedLimitState downloadSpeedLimitState,
+        IDownloadConcurrencyLimitState downloadConcurrencyLimitState,
         ISettingsService settingsService,
         IStatusService statusService,
         DownloadPageViewModel downloadPage,
@@ -69,6 +71,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         ILogger<LauncherSessionCoordinator>? logger = null)
     {
         this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.downloadConcurrencyLimitState = downloadConcurrencyLimitState;
         this.settingsService = settingsService;
         this.statusService = statusService;
         this.downloadPage = downloadPage;
@@ -101,6 +104,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         gameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
         settingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
         settingsPage.DownloadSourceChanged += SettingsPage_DownloadSourceChanged;
+        settingsPage.MaximumDownloadConcurrencyChanged += SettingsPage_MaximumDownloadConcurrencyChanged;
         settingsPage.DownloadSpeedLimitChanged += SettingsPage_DownloadSpeedLimitChanged;
         settingsPage.MinecraftDirectoryChanged += SettingsPage_MinecraftDirectoryChanged;
         isAttached = true;
@@ -111,6 +115,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         // Prime 只注入已加载的设置和磁盘实例快照，让首屏尽早可用；网络目录等延迟工作留给 Initialize。
         this.settings = settings;
         downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(settings.DownloadSpeedLimitMbPerSecond);
+        downloadConcurrencyLimitState.SetMaximumDownloadConcurrency(settings.MaximumDownloadConcurrency);
         await gameManagement.PrimeInstancesAsync(settings);
         homePage?.SetSettings(settings);
         homePage?.SetLaunchInstances(gameManagement.Instances);
@@ -218,6 +223,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         gameSettingsPage.InstancesChanged -= GameSettingsPage_InstancesChanged;
         settingsPage.LaunchDefaultsChanged -= SettingsPage_LaunchDefaultsChanged;
         settingsPage.DownloadSourceChanged -= SettingsPage_DownloadSourceChanged;
+        settingsPage.MaximumDownloadConcurrencyChanged -= SettingsPage_MaximumDownloadConcurrencyChanged;
         settingsPage.DownloadSpeedLimitChanged -= SettingsPage_DownloadSpeedLimitChanged;
         settingsPage.MinecraftDirectoryChanged -= SettingsPage_MinecraftDirectoryChanged;
         stateSynchronizationLock.Dispose();
@@ -368,6 +374,15 @@ public sealed class LauncherSessionCoordinator : IDisposable
             settings.DownloadSourcePreference = e.Preference;
         downloadPage.ApplyDownloadSourcePreference(e.Preference);
         gameManagement.ApplyDownloadSourcePreference(e.Preference);
+    }
+
+    private void SettingsPage_MaximumDownloadConcurrencyChanged(
+        object? sender,
+        SettingsMaximumDownloadConcurrencyChangedEventArgs e)
+    {
+        if (settings is not null)
+            settings.MaximumDownloadConcurrency = e.MaximumDownloadConcurrency;
+        downloadConcurrencyLimitState.SetMaximumDownloadConcurrency(e.MaximumDownloadConcurrency);
     }
 
     private void SettingsPage_DownloadSpeedLimitChanged(object? sender, SettingsDownloadSpeedLimitChangedEventArgs e)

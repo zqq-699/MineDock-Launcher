@@ -19,15 +19,12 @@
 
 namespace Launcher.App.ViewModels.Settings;
 
-public enum SettingsPageSection
+public sealed class SettingsMaximumDownloadConcurrencyChangedEventArgs : EventArgs
 {
-    General,
-    Download,
-    Language,
-    LaunchMemory,
-    Java,
-    Theme,
-    Info,
-    Feedback,
-    ControlList
+    public SettingsMaximumDownloadConcurrencyChangedEventArgs(int maximumDownloadConcurrency)
+    {
+        MaximumDownloadConcurrency = maximumDownloadConcurrency;
+    }
+
+    public int MaximumDownloadConcurrency { get; }
 }
