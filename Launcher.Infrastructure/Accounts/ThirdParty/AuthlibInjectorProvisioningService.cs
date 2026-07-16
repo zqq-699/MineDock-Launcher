@@ -41,19 +41,13 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
     internal AuthlibInjectorProvisioningService(
         HttpClient httpClient,
         string cacheDirectory,
-        ILogger<AuthlibInjectorProvisioningService>? logger = null,
-        DownloadAddressPolicy? addressPolicy = null)
+        ILogger<AuthlibInjectorProvisioningService>? logger = null)
     {
         this.cacheDirectory = Path.GetFullPath(cacheDirectory);
         this.logger = logger ?? NullLogger<AuthlibInjectorProvisioningService>.Instance;
-        var resolvedAddressPolicy = addressPolicy
-            ?? (MinecraftHttpClientFactory.IsTransportClient(httpClient)
-                ? new DownloadAddressPolicy()
-                : DownloadAddressPolicy.CreateForInjectedTransport());
         transport = new MinecraftDownloadTransport(
             httpClient,
-            new DownloadRetryOptions { ResponseHeadersTimeout = TimeSpan.FromSeconds(20) },
-            resolvedAddressPolicy);
+            new DownloadRetryOptions { ResponseHeadersTimeout = TimeSpan.FromSeconds(20) });
     }
 
     public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
@@ -101,8 +95,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
     {
         using var response = (await transport.SendAsync(
             LatestArtifactUri.AbsoluteUri,
-            cancellationToken,
-            isThirdParty: false).ConfigureAwait(false)).Response;
+            cancellationToken).ConfigureAwait(false)).Response;
         response.EnsureSuccessStatusCode();
         var metadata = await response.Content.ReadFromJsonAsync<ArtifactMetadata>(cancellationToken: cancellationToken)
             .ConfigureAwait(false)
@@ -151,8 +144,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
                 "Authlib-injector temporary artifact");
             using var response = (await transport.SendAsync(
                 metadata.DownloadUrl.AbsoluteUri,
-                cancellationToken,
-                isThirdParty: true).ConfigureAwait(false)).Response;
+                cancellationToken).ConfigureAwait(false)).Response;
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is > MaximumArtifactBytes)
                 throw new InvalidDataException("The authlib-injector artifact is too large.");
@@ -315,7 +307,8 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
             || string.IsNullOrWhiteSpace(metadata.Version)
             || metadata.DownloadUrl is null
             || !metadata.DownloadUrl.IsAbsoluteUri
-            || !string.Equals(metadata.DownloadUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || (!string.Equals(metadata.DownloadUrl.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(metadata.DownloadUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             || metadata.Checksums is null
             || string.IsNullOrWhiteSpace(metadata.Checksums.Sha256)
             || metadata.Checksums.Sha256.Length != 64

@@ -144,7 +144,8 @@ internal sealed class ResourceThumbnailCacheService
     {
         if (string.IsNullOrWhiteSpace(project.IconUrl)
             || !Uri.TryCreate(project.IconUrl, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            || (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
         {
             return null;
         }

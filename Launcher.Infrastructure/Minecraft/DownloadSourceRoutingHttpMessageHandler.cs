@@ -62,9 +62,6 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
             limiter,
             category,
             retryOptions,
-            addressPolicy: innerHandler is RoutingDownloadHttpMessageHandler
-                ? new DownloadAddressPolicy()
-                : DownloadAddressPolicy.CreateForInjectedTransport(),
             hostConcurrencyController: hostConcurrencyController);
     }
 

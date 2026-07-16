@@ -135,7 +135,7 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
             Kind = ResourceProjectKind.ResourcePack,
             Source = ResourceProjectSource.Modrinth,
             ProjectId = "project",
-            IconUrl = "https://cdn.example.com/icon.png"
+            IconUrl = "http://127.0.0.1/icon.png"
         };
 
         Assert.Null(service.TryGetCachedThumbnailSource(project));

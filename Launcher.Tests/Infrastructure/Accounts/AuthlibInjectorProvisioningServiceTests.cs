@@ -81,26 +81,32 @@ public sealed class AuthlibInjectorProvisioningServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task RejectsPrivateArtifactAddressBeforeArtifactRequest()
+    public async Task AllowsPrivateArtifactAddressToReachArtifactHandler()
     {
+        var bytes = Encoding.UTF8.GetBytes("private-address-artifact");
+        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         var artifactRequests = 0;
         var service = new AuthlibInjectorProvisioningService(
             new HttpClient(new StubHttpMessageHandler(request =>
             {
                 if (request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal))
-                    return Task.FromResult(Json(Metadata(new string('0', 64))));
+                {
+                    var metadata =
+                        $"{{\"build_number\":55,\"version\":\"1.2.7\",\"download_url\":\"http://127.0.0.1/authlib-injector.jar\",\"checksums\":{{\"sha256\":\"{hash}\"}}}}";
+                    return Task.FromResult(Json(metadata));
+                }
                 artifactRequests++;
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(bytes)
+                });
             })),
-            Path.Combine(TempRoot, "authlib"),
-            logger: null,
-            addressPolicy: new DownloadAddressPolicy((_, _) =>
-                Task.FromResult(new[] { IPAddress.Parse("10.0.0.8") })));
+            Path.Combine(TempRoot, "authlib"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
+        var artifact = await service.EnsureAvailableAsync();
 
-        Assert.Equal(0, artifactRequests);
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(TempRoot, "authlib"), "*.jar"));
+        Assert.Equal(1, artifactRequests);
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(artifact.FilePath));
     }
 
     [Theory]

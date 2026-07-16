@@ -215,8 +215,6 @@ public sealed class ModrinthServiceTests : TestTempDirectory
             settingsService: null,
             downloadSpeedLimitState: null,
             limiter: limiter ?? new ImportConcurrencyLimiter(),
-            addressPolicy: new DownloadAddressPolicy((_, _) =>
-                Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") })),
             retryOptions: new DownloadRetryOptions
             {
                 MaxAttemptsPerSource = 1,

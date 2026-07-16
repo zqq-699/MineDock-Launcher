@@ -27,20 +27,17 @@ internal sealed class MinecraftDownloadTransport
 {
     private readonly HttpClient httpClient;
     private readonly DownloadRetryOptions retryOptions;
-    private readonly DownloadAddressPolicy addressPolicy;
     private readonly Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
         acquireAdmissionAsync;
 
     public MinecraftDownloadTransport(
         HttpClient httpClient,
         DownloadRetryOptions retryOptions,
-        DownloadAddressPolicy? addressPolicy = null,
         Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
             acquireAdmissionAsync = null)
     {
         this.httpClient = httpClient;
         this.retryOptions = retryOptions;
-        this.addressPolicy = addressPolicy ?? new DownloadAddressPolicy();
         this.acquireAdmissionAsync = acquireAdmissionAsync;
     }
 
@@ -49,10 +46,9 @@ internal sealed class MinecraftDownloadTransport
         CancellationToken cancellationToken,
         Action<HttpRequestMessage>? configureRequest = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
-        bool isThirdParty = false,
         bool applyColdStartJitter = false)
     {
-        var originalUri = new Uri(actualUrl, UriKind.Absolute);
+        var originalUri = ParseHttpUri(actualUrl);
         var currentUri = originalUri;
         var stopwatch = Stopwatch.StartNew();
         var redirects = new List<Uri>();
@@ -66,7 +62,6 @@ internal sealed class MinecraftDownloadTransport
             DownloadHostConcurrencyController.DownloadAdmissionLease? admissionLease = null;
             try
             {
-                var endpoint = await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
                 if (acquireAdmissionAsync is not null)
                 {
                     admissionLease = await acquireAdmissionAsync(
@@ -77,7 +72,7 @@ internal sealed class MinecraftDownloadTransport
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(retryOptions.ResponseHeadersTimeout);
                 var response = await SendSingleAsync(
-                    endpoint,
+                    currentUri,
                     timeout.Token,
                     cancellationToken,
                     configureRequest,
@@ -122,8 +117,7 @@ internal sealed class MinecraftDownloadTransport
                     throw InvalidRedirect("The HTTP redirect target was invalid.", exception);
                 }
 
-                if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-                    || !visited.Add(nextUri.AbsoluteUri))
+                if (!IsHttpUri(nextUri) || !visited.Add(nextUri.AbsoluteUri))
                 {
                     response.Dispose();
                     throw InvalidRedirect("The HTTP redirect target was unsupported or formed a loop.");
@@ -148,7 +142,7 @@ internal sealed class MinecraftDownloadTransport
     }
 
     private async Task<HttpResponseMessage> SendSingleAsync(
-        ValidatedDownloadEndpoint endpoint,
+        Uri uri,
         CancellationToken timeoutToken,
         CancellationToken callerToken,
         Action<HttpRequestMessage>? configureRequest,
@@ -156,20 +150,11 @@ internal sealed class MinecraftDownloadTransport
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint.Uri);
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             configureRequest?.Invoke(request);
-            if (request.RequestUri != endpoint.Uri)
+            if (request.RequestUri != uri)
             {
-                throw new DownloadAttemptException(
-                    DownloadFailureDisposition.Abort,
-                    DownloadFailureReason.UnsafeAddress,
-                    "The validated download request URI was changed before it was sent.");
-            }
-            if (endpoint.RequiresDirectConnection)
-            {
-                request.Options.Set(
-                    DownloadConnectionRequestOptions.ValidatedAddresses,
-                    endpoint.Addresses.ToArray());
+                throw InvalidRedirect("The configured download request URI changed before it was sent.");
             }
             sensitiveHeaders?.ApplyIfAllowed(request);
             return await httpClient.SendAsync(
@@ -212,6 +197,18 @@ internal sealed class MinecraftDownloadTransport
             message,
             innerException);
     }
+
+    private static Uri ParseHttpUri(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !IsHttpUri(uri))
+            throw InvalidRedirect("Download URLs must use HTTP or HTTPS.");
+        return uri;
+    }
+
+    private static bool IsHttpUri(Uri uri) =>
+        uri.IsAbsoluteUri
+        && (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsRedirect(HttpStatusCode statusCode)
     {

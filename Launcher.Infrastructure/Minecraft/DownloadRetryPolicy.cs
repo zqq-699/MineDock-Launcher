@@ -33,7 +33,7 @@ internal sealed record DownloadRetryOptions
     public TimeSpan BodyIdleTimeout { get; init; } = TimeSpan.FromSeconds(12);
     public TimeSpan MaximumRetryAfter { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(30);
-    public int MaxRedirects { get; init; } = 10;
+    public int MaxRedirects { get; init; } = 20;
 }
 
 internal enum DownloadFailureDisposition
@@ -56,8 +56,7 @@ internal enum DownloadFailureReason
     InvalidContent,
     HashMismatch,
     LocalFileSystem,
-    ResourceConflict,
-    UnsafeAddress
+    ResourceConflict
 }
 
 internal class DownloadAttemptException : Exception

@@ -50,7 +50,6 @@ public sealed class ModrinthService : IModrinthService
     private readonly ISettingsService? settingsService;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly IImportConcurrencyLimiter limiter;
-    private readonly DownloadAddressPolicy? addressPolicy;
     private readonly DownloadRetryOptions? retryOptions;
 
     public ModrinthService(HttpClient? httpClient = null, ILogger<ModrinthService>? logger = null)
@@ -60,7 +59,6 @@ public sealed class ModrinthService : IModrinthService
             settingsService: null,
             downloadSpeedLimitState: null,
             limiter: null,
-            addressPolicy: null,
             retryOptions: null)
     {
     }
@@ -71,7 +69,6 @@ public sealed class ModrinthService : IModrinthService
         ISettingsService? settingsService,
         IDownloadSpeedLimitState? downloadSpeedLimitState,
         IImportConcurrencyLimiter? limiter,
-        DownloadAddressPolicy? addressPolicy = null,
         DownloadRetryOptions? retryOptions = null)
     {
         this.httpClient = httpClient;
@@ -79,7 +76,6 @@ public sealed class ModrinthService : IModrinthService
         this.settingsService = settingsService;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
-        this.addressPolicy = addressPolicy;
         this.retryOptions = retryOptions;
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
             this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BHL/0.1 (BlockHelm-Launcher)");
@@ -328,8 +324,7 @@ public sealed class ModrinthService : IModrinthService
             downloadSpeedLimitState),
             limiter,
             DownloadConcurrencyCategory.Modpack,
-            retryOptions: retryOptions,
-            addressPolicy: addressPolicy);
+            retryOptions: retryOptions);
 
         progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{projectTitle} {version.VersionNumber}"));
         await executor.DownloadFileAsync(

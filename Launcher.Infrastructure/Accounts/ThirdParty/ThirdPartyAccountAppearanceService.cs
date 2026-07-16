@@ -197,7 +197,7 @@ internal sealed class ThirdPartyAccountAppearanceService : IThirdPartyAccountApp
             ThirdPartySkinTexture? skin = null;
             if (textureSet.TryGetProperty("SKIN", out var skinElement))
             {
-                var skinUrl = GetHttpsTextureUrl(skinElement);
+                var skinUrl = GetHttpTextureUrl(skinElement);
                 var model = skinElement.TryGetProperty("metadata", out var metadata)
                     && metadata.TryGetProperty("model", out var modelProperty)
                     && string.Equals(modelProperty.GetString(), "slim", StringComparison.OrdinalIgnoreCase)
@@ -207,7 +207,7 @@ internal sealed class ThirdPartyAccountAppearanceService : IThirdPartyAccountApp
             }
 
             var capeUrl = textureSet.TryGetProperty("CAPE", out var capeElement)
-                ? GetHttpsTextureUrl(capeElement)
+                ? GetHttpTextureUrl(capeElement)
                 : null;
             return new ThirdPartyTextures(skin, capeUrl);
         }
@@ -215,11 +215,12 @@ internal sealed class ThirdPartyAccountAppearanceService : IThirdPartyAccountApp
         return ThirdPartyTextures.Empty;
     }
 
-    private static Uri GetHttpsTextureUrl(JsonElement texture)
+    private static Uri GetHttpTextureUrl(JsonElement texture)
     {
         if (!texture.TryGetProperty("url", out var urlProperty)
             || !Uri.TryCreate(urlProperty.GetString(), UriKind.Absolute, out var url)
-            || !string.Equals(url.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            || (!string.Equals(url.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(url.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
         {
             throw new JsonException("The profile texture URL is invalid.");
         }

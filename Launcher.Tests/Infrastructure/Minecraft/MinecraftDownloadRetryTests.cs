@@ -19,7 +19,6 @@
 
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using CmlLib.Core.Files;
@@ -937,14 +936,12 @@ public sealed class MinecraftDownloadRetryTests
             return Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request));
         });
         using var client = CreateClient(handler);
-        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
-        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
 
-        var result = await transport.SendAsync(
+        await using var result = await transport.SendAsync(
             "https://api.curseforge.com/v1/mods/1/files/2/download-url",
             CancellationToken.None,
-            sensitiveHeaders: DownloadRequestHeaders.CurseForgeApiKey("secret"),
-            isThirdParty: true);
+            sensitiveHeaders: DownloadRequestHeaders.CurseForgeApiKey("secret"));
 
         Assert.Equal(2, handler.RequestHeaders.Count);
         Assert.Equal("secret", handler.RequestHeaders[0]["x-api-key"]);
@@ -953,164 +950,165 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
-    public async Task ThirdPartyPrivateAddressIsRejectedBeforeAnyRequest()
+    public void DefaultRedirectLimitIsTwenty()
+    {
+        Assert.Equal(20, DownloadRetryOptions.Default.MaxRedirects);
+    }
+
+    [Fact]
+    public void TransportHandlerUsesSystemProxyAndManualRedirects()
+    {
+        using var handler = MinecraftHttpClientFactory.CreateTransportHandler();
+        var httpHandler = Assert.IsType<HttpClientHandler>(handler);
+
+        Assert.True(httpHandler.UseProxy);
+        Assert.False(httpHandler.AllowAutoRedirect);
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1/file.jar")]
+    [InlineData("https://10.0.0.1/file.jar")]
+    [InlineData("https://172.16.0.1/file.jar")]
+    [InlineData("https://192.168.1.10/file.jar")]
+    [InlineData("https://198.18.0.1/file.jar")]
+    [InlineData("http://[::1]/file.jar")]
+    [InlineData("https://[fd00::1]/file.jar")]
+    public async Task PrivateAndReservedEndpointsReachUnderlyingHandler(string url)
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
             Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)));
         using var client = CreateClient(handler);
-        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[] { IPAddress.Parse("10.0.0.1") }));
-        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
 
-        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
-            "https://example.invalid/file.jar", CancellationToken.None, isThirdParty: true));
+        await using var result = await transport.SendAsync(url, CancellationToken.None);
 
-        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
-        Assert.Empty(handler.RequestUris);
+        Assert.Single(handler.RequestUris);
+        Assert.Equal(new Uri(url), handler.RequestUris[0]);
+        result.Response.Dispose();
+    }
+
+    [Fact]
+    public async Task HttpsRedirectToHttpIsFollowed()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
+                redirect.Headers.Location = new Uri("http://127.0.0.1/file.jar");
+                return Task.FromResult(redirect);
+            }
+
+            return Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request));
+        });
+        using var client = CreateClient(handler);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
+
+        await using var result = await transport.SendAsync(
+            "https://downloads.example.com/file.jar",
+            CancellationToken.None);
+
+        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.Equal(new Uri("http://127.0.0.1/file.jar"), result.FinalUri);
+        result.Response.Dispose();
     }
 
     [Theory]
-    [InlineData("http://downloads.example.com/file.jar")]
-    [InlineData("https://downloads/file.jar")]
-    [InlineData("https://user:password@downloads.example.com/file.jar")]
-    [InlineData("https://127.0.0.1/file.jar")]
-    [InlineData("https://[::ffff:10.0.0.1]/file.jar")]
-    public async Task UnsafeThirdPartyEndpointFormsAreRejected(string url)
+    [InlineData("file:///C:/temp/file.jar")]
+    [InlineData("ftp://downloads.example.com/file.jar")]
+    [InlineData("not-a-uri")]
+    public async Task NonHttpInitialAddressIsRejectedBeforeRequest(string url)
     {
-        var policy = new DownloadAddressPolicy((_, _) =>
-            Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)));
+        using var client = CreateClient(handler);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
 
         var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
-            policy.ValidateAsync(new Uri(url), isThirdParty: true, CancellationToken.None));
+            transport.SendAsync(url, CancellationToken.None));
 
-        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
+        Assert.Equal(DownloadFailureReason.InvalidRedirect, exception.Reason);
+        Assert.Empty(handler.RequestUris);
     }
 
     [Fact]
-    public async Task MixedPublicAndPrivateDnsResultIsRejected()
-    {
-        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[]
-        {
-            IPAddress.Parse("8.8.8.8"),
-            IPAddress.Parse("192.168.1.10")
-        }));
-
-        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
-            policy.ValidateAsync(
-                new Uri("https://downloads.example.com/file.jar"),
-                isThirdParty: true,
-                CancellationToken.None));
-
-        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
-    }
-
-    [Fact]
-    public async Task DnsFailureIsRejectedInsteadOfFailingOpen()
-    {
-        var policy = new DownloadAddressPolicy((_, _) =>
-            Task.FromException<IPAddress[]>(new SocketException((int)SocketError.HostNotFound)));
-
-        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
-            policy.ValidateAsync(
-                new Uri("https://downloads.example.com/file.jar"),
-                isThirdParty: true,
-                CancellationToken.None));
-
-        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
-    }
-
-    [Fact]
-    public async Task TrustedBuiltInEndpointKeepsNormalSystemRoute()
-    {
-        var resolverCalled = false;
-        var policy = new DownloadAddressPolicy((_, _) =>
-        {
-            resolverCalled = true;
-            return Task.FromResult(new[] { IPAddress.Loopback });
-        });
-
-        var endpoint = await policy.ValidateAsync(
-            new Uri("https://libraries.minecraft.net/library.jar"),
-            isThirdParty: false,
-            CancellationToken.None);
-
-        Assert.False(endpoint.RequiresDirectConnection);
-        Assert.Empty(endpoint.Addresses);
-        Assert.False(resolverCalled);
-    }
-
-    [Fact]
-    public async Task StrictTransportConnectsOnlyToValidatedDnsResult()
-    {
-        IReadOnlyList<IPAddress>? connectedAddresses = null;
-        var connectedPort = 0;
-        using var client = MinecraftHttpClientFactory.CreateTransportClient((addresses, port, _) =>
-        {
-            connectedAddresses = addresses.ToArray();
-            connectedPort = port;
-            return ValueTask.FromException<Stream>(new IOException("Stop after recording the strict route."));
-        });
-        var policy = new DownloadAddressPolicy((_, _) =>
-            Task.FromResult(new[] { IPAddress.Parse("8.8.4.4") }));
-        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
-
-        await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
-            "https://downloads.example.com/file.jar",
-            CancellationToken.None,
-            isThirdParty: true));
-
-        Assert.Equal([IPAddress.Parse("8.8.4.4")], connectedAddresses);
-        Assert.Equal(443, connectedPort);
-    }
-
-    [Fact]
-    public async Task HttpsRedirectToHttpIsRejectedBeforeSecondRequest()
+    public async Task NonHttpRedirectIsRejectedBeforeSecondRequest()
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
         {
             var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
-            redirect.Headers.Location = new Uri("http://downloads.example.com/file.jar");
+            redirect.Headers.Location = new Uri("ftp://downloads.example.com/file.jar");
             return Task.FromResult(redirect);
         });
         using var client = CreateClient(handler);
-        var policy = new DownloadAddressPolicy((_, _) =>
-            Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
-        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
 
-        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
-            "https://downloads.example.com/file.jar",
-            CancellationToken.None,
-            isThirdParty: true));
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
+            transport.SendAsync("https://downloads.example.com/file.jar", CancellationToken.None));
 
         Assert.Equal(DownloadFailureReason.InvalidRedirect, exception.Reason);
         Assert.Single(handler.RequestUris);
     }
 
     [Fact]
-    public async Task RedirectTargetIsResolvedAndValidatedAgain()
+    public async Task RedirectWithoutLocationIsRejected()
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.Found, string.Empty, request)));
+        using var client = CreateClient(handler);
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions());
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
+            transport.SendAsync("https://downloads.example.com/file.jar", CancellationToken.None));
+
+        Assert.Equal(DownloadFailureReason.InvalidRedirect, exception.Reason);
+        Assert.Single(handler.RequestUris);
+    }
+
+    [Fact]
+    public async Task TwentyRedirectsCanComplete()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber <= 20)
+            {
+                var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
+                redirect.Headers.Location = new Uri($"/hop/{requestNumber}", UriKind.Relative);
+                return Task.FromResult(redirect);
+            }
+
+            return Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request));
+        });
+        using var client = CreateClient(handler);
+        var transport = new MinecraftDownloadTransport(client, DownloadRetryOptions.Default);
+
+        await using var result = await transport.SendAsync(
+            "https://downloads.example.com/file.jar",
+            CancellationToken.None);
+
+        Assert.Equal(21, handler.RequestUris.Count);
+        Assert.Equal(20, result.RedirectCount);
+        result.Response.Dispose();
+    }
+
+    [Fact]
+    public async Task TwentyFirstRedirectIsRejected()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
         {
             var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
-            redirect.Headers.Location = new Uri("https://private.example.invalid/file.jar");
+            redirect.Headers.Location = new Uri($"/hop/{requestNumber}", UriKind.Relative);
             return Task.FromResult(redirect);
         });
         using var client = CreateClient(handler);
-        var resolutions = 0;
-        var policy = new DownloadAddressPolicy((host, _) =>
-        {
-            resolutions++;
-            return Task.FromResult(new[]
-            {
-                IPAddress.Parse(host.StartsWith("private", StringComparison.Ordinal) ? "192.168.1.10" : "8.8.8.8")
-            });
-        });
-        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+        var transport = new MinecraftDownloadTransport(client, DownloadRetryOptions.Default);
 
-        await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
-            "https://public.example.invalid/file.jar", CancellationToken.None, isThirdParty: true));
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
+            "https://downloads.example.com/file.jar",
+            CancellationToken.None));
 
-        Assert.Equal(2, resolutions);
-        Assert.Single(handler.RequestUris);
+        Assert.Equal(DownloadFailureReason.InvalidRedirect, exception.Reason);
+        Assert.Equal(21, handler.RequestUris.Count);
     }
 
     [Fact]
@@ -1213,8 +1211,6 @@ public sealed class MinecraftDownloadRetryTests
             httpClient,
             limiter: new ImportConcurrencyLimiter(),
             logger: logger,
-            addressPolicy: new DownloadAddressPolicy((_, _) =>
-                Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") })),
             hostConcurrencyController: new DownloadHostConcurrencyController(
                 maximumJitter: TimeSpan.Zero,
                 nextJitter: () => 0,

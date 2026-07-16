@@ -53,7 +53,6 @@ internal sealed class MinecraftDownloadRequestExecutor
         IImportConcurrencyLimiter? limiter = null,
         DownloadConcurrencyCategory category = DownloadConcurrencyCategory.Metadata,
         DownloadRetryOptions? retryOptions = null,
-        DownloadAddressPolicy? addressPolicy = null,
         DownloadHostHealthTracker? hostHealthTracker = null,
         DownloadHostConcurrencyController? hostConcurrencyController = null,
         Func<double>? nextRetryJitter = null)
@@ -68,14 +67,9 @@ internal sealed class MinecraftDownloadRequestExecutor
         this.hostHealthTracker = hostHealthTracker ?? new DownloadHostHealthTracker();
         this.hostConcurrencyController = hostConcurrencyController ?? DownloadHostConcurrencyController.Shared;
         this.nextRetryJitter = nextRetryJitter ?? Random.Shared.NextDouble;
-        var resolvedAddressPolicy = addressPolicy
-            ?? (MinecraftHttpClientFactory.IsTransportClient(httpClient)
-                ? new DownloadAddressPolicy()
-                : DownloadAddressPolicy.CreateForInjectedTransport());
         transport = new MinecraftDownloadTransport(
             httpClient,
             this.retryOptions,
-            resolvedAddressPolicy,
             AcquireAdmissionAsync);
     }
 
@@ -395,7 +389,6 @@ internal sealed class MinecraftDownloadRequestExecutor
             cancellationToken,
             configureRequest is null ? null : request => configureRequest(request, resolution),
             sensitiveHeaders,
-            isThirdParty: string.Equals(resolution.ResourceCategory, "ThirdParty", StringComparison.OrdinalIgnoreCase),
             applyColdStartJitter: attempt == 1).ConfigureAwait(false);
         using var response = transportResult.Response;
         var globalConcurrency = GetGlobalConcurrencySnapshot();

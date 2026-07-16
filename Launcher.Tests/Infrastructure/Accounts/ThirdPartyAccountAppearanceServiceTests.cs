@@ -26,8 +26,8 @@ public sealed class ThirdPartyAccountAppearanceServiceTests : IDisposable
     [Fact]
     public async Task GetProfileDownloadsCurrentSkinCapeAndAvatar()
     {
-        const string skinUrl = "https://textures.example.test/skin.png";
-        const string capeUrl = "https://textures.example.test/cape.png";
+        const string skinUrl = "http://127.0.0.1/skin.png";
+        const string capeUrl = "http://127.0.0.1/cape.png";
         var texturesPayload = CreateTexturesPayload(skinUrl, capeUrl, "slim");
         var requestedUris = new List<Uri>();
         var textureBytes = CreateTexturePng();
@@ -110,9 +110,9 @@ public sealed class ThirdPartyAccountAppearanceServiceTests : IDisposable
     }
 
     [Fact]
-    public void ParseTexturesRejectsInsecureTextureUrl()
+    public void ParseTexturesRejectsNonHttpTextureUrl()
     {
-        var texturesPayload = CreateTexturesPayload("http://textures.example.test/skin.png", null, null);
+        var texturesPayload = CreateTexturesPayload("ftp://textures.example.test/skin.png", null, null);
         using var profile = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
             properties = new[] { new { name = "textures", value = texturesPayload } }

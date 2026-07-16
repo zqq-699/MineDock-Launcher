@@ -200,7 +200,6 @@ public sealed class DownloadHostConcurrencyControllerTests
         var transport = new MinecraftDownloadTransport(
             httpClient,
             new DownloadRetryOptions(),
-            DownloadAddressPolicy.CreateForInjectedTransport(),
             (uri, jitter, token) => controller.AcquireAsync(
                 uri,
                 limiter.AcquireRuntimeDownloadSlotAsync,
