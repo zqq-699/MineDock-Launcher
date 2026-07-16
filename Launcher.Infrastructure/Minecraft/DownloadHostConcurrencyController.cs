@@ -173,7 +173,8 @@ internal sealed class DownloadHostConcurrencyController
         }
         return failureReason is DownloadFailureReason.Network or DownloadFailureReason.Dns
             or DownloadFailureReason.ResponseHeadersTimeout or DownloadFailureReason.FirstByteTimeout
-            or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.BodyInterrupted
+            or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.BodyTooSlow
+            or DownloadFailureReason.BodyInterrupted
             ? DownloadHostResultKind.CongestionFailure
             : DownloadHostResultKind.Neutral;
     }

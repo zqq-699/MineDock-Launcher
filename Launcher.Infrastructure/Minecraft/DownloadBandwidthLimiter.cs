@@ -149,6 +149,9 @@ internal static class DownloadResponseThrottler
         IImportConcurrencyLease? completionLease = null,
         TimeSpan? bodyIdleTimeout = null,
         TimeSpan? firstByteTimeout = null,
+        TimeSpan? slowBodyReadThreshold = null,
+        long minimumBodyBytesPerSecond = 0,
+        TimeProvider? timeProvider = null,
         Action<long>? reportBodyBytes = null,
         SpeedMeter? speedMeter = null)
     {
@@ -160,17 +163,23 @@ internal static class DownloadResponseThrottler
         }
 
         if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null
+            && slowBodyReadThreshold is null
             && reportBodyBytes is null && speedMeter is null)
             return;
 
         var originalContent = response.Content;
         var originalStream = await originalContent.ReadAsStreamAsync(cancellationToken);
-        Stream networkStream = bodyIdleTimeout is { } idleTimeout
-            ? new IdleTimeoutReadStream(
+        var effectiveIdleTimeout = bodyIdleTimeout ?? firstByteTimeout ?? Timeout.InfiniteTimeSpan;
+        Stream networkStream = bodyIdleTimeout is not null || slowBodyReadThreshold is not null
+            ? new BodyProgressReadStream(
                 originalStream,
-                firstByteTimeout ?? idleTimeout,
-                idleTimeout,
-                cancellationToken)
+                firstByteTimeout ?? effectiveIdleTimeout,
+                effectiveIdleTimeout,
+                slowBodyReadThreshold,
+                minimumBodyBytesPerSecond,
+                originalContent.Headers.ContentLength,
+                cancellationToken,
+                timeProvider ?? TimeProvider.System)
             : originalStream;
         if (speedMeter is not null || reportBodyBytes is not null)
         {
@@ -192,6 +201,21 @@ internal static class DownloadResponseThrottler
             throttledContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
         response.Content = throttledContent;
+    }
+
+    internal static bool IsBodyReadTooSlow(
+        int bytesRead,
+        TimeSpan readDuration,
+        TimeSpan slowReadThreshold,
+        long minimumBytesPerSecond)
+    {
+        if (bytesRead <= 0 || slowReadThreshold < TimeSpan.Zero || minimumBytesPerSecond <= 0
+            || readDuration <= slowReadThreshold || readDuration.TotalSeconds <= 0)
+        {
+            return false;
+        }
+
+        return bytesRead / readDuration.TotalSeconds < minimumBytesPerSecond;
     }
 
     /// <summary>
@@ -261,24 +285,38 @@ internal static class DownloadResponseThrottler
         }
     }
 
-    private sealed class IdleTimeoutReadStream : Stream
+    private sealed class BodyProgressReadStream : Stream
     {
         private readonly Stream innerStream;
         private readonly TimeSpan firstByteTimeout;
         private readonly TimeSpan idleTimeout;
+        private readonly TimeSpan? slowReadThreshold;
+        private readonly long minimumBytesPerSecond;
+        private readonly long? contentLength;
         private readonly CancellationToken operationCancellationToken;
+        private readonly TimeProvider timeProvider;
         private bool hasReadFirstByte;
+        private long totalBytesRead;
+        private DownloadBodyTooSlowException? pendingSlowFailure;
 
-        public IdleTimeoutReadStream(
+        public BodyProgressReadStream(
             Stream innerStream,
             TimeSpan firstByteTimeout,
             TimeSpan idleTimeout,
-            CancellationToken operationCancellationToken)
+            TimeSpan? slowReadThreshold,
+            long minimumBytesPerSecond,
+            long? contentLength,
+            CancellationToken operationCancellationToken,
+            TimeProvider timeProvider)
         {
             this.innerStream = innerStream;
             this.firstByteTimeout = firstByteTimeout;
             this.idleTimeout = idleTimeout;
+            this.slowReadThreshold = slowReadThreshold;
+            this.minimumBytesPerSecond = minimumBytesPerSecond;
+            this.contentLength = contentLength;
             this.operationCancellationToken = operationCancellationToken;
+            this.timeProvider = timeProvider;
         }
 
         public override bool CanRead => innerStream.CanRead;
@@ -292,13 +330,29 @@ internal static class DownloadResponseThrottler
         }
 
         public override void Flush() => innerStream.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => innerStream.Read(buffer, offset, count);
-        public override int Read(Span<byte> buffer) => innerStream.Read(buffer);
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            ThrowPendingSlowFailure();
+            var startedAt = timeProvider.GetTimestamp();
+            var read = innerStream.Read(buffer, offset, count);
+            ObserveRead(read, timeProvider.GetElapsedTime(startedAt));
+            return read;
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            ThrowPendingSlowFailure();
+            var startedAt = timeProvider.GetTimestamp();
+            var read = innerStream.Read(buffer);
+            ObserveRead(read, timeProvider.GetElapsedTime(startedAt));
+            return read;
+        }
 
         public override async ValueTask<int> ReadAsync(
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
+            ThrowPendingSlowFailure();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
                 operationCancellationToken,
                 cancellationToken);
@@ -307,9 +361,9 @@ internal static class DownloadResponseThrottler
 
             try
             {
+                var startedAt = timeProvider.GetTimestamp();
                 var read = await innerStream.ReadAsync(buffer, timeout.Token).ConfigureAwait(false);
-                if (read > 0)
-                    hasReadFirstByte = true;
+                ObserveRead(read, timeProvider.GetElapsedTime(startedAt));
                 return read;
             }
             catch (OperationCanceledException exception)
@@ -336,6 +390,37 @@ internal static class DownloadResponseThrottler
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         public override void Write(ReadOnlySpan<byte> buffer) => throw new NotSupportedException();
+
+        private void ObserveRead(int read, TimeSpan readDuration)
+        {
+            if (read <= 0)
+                return;
+
+            totalBytesRead += read;
+            if (!hasReadFirstByte)
+            {
+                hasReadFirstByte = true;
+                return;
+            }
+
+            var completedKnownBody = contentLength is { } length && totalBytesRead >= length;
+            if (!completedKnownBody
+                && slowReadThreshold is { } threshold
+                && IsBodyReadTooSlow(read, readDuration, threshold, minimumBytesPerSecond))
+            {
+                // Return this chunk first so the file session persists it. The
+                // next read fails before any additional network data is consumed.
+                pendingSlowFailure = new DownloadBodyTooSlowException(read, readDuration);
+            }
+        }
+
+        private void ThrowPendingSlowFailure()
+        {
+            if (pendingSlowFailure is not { } failure)
+                return;
+            pendingSlowFailure = null;
+            throw failure;
+        }
 
         protected override void Dispose(bool disposing)
         {

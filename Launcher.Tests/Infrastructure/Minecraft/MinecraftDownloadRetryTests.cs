@@ -32,13 +32,140 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 public sealed class MinecraftDownloadRetryTests
 {
     private const string ManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+    private const string BmclManifestUrl = "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json";
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official, ManifestUrl, BmclManifestUrl)]
+    [InlineData(DownloadSourcePreference.BmclApi, BmclManifestUrl, ManifestUrl)]
+    public void ManualPreferenceOrdersPreferredSourceBeforeFallback(
+        DownloadSourcePreference preference,
+        string expectedPrimaryUrl,
+        string expectedFallbackUrl)
+    {
+        var requests = MinecraftDownloadSourceResolver
+            .EnumerateRequests(ManifestUrl, preference, categoryHint: "Mojang")
+            .ToArray();
+
+        Assert.Equal(2, requests.Length);
+        Assert.Equal(expectedPrimaryUrl, requests[0].ActualUrl);
+        Assert.Equal(expectedFallbackUrl, requests[1].ActualUrl);
+        Assert.All(requests, request => Assert.Equal(preference, request.RequestedSourcePreference));
+    }
+
+    [Theory]
+    [InlineData("https://libraries.minecraft.net/com/example/library/1.0/library-1.0.jar", "Mojang")]
+    [InlineData("https://meta.fabricmc.net/v2/versions/loader", "Fabric")]
+    [InlineData("https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1/forge-1.20.1.jar", "Forge")]
+    [InlineData("https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.1/neoforge-20.4.1.jar", "NeoForge")]
+    public void MappedResourceCategoriesKeepOfficialFallback(string url, string categoryHint)
+    {
+        var requests = MinecraftDownloadSourceResolver
+            .EnumerateRequests(url, DownloadSourcePreference.BmclApi, categoryHint)
+            .ToArray();
+
+        Assert.Equal(2, requests.Length);
+        Assert.StartsWith("BmclApi", requests[0].ResolvedSourceKind, StringComparison.Ordinal);
+        Assert.DoesNotContain("BmclApi", requests[1].ResolvedSourceKind, StringComparison.Ordinal);
+        Assert.NotEqual(requests[0].ActualUrl, requests[1].ActualUrl);
+    }
+
+    [Theory]
+    [InlineData("China Standard Time", BmclManifestUrl, ManifestUrl)]
+    [InlineData("UTC", ManifestUrl, BmclManifestUrl)]
+    public void AutoPreferenceKeepsTimeZoneBasedOrdering(
+        string timeZoneId,
+        string expectedPrimaryUrl,
+        string expectedFallbackUrl)
+    {
+        var requests = MinecraftDownloadSourceResolver
+            .EnumerateRequests(
+                ManifestUrl,
+                DownloadSourcePreference.Auto,
+                categoryHint: "Mojang",
+                localTimeZoneIdProvider: () => timeZoneId)
+            .ToArray();
+
+        Assert.Equal([expectedPrimaryUrl, expectedFallbackUrl], requests.Select(request => request.ActualUrl));
+    }
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Auto)]
+    [InlineData(DownloadSourcePreference.Official)]
+    [InlineData(DownloadSourcePreference.BmclApi)]
+    public void ThirdPartyAddressProducesSingleCandidate(DownloadSourcePreference preference)
+    {
+        const string url = "https://downloads.example.test/files/archive.zip";
+
+        var requests = MinecraftDownloadSourceResolver
+            .EnumerateRequests(url, preference, categoryHint: "ThirdParty")
+            .ToArray();
+
+        var request = Assert.Single(requests);
+        Assert.Equal(url, request.ActualUrl);
+        Assert.Equal("ThirdParty", request.ResolvedSourceKind);
+    }
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official, "piston-meta.mojang.com", "bmclapi2.bangbang93.com")]
+    [InlineData(DownloadSourcePreference.BmclApi, "bmclapi2.bangbang93.com", "piston-meta.mojang.com")]
+    public async Task ManualPreferenceFallsBackAfterPreferredSourceFails(
+        DownloadSourcePreference preference,
+        string expectedPrimaryHost,
+        string expectedFallbackHost)
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.Forbidden : HttpStatusCode.OK,
+                "{}",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            preference,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal([expectedPrimaryHost, expectedFallbackHost], handler.RequestUris.Select(uri => uri.Host));
+    }
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official)]
+    [InlineData(DownloadSourcePreference.BmclApi)]
+    public async Task ManualPreferenceLookupFallsBackAfterPreferredSourceReportsNoResult(
+        DownloadSourcePreference preference)
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.NotFound : HttpStatusCode.OK,
+                "[]",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        var result = await executor.ExecuteLookupAsync(
+            ManifestUrl,
+            preference,
+            categoryHint: "Mojang",
+            static (_, _) => Task.FromResult<IReadOnlyList<string>>(["value"]),
+            statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            CancellationToken.None);
+
+        Assert.True(result.Found);
+        Assert.Equal(["value"], result.Value);
+        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
+    }
 
     [Theory]
     [InlineData(HttpStatusCode.RequestTimeout)]
     [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
-    public async Task TransientStatusesConsumeFourAttemptBudget(HttpStatusCode statusCode)
+    public async Task TransientStatusesConsumeFourAttemptsPerPreferredAndFallbackSource(HttpStatusCode statusCode)
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
             Task.FromResult(CreateResponse(statusCode, string.Empty, request)));
@@ -53,7 +180,9 @@ public sealed class MinecraftDownloadRetryTests
                 static (_, _) => Task.FromResult(true),
                 CancellationToken.None));
 
-        Assert.Equal(4, handler.RequestUris.Count);
+        Assert.Equal(8, handler.RequestUris.Count);
+        Assert.All(handler.RequestUris.Take(4), uri => Assert.Equal(ManifestUrl, uri.AbsoluteUri));
+        Assert.All(handler.RequestUris.Skip(4), uri => Assert.Equal(BmclManifestUrl, uri.AbsoluteUri));
     }
 
     [Theory]
@@ -63,7 +192,7 @@ public sealed class MinecraftDownloadRetryTests
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.MethodNotAllowed)]
     [InlineData(HttpStatusCode.Gone)]
-    public async Task PermanentStatusesDoNotRetry(HttpStatusCode statusCode)
+    public async Task PermanentStatusesSwitchSourceWithoutRetryingEitherSource(HttpStatusCode statusCode)
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
             Task.FromResult(CreateResponse(statusCode, string.Empty, request)));
@@ -78,7 +207,7 @@ public sealed class MinecraftDownloadRetryTests
                 static (_, _) => Task.FromResult(true),
                 CancellationToken.None));
 
-        Assert.Single(handler.RequestUris);
+        Assert.Equal([ManifestUrl, BmclManifestUrl], handler.RequestUris.Select(uri => uri.AbsoluteUri));
     }
 
     [Fact]
@@ -105,34 +234,111 @@ public sealed class MinecraftDownloadRetryTests
         Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[4]);
     }
 
-    [Fact]
-    public async Task StableLowBodySpeedDoesNotSwitchSource()
+    [Theory]
+    [InlineData(1, 5000, false)]
+    [InlineData(1, 5001, true)]
+    [InlineData(6144, 6000, false)]
+    [InlineData(6143, 6000, true)]
+    public void SlowBodyThresholdMatchesPclReadRule(int bytesRead, int elapsedMilliseconds, bool expected)
     {
+        Assert.Equal(
+            expected,
+            DownloadResponseThrottler.IsBodyReadTooSlow(
+                bytesRead,
+                TimeSpan.FromMilliseconds(elapsedMilliseconds),
+                TimeSpan.FromSeconds(5),
+                1024));
+    }
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official, "piston-meta.mojang.com", "bmclapi2.bangbang93.com")]
+    [InlineData(DownloadSourcePreference.BmclApi, "bmclapi2.bangbang93.com", "piston-meta.mojang.com")]
+    public async Task SlowBodyRetriesPreferredSourceOnceThenSwitchesFallback(
+        DownloadSourcePreference preference,
+        string expectedPrimaryHost,
+        string expectedFallbackHost)
+    {
+        var clock = new ManualTimeProvider();
         var handler = new CallbackRequestHandler((requestNumber, request, _) =>
-        {
-            HttpContent content = requestNumber == 1
-                ? new StreamContent(new StableLowSpeedStream())
-                : new StringContent("{}");
-            if (requestNumber == 1)
-                content.Headers.ContentLength = 4 * 1024 * 1024;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                RequestMessage = request,
-                Content = content
-            });
-        });
+            Task.FromResult(requestNumber <= 2
+                ? CreateSlowResponse(request, clock)
+                : CreateResponse(HttpStatusCode.OK, "{}", request)));
         using var httpClient = CreateClient(handler);
-        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
-        {
-            MaxAttemptsPerSource = 4,
-            RetryDelay = TimeSpan.Zero,
-            ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
-            BodyIdleTimeout = TimeSpan.FromSeconds(1),
-        });
+        var executor = CreateExecutor(httpClient, CreateSlowBodyOptions(), timeProvider: clock);
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            preference,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal(
+            [expectedPrimaryHost, expectedPrimaryHost, expectedFallbackHost],
+            handler.RequestUris.Select(uri => uri.Host));
+    }
+
+    [Fact]
+    public async Task AutoPreferenceRetriesCurrentSourceOnceThenSwitchesFallback()
+    {
+        var clock = new ManualTimeProvider();
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(requestNumber <= 2
+                ? CreateSlowResponse(request, clock)
+                : CreateResponse(HttpStatusCode.OK, "{}", request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, CreateSlowBodyOptions(), timeProvider: clock);
 
         var result = await executor.ExecuteAsync(
             ManifestUrl,
             DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal(handler.RequestUris[0], handler.RequestUris[1]);
+        Assert.NotEqual(handler.RequestUris[1], handler.RequestUris[2]);
+    }
+
+    [Fact]
+    public async Task FinalCandidateDisablesSlowWatchdogForLastFallbackAttempt()
+    {
+        var clock = new ManualTimeProvider();
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateSlowResponse(request, clock)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, CreateSlowBodyOptions(), timeProvider: clock);
+
+        var result = await executor.ExecuteAsync(
+            "https://downloads.example.test/files/archive.json",
+            DownloadSourcePreference.Auto,
+            categoryHint: "ThirdParty",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal(3, handler.RequestUris.Count);
+        Assert.All(handler.RequestUris, uri => Assert.Equal("downloads.example.test", uri.Host));
+    }
+
+    [Fact]
+    public async Task SlowKnownFinalChunkCompletesWithoutDisconnecting()
+    {
+        var clock = new ManualTimeProvider();
+        var handler = new CallbackRequestHandler((_, request, _) =>
+        {
+            var response = CreateSlowResponse(request, clock);
+            response.Content.Headers.ContentLength = 2;
+            return Task.FromResult(response);
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, CreateSlowBodyOptions(), timeProvider: clock);
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
             categoryHint: "Mojang",
             async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
             CancellationToken.None);
@@ -234,8 +440,11 @@ public sealed class MinecraftDownloadRetryTests
         Assert.Equal(2, handler.RequestUris.Count);
     }
 
-    [Fact]
-    public async Task InvalidJsonSwitchesSourceWithoutRetry()
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official)]
+    [InlineData(DownloadSourcePreference.BmclApi)]
+    public async Task InvalidJsonSwitchesFromPreferredToFallbackWithoutRetry(
+        DownloadSourcePreference preference)
     {
         var handler = new CallbackRequestHandler((requestNumber, request, _) =>
             Task.FromResult(CreateResponse(
@@ -247,7 +456,7 @@ public sealed class MinecraftDownloadRetryTests
 
         await executor.ExecuteAsync(
             ManifestUrl,
-            DownloadSourcePreference.Auto,
+            preference,
             categoryHint: "Mojang",
             async (context, token) =>
             {
@@ -258,6 +467,7 @@ public sealed class MinecraftDownloadRetryTests
             CancellationToken.None);
 
         Assert.Equal(2, handler.RequestUris.Count);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
     }
 
     [Fact]
@@ -363,7 +573,10 @@ public sealed class MinecraftDownloadRetryTests
                 async (context, token) => await context.Response.Content.ReadAsByteArrayAsync(token),
                 CancellationToken.None));
 
-        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.Equal(4, handler.RequestUris.Count);
+        Assert.Equal(handler.RequestUris[0], handler.RequestUris[1]);
+        Assert.Equal(handler.RequestUris[2], handler.RequestUris[3]);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[2]);
     }
 
     [Fact]
@@ -392,7 +605,10 @@ public sealed class MinecraftDownloadRetryTests
                 static (_, _) => Task.FromResult(true),
                 CancellationToken.None));
 
-        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.Equal(4, handler.RequestUris.Count);
+        Assert.Equal(handler.RequestUris[0], handler.RequestUris[1]);
+        Assert.Equal(handler.RequestUris[2], handler.RequestUris[3]);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[2]);
     }
 
     [Fact]
@@ -706,6 +922,145 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public async Task SlowBodyDisconnectPersistsChunkAndResumesSameSource()
+    {
+        var clock = new ManualTimeProvider();
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var first = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new StreamContent(new TimedChunkReadStream(
+                        clock,
+                        ((byte)'p', TimeSpan.Zero),
+                        ((byte)'a', TimeSpan.Zero),
+                        ((byte)'r', TimeSpan.Zero),
+                        ((byte)'t', TimeSpan.FromSeconds(6))))
+                };
+                first.Headers.ETag = new EntityTagHeaderValue("\"stable\"");
+                first.Content.Headers.ContentLength = 8;
+                return Task.FromResult(first);
+            }
+
+            Assert.Equal("bytes=4-", request.Headers.Range?.ToString());
+            Assert.Equal("\"stable\"", request.Headers.GetValues("If-Range").Single());
+            var resumed = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent("data"u8.ToArray())
+            };
+            resumed.Headers.ETag = new EntityTagHeaderValue("\"stable\"");
+            resumed.Content.Headers.ContentLength = 4;
+            resumed.Content.Headers.ContentRange = new ContentRangeHeaderValue(4, 7, 8);
+            return Task.FromResult(resumed);
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client, CreateSlowBodyOptions(), timeProvider: clock);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "client.jar");
+
+        try
+        {
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                "Mojang",
+                destination,
+                Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
+                8,
+                CancellationToken.None);
+
+            Assert.Equal(2, handler.RequestUris.Count);
+            Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
+            Assert.False(File.Exists(destination + ".part"));
+            Assert.False(File.Exists(destination + ".part.meta"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SlowBodyResumeWithMismatchedValidatorRestartsNextSourceFromZero()
+    {
+        var clock = new ManualTimeProvider();
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var first = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new StreamContent(new TimedChunkReadStream(
+                        clock,
+                        ((byte)'p', TimeSpan.Zero),
+                        ((byte)'a', TimeSpan.Zero),
+                        ((byte)'r', TimeSpan.Zero),
+                        ((byte)'t', TimeSpan.FromSeconds(6))))
+                };
+                first.Headers.ETag = new EntityTagHeaderValue("\"stable\"");
+                first.Content.Headers.ContentLength = 8;
+                return Task.FromResult(first);
+            }
+
+            if (requestNumber == 2)
+            {
+                Assert.Equal("bytes=4-", request.Headers.Range?.ToString());
+                Assert.Equal("\"stable\"", request.Headers.GetValues("If-Range").Single());
+                var mismatched = new HttpResponseMessage(HttpStatusCode.PartialContent)
+                {
+                    RequestMessage = request,
+                    Content = new ByteArrayContent("data"u8.ToArray())
+                };
+                mismatched.Headers.ETag = new EntityTagHeaderValue("\"changed\"");
+                mismatched.Content.Headers.ContentLength = 4;
+                mismatched.Content.Headers.ContentRange = new ContentRangeHeaderValue(4, 7, 8);
+                return Task.FromResult(mismatched);
+            }
+
+            Assert.Null(request.Headers.Range);
+            Assert.False(request.Headers.Contains("If-Range"));
+            var fallback = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent("partdata"u8.ToArray())
+            };
+            fallback.Headers.ETag = new EntityTagHeaderValue("\"fallback\"");
+            fallback.Content.Headers.ContentLength = 8;
+            return Task.FromResult(fallback);
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client, CreateSlowBodyOptions(), timeProvider: clock);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "client.jar");
+
+        try
+        {
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                "Mojang",
+                destination,
+                Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
+                8,
+                CancellationToken.None);
+
+            Assert.Equal(3, handler.RequestUris.Count);
+            Assert.Equal("piston-meta.mojang.com", handler.RequestUris[0].Host);
+            Assert.Equal("piston-meta.mojang.com", handler.RequestUris[1].Host);
+            Assert.Equal("bmclapi2.bangbang93.com", handler.RequestUris[2].Host);
+            Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task LightweightAssetReusesPreviouslyVerifiedTargetWithoutNetwork()
     {
         var handler = new CallbackRequestHandler((_, request, _) =>
@@ -956,6 +1311,19 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public void DefaultResponseHeadersTimeoutIsTenSeconds()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(10), DownloadRetryOptions.Default.ResponseHeadersTimeout);
+    }
+
+    [Fact]
+    public void DefaultSlowBodyWatchdogMatchesPclThresholds()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(5), DownloadRetryOptions.Default.SlowBodyReadThreshold);
+        Assert.Equal(1024, DownloadRetryOptions.Default.MinimumBodyBytesPerSecond);
+    }
+
+    [Fact]
     public void TransportHandlerUsesSystemProxyAndManualRedirects()
     {
         using var handler = MinecraftHttpClientFactory.CreateTransportHandler();
@@ -1116,7 +1484,7 @@ public sealed class MinecraftDownloadRetryTests
     {
         var tracker = new DownloadHostHealthTracker();
         tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.Network);
-        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.BodyIdleTimeout);
+        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.BodyTooSlow);
         Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
 
         tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.ResponseHeadersTimeout);
@@ -1205,7 +1573,8 @@ public sealed class MinecraftDownloadRetryTests
     private static MinecraftDownloadRequestExecutor CreateExecutor(
         HttpClient httpClient,
         DownloadRetryOptions? options = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        TimeProvider? timeProvider = null)
     {
         return new MinecraftDownloadRequestExecutor(
             httpClient,
@@ -1216,6 +1585,8 @@ public sealed class MinecraftDownloadRetryTests
                 nextJitter: () => 0,
                 delayAsync: static (_, _) => ValueTask.CompletedTask),
             nextRetryJitter: () => 0,
+            bmclApiRequestRateLimiter: new BmclApiRequestRateLimiter(TimeSpan.Zero),
+            timeProvider: timeProvider,
             retryOptions: options ?? new DownloadRetryOptions
             {
                 MaxAttemptsPerSource = 4,
@@ -1224,6 +1595,32 @@ public sealed class MinecraftDownloadRetryTests
                 BodyIdleTimeout = TimeSpan.FromSeconds(1),
                 MaxRedirects = 10
             });
+    }
+
+    private static DownloadRetryOptions CreateSlowBodyOptions() => new()
+    {
+        MaxAttemptsPerSource = 4,
+        RetryDelay = TimeSpan.Zero,
+        ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+        FirstByteTimeout = TimeSpan.FromSeconds(20),
+        BodyIdleTimeout = TimeSpan.FromSeconds(20),
+        SlowBodyReadThreshold = TimeSpan.FromSeconds(5),
+        MinimumBodyBytesPerSecond = 1024,
+        MaxRedirects = 10
+    };
+
+    private static HttpResponseMessage CreateSlowResponse(
+        HttpRequestMessage request,
+        ManualTimeProvider timeProvider)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            RequestMessage = request,
+            Content = new StreamContent(new TimedChunkReadStream(
+                timeProvider,
+                ((byte)'{', TimeSpan.Zero),
+                ((byte)'}', TimeSpan.FromSeconds(6))))
+        };
     }
 
     private static HttpClient CreateClient(HttpMessageHandler handler)
@@ -1346,9 +1743,21 @@ public sealed class MinecraftDownloadRetryTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class StableLowSpeedStream : Stream
+    private sealed class ManualTimeProvider : TimeProvider
     {
-        private int reads;
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Interlocked.Read(ref timestamp);
+
+        public void Advance(TimeSpan duration) => Interlocked.Add(ref timestamp, duration.Ticks);
+    }
+
+    private sealed class TimedChunkReadStream(
+        ManualTimeProvider timeProvider,
+        params (byte Value, TimeSpan Elapsed)[] chunks) : Stream
+    {
+        private int readIndex;
 
         public override bool CanRead => true;
         public override bool CanSeek => false;
@@ -1358,24 +1767,18 @@ public sealed class MinecraftDownloadRetryTests
         public override void Flush() { }
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
-        public override async ValueTask<int> ReadAsync(
+        public override ValueTask<int> ReadAsync(
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
-            if (reads++ == 0)
-            {
-                buffer.Span[0] = (byte)'{';
-                return 1;
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (readIndex >= chunks.Length)
+                return ValueTask.FromResult(0);
 
-            if (reads == 2)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
-                buffer.Span[0] = (byte)'}';
-                return 1;
-            }
-
-            return 0;
+            var chunk = chunks[readIndex++];
+            timeProvider.Advance(chunk.Elapsed);
+            buffer.Span[0] = chunk.Value;
+            return ValueTask.FromResult(1);
         }
 
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

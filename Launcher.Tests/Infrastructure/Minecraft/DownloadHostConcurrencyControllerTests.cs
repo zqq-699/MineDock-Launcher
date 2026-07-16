@@ -267,6 +267,14 @@ public sealed class DownloadHostConcurrencyControllerTests
             DownloadHostConcurrencyController.ClassifyResult(DownloadFailureReason.HttpStatus, statusCode));
     }
 
+    [Fact]
+    public void SlowBodyFailureCountsAsHostCongestion()
+    {
+        Assert.Equal(
+            DownloadHostResultKind.CongestionFailure,
+            DownloadHostConcurrencyController.ClassifyResult(DownloadFailureReason.BodyTooSlow, statusCode: null));
+    }
+
     private static DownloadHostConcurrencyController CreateController(TestTimeProvider clock) => new(
         timeProvider: clock,
         maximumJitter: TimeSpan.Zero,

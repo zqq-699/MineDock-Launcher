@@ -48,6 +48,7 @@ internal sealed class DownloadHostHealthTracker
     internal static bool AffectsHealth(DownloadFailureReason reason, System.Net.HttpStatusCode? statusCode = null) => reason is
         DownloadFailureReason.Dns or DownloadFailureReason.Network or DownloadFailureReason.ResponseHeadersTimeout
         or DownloadFailureReason.FirstByteTimeout or DownloadFailureReason.BodyIdleTimeout
+        or DownloadFailureReason.BodyTooSlow
         or DownloadFailureReason.BodyInterrupted
         || (reason is DownloadFailureReason.HttpStatus && statusCode is { } code && (int)code is >= 500 and <= 599);
 

@@ -2739,10 +2739,10 @@ The current game folder will be backed up first.</value>
     <value>Auto</value>
   </data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve">
-    <value>Official Source</value>
+    <value>Prefer Official</value>
   </data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve">
-    <value>BMCLAPI Mirror</value>
+    <value>Prefer BMCLAPI</value>
   </data>
   <data name="Settings_LanguageSection" xml:space="preserve">
     <value>Launcher Language</value>

@@ -2739,10 +2739,10 @@
     <value>自動選択</value>
   </data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve">
-    <value>公式ダウンロードソース</value>
+    <value>公式ソース優先</value>
   </data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve">
-    <value>BMCLAPI</value>
+    <value>BMCLAPI 優先</value>
   </data>
   <data name="Settings_LanguageSection" xml:space="preserve">
     <value>ランチャー言語</value>

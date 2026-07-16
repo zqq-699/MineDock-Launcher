@@ -47,9 +47,6 @@ internal static class MinecraftDownloadSourceResolver
         var primary = ResolveRequest(originalUrl, preference, useBmclApi: useBmclApiFirst, categoryHint);
         yield return primary;
 
-        if (preference is not DownloadSourcePreference.Auto)
-            yield break;
-
         var fallback = ResolveRequest(originalUrl, preference, useBmclApi: !useBmclApiFirst, categoryHint);
         if (string.Equals(primary.ActualUrl, fallback.ActualUrl, StringComparison.OrdinalIgnoreCase)
             && string.Equals(primary.ResolvedSourceKind, fallback.ResolvedSourceKind, StringComparison.Ordinal))

@@ -2739,10 +2739,10 @@
     <value>自動選擇</value>
   </data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve">
-    <value>官方下載來源</value>
+    <value>官方來源優先</value>
   </data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve">
-    <value>BMCLAPI</value>
+    <value>BMCLAPI 優先</value>
   </data>
   <data name="Settings_LanguageSection" xml:space="preserve">
     <value>啟動器語言</value>

@@ -28,9 +28,11 @@ internal sealed record DownloadRetryOptions
 
     public int MaxAttemptsPerSource { get; init; } = 4;
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(1);
-    public TimeSpan ResponseHeadersTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan ResponseHeadersTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan FirstByteTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan BodyIdleTimeout { get; init; } = TimeSpan.FromSeconds(12);
+    public TimeSpan SlowBodyReadThreshold { get; init; } = TimeSpan.FromSeconds(5);
+    public long MinimumBodyBytesPerSecond { get; init; } = 1024;
     public TimeSpan MaximumRetryAfter { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(30);
     public int MaxRedirects { get; init; } = 20;
@@ -50,6 +52,7 @@ internal enum DownloadFailureReason
     ResponseHeadersTimeout,
     FirstByteTimeout,
     BodyIdleTimeout,
+    BodyTooSlow,
     BodyInterrupted,
     HttpStatus,
     InvalidRedirect,
@@ -120,6 +123,28 @@ internal sealed class DownloadTimeoutException : DownloadAttemptException
         : base(DownloadFailureDisposition.RetryCurrentSource, reason, message, innerException)
     {
     }
+}
+
+internal sealed class DownloadBodyTooSlowException : DownloadAttemptException
+{
+    public DownloadBodyTooSlowException(int bytesRead, TimeSpan readDuration)
+        : base(
+            DownloadFailureDisposition.RetryCurrentSource,
+            DownloadFailureReason.BodyTooSlow,
+            $"The response body produced {bytesRead} bytes in {readDuration.TotalMilliseconds:0} ms "
+            + $"({CalculateBytesPerSecond(bytesRead, readDuration):0.##} B/s).")
+    {
+        BytesRead = bytesRead;
+        ReadDuration = readDuration;
+        BytesPerSecond = CalculateBytesPerSecond(bytesRead, readDuration);
+    }
+
+    public int BytesRead { get; }
+    public TimeSpan ReadDuration { get; }
+    public double BytesPerSecond { get; }
+
+    private static double CalculateBytesPerSecond(int bytesRead, TimeSpan readDuration) =>
+        readDuration.TotalSeconds <= 0 ? double.PositiveInfinity : bytesRead / readDuration.TotalSeconds;
 }
 
 internal sealed class DownloadContentValidationException : DownloadAttemptException
