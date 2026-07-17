@@ -336,7 +336,7 @@ internal sealed class GameInstanceCreationCoordinator
             LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             return InstallInstanceAsync(
@@ -357,7 +357,7 @@ internal sealed class GameInstanceCreationCoordinator
             LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)

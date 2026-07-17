@@ -478,7 +478,7 @@ public sealed class DownloadViewModelTests
             null,
             null,
             "Vanilla",
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             0);
     }
 
@@ -497,7 +497,7 @@ public sealed class DownloadViewModelTests
     private sealed class StubGameVersionService(IReadOnlyList<MinecraftVersionInfo> versions) : IGameVersionService
     {
         public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0)
         {

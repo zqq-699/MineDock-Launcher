@@ -37,7 +37,7 @@ public interface IModpackPackageService
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 
     Task CopyOverridesAsync(
@@ -57,7 +57,7 @@ public interface IModpackPackageService
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 
     Task CleanupAsync(

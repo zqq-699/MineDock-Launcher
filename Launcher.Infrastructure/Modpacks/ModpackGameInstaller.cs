@@ -86,7 +86,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         ValidateTarget(target);
@@ -137,7 +137,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         ValidateTarget(target);

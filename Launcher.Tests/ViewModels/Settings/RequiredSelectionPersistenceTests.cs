@@ -83,7 +83,7 @@ public sealed class RequiredSelectionPersistenceTests
     {
         var settings = new LauncherSettings
         {
-            DownloadSourcePreference = DownloadSourcePreference.Official,
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
             LauncherLanguage = LauncherLanguages.English,
             DefaultMemorySettingsMode = MemorySettingsMode.Manual,
             JavaSelectionMode = JavaSelectionMode.Manual,
@@ -97,7 +97,7 @@ public sealed class RequiredSelectionPersistenceTests
         viewModel.PrimeFromSettings(settings);
 
         viewModel.Download.SelectedDownloadSourceOption = viewModel.Download.DownloadSourceOptions.Single(option =>
-            option.Preference is DownloadSourcePreference.Auto);
+            option.Preference is DownloadSourcePreference.Official);
         viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single(option =>
             option.Id == LauncherLanguages.SimplifiedChinese);
         viewModel.LaunchMemory.SelectedMemoryModeOption = viewModel.LaunchMemory.MemoryModeOptions.Single(option =>
@@ -112,7 +112,7 @@ public sealed class RequiredSelectionPersistenceTests
             option.Channel == LauncherDefaults.DefaultUpdateChannel);
         await viewModel.FlushPendingSettingsAsync();
 
-        Assert.Equal(DownloadSourcePreference.Auto, settings.DownloadSourcePreference);
+        Assert.Equal(LauncherDefaults.DefaultDownloadSourcePreference, settings.DownloadSourcePreference);
         Assert.Equal(LauncherLanguages.SimplifiedChinese, settings.LauncherLanguage);
         Assert.Equal(MemorySettingsMode.Auto, settings.DefaultMemorySettingsMode);
         Assert.Equal(JavaSelectionMode.Auto, settings.JavaSelectionMode);

@@ -107,7 +107,7 @@ private bool CanHandleLocalImportDropCore(IReadOnlyList<string> paths)
             string archivePath,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             return Task.FromResult(ModpackImportResult.Failure(ModpackImportFailureReason.UnsupportedArchive));

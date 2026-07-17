@@ -14,6 +14,25 @@ namespace Launcher.Tests.ViewModels.Settings;
 public sealed class DownloadSettingsViewModelTests
 {
     [Fact]
+    public void DownloadSourceOptionsContainOnlyOfficialAndBmclApiWithOfficialSelectedByDefault()
+    {
+        var settings = new LauncherSettings();
+        using var persistence = new SettingsPersistenceCoordinator(
+            new TestSettingsService(settings),
+            new RecordingStatusService(),
+            NullLogger.Instance);
+        persistence.Prime(settings);
+        var viewModel = new DownloadSettingsViewModel(persistence);
+
+        viewModel.Load(settings);
+
+        Assert.Equal(
+            [DownloadSourcePreference.Official, DownloadSourcePreference.BmclApi],
+            viewModel.DownloadSourceOptions.Select(option => option.Preference));
+        Assert.Equal(DownloadSourcePreference.Official, viewModel.SelectedDownloadSourceOption?.Preference);
+    }
+
+    [Fact]
     public async Task MaximumDownloadConcurrencyPersistsAndRaisesRuntimeEvent()
     {
         var settings = new LauncherSettings

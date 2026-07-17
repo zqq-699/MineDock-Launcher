@@ -69,7 +69,7 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
             "0.29.2",
             "1.20.2-quilt-0.29.2",
             minecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var versionDirectories = Directory.GetDirectories(versionsDirectory)

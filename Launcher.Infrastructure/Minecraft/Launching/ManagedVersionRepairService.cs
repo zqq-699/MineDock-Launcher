@@ -37,7 +37,7 @@ internal interface IManagedVersionRepairService
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 }
 
@@ -91,7 +91,7 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         return RepairWithOperationAsync(
@@ -139,7 +139,7 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
         bool allowRepair,
         MinecraftDownloadOperationContext? operationContext,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0,
         GameFileLoaderIdentity? loaderIdentity = null)
     {

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
@@ -33,7 +33,7 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
-    private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
+    private DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference;
     private int downloadSpeedLimitMbPerSecond;
 
     [ObservableProperty]

@@ -270,7 +270,7 @@ internal sealed class ResourceProjectStorage
             {
                 await executor.DownloadFileAsync(
                     urls,
-                    settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                    settings?.DownloadSourcePreference ?? LauncherDefaults.DefaultDownloadSourcePreference,
                     "ThirdParty",
                     tempPath,
                     new DownloadIntegrityExpectation(
@@ -285,7 +285,7 @@ internal sealed class ResourceProjectStorage
             {
                 await executor.DownloadFileAsync(
                     urls,
-                    settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                    settings?.DownloadSourcePreference ?? LauncherDefaults.DefaultDownloadSourcePreference,
                     "ThirdParty",
                     tempPath,
                     expectedSha1: null,

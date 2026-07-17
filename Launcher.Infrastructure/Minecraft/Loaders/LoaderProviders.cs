@@ -54,7 +54,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -68,7 +68,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         string isolatedVersionName,
         string? loaderVersion,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -296,7 +296,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
     internal static MinecraftLauncher CreateLauncher(
         string gameDirectory,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
@@ -317,7 +317,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
     internal static MinecraftLauncher CreateLauncher(
         MinecraftPath path,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,

@@ -329,7 +329,7 @@ public sealed class ModrinthService : IModrinthService
         progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{projectTitle} {version.VersionNumber}"));
         await executor.DownloadFileAsync(
                 file.Url,
-                settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                settings?.DownloadSourcePreference ?? LauncherDefaults.DefaultDownloadSourcePreference,
                 "ThirdParty",
                 target,
                 integrity,

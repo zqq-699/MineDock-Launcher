@@ -287,11 +287,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         public Task<PreparedModpack> PrepareAsync(string archivePath, CancellationToken cancellationToken = default,
             IProgress<LauncherProgress>? progress = null) => Task.FromResult(prepared);
         public Task InstallContentAsync(PreparedModpack modpack, GameInstance instance, IProgress<LauncherProgress>? progress,
-            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0) => Task.CompletedTask;
         public Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(PreparedModpack modpack, GameInstance instance,
             IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto, int downloadSpeedLimitMbPerSecond = 0)
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference, int downloadSpeedLimitMbPerSecond = 0)
         {
             DownloadCount++;
             DownloadStarted.TrySetResult();
@@ -318,7 +318,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         public int LoaderCount { get; private set; }
         public Task<string> InstallLoaderAsync(string minecraftVersion, LoaderKind loader, string? loaderVersion,
             LoaderInstallTarget target, IProgress<LauncherProgress>? progress,
-            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             LoaderCount++;
@@ -328,7 +328,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         }
         public Task<string> InstallInstanceAsync(string minecraftVersion, LoaderKind loader, string? loaderVersion,
             LoaderInstallTarget target, IProgress<LauncherProgress>? progress,
-            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(target.LogicalVersionName);
     }
 
@@ -350,7 +350,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             var call = Interlocked.Increment(ref loaderCount);
@@ -379,7 +379,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(target.LogicalVersionName);
 
         public void ReleaseFirstInstall() => releaseFirstInstall.TrySetResult();

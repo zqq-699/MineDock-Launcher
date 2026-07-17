@@ -24,7 +24,7 @@ namespace Launcher.Application.Services;
 public interface IGameVersionService
 {
     Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0);
 }

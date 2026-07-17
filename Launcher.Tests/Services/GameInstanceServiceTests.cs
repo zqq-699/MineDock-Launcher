@@ -175,7 +175,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var initialSettings = await settingsService.LoadAsync();
         initialSettings.MinecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         initialSettings.Theme = "Dark";
-        initialSettings.DownloadSourcePreference = DownloadSourcePreference.Auto;
+        initialSettings.DownloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference;
         initialSettings.DefaultMemoryMb = 4096;
         await settingsService.SaveAsync(initialSettings);
 

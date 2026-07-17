@@ -657,7 +657,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
 
         public Task RepairAsync(string minecraftDirectory, string versionName, string instanceDirectory,
             IProgress<LauncherProgress>? progress, bool allowRepair, CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             LastVersionName = versionName;

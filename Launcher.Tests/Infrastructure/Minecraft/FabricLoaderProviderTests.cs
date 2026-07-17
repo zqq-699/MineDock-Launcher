@@ -37,7 +37,7 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             "1.20.2",
             "1.20.2",
             minecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var versionDirectories = Directory.GetDirectories(versionsDirectory)
@@ -122,7 +122,7 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             "0.19.3",
             "1.20.2-fabric-0.19.3",
             minecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var versionDirectories = Directory.GetDirectories(versionsDirectory)
@@ -150,7 +150,7 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             "0.19.3",
             "1.20.2-fabric-0.19.3",
             sandboxMinecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
 
         var sandboxVersionDirectory = Path.Combine(sandboxMinecraftDirectory, "versions", finalVersionName);
         var sharedVersionDirectory = Path.Combine(sharedMinecraftDirectory, "versions", finalVersionName);

@@ -156,7 +156,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             "Imported NeoForge Pack",
             "20.4.237",
             progress: null,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken.None,
             downloadSpeedLimitMbPerSecond: 0);
 

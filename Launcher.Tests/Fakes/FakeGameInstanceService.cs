@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
@@ -45,7 +45,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
     public string? LastName { get; private set; }
-    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = LauncherDefaults.DefaultDownloadSourcePreference;
     public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public bool LastInstallFabricApi { get; private set; } = true;
     public string? LastFabricApiVersionId { get; private set; }
@@ -111,7 +111,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         string? name,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0,
         bool installFabricApi = true,
         string? fabricApiVersionId = null,

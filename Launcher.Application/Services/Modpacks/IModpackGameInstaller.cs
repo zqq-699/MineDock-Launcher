@@ -30,7 +30,7 @@ public interface IModpackGameInstaller
         LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 
     Task<string> InstallInstanceAsync(
@@ -40,6 +40,6 @@ public interface IModpackGameInstaller
         LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 }

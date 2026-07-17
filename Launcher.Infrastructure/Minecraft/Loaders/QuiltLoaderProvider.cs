@@ -51,7 +51,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
 
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -117,7 +117,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
         string isolatedVersionName,
         string? loaderVersion,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {

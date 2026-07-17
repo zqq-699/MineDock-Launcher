@@ -959,7 +959,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
 
         public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
             string minecraftVersion,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) =>
             Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("fake")]);
@@ -970,7 +970,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
             string isolatedVersionName,
             string? loaderVersion,
             IProgress<LauncherProgress>? progress,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) =>
             throw new InvalidOperationException("The separated install path was not selected.");
@@ -1010,7 +1010,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
 
         public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
             string minecraftVersion,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) =>
             Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("fake")]);
@@ -1021,7 +1021,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
             string isolatedVersionName,
             string? loaderVersion,
             IProgress<LauncherProgress>? progress,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) =>
             throw new InvalidOperationException("The staged install path was not selected.");

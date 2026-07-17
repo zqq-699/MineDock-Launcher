@@ -31,6 +31,6 @@ public interface ILocalModpackImportService
         string archivePath,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0);
 }

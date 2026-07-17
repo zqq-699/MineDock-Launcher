@@ -98,7 +98,7 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
     /// </summary>
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -123,7 +123,7 @@ public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoader
         string isolatedVersionName,
         string? loaderVersion,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {

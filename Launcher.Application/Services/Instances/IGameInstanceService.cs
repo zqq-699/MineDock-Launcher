@@ -33,7 +33,7 @@ public interface IGameInstanceService
         string? name,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0,
         bool installFabricApi = true,
         string? fabricApiVersionId = null,

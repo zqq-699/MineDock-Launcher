@@ -294,7 +294,7 @@ public sealed class GameSettingsInstanceListViewModelTests
     private sealed class StubGameVersionService(IReadOnlyList<MinecraftVersionInfo> versions) : IGameVersionService
     {
         public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(versions);
     }
@@ -308,7 +308,7 @@ public sealed class GameSettingsInstanceListViewModelTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0)
         {

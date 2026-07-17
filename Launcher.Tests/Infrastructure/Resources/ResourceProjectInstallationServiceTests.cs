@@ -451,7 +451,7 @@ public sealed class ResourceProjectInstallationServiceTests
             string archivePath,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             return exception is null
@@ -471,7 +471,7 @@ public sealed class ResourceProjectInstallationServiceTests
             string archivePath,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
             int downloadSpeedLimitMbPerSecond = 0)
         {
             var id = await File.ReadAllTextAsync(archivePath, cancellationToken);

@@ -292,11 +292,10 @@ public sealed class JsonSettingsService : ISettingsService
             settings.DefaultMemorySettingsMode = MemorySettingsMode.Auto;
         }
 
-        if (settings.DownloadSourcePreference is not DownloadSourcePreference.Auto
-            && settings.DownloadSourcePreference is not DownloadSourcePreference.Official
+        if (settings.DownloadSourcePreference is not DownloadSourcePreference.Official
             && settings.DownloadSourcePreference is not DownloadSourcePreference.BmclApi)
         {
-            settings.DownloadSourcePreference = DownloadSourcePreference.Auto;
+            settings.DownloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference;
         }
 
         if (settings.DownloadSpeedLimitMbPerSecond < 0)

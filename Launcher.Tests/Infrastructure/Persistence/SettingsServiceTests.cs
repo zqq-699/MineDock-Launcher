@@ -137,6 +137,39 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.True(loaded.HasAcceptedUserAgreement);
     }
 
+    [Theory]
+    [InlineData(DownloadSourcePreference.Official)]
+    [InlineData(DownloadSourcePreference.BmclApi)]
+    public async Task DownloadSourcePreferenceRoundTrips(DownloadSourcePreference preference)
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.DownloadSourcePreference = preference;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(preference, loaded.DownloadSourcePreference);
+    }
+
+    [Theory]
+    [InlineData("{}", DownloadSourcePreference.Official)]
+    [InlineData("{\"DownloadSourcePreference\":0}", DownloadSourcePreference.Official)]
+    [InlineData("{\"DownloadSourcePreference\":99}", DownloadSourcePreference.Official)]
+    [InlineData("{\"DownloadSourcePreference\":1}", DownloadSourcePreference.Official)]
+    [InlineData("{\"DownloadSourcePreference\":2}", DownloadSourcePreference.BmclApi)]
+    public async Task DownloadSourcePreferenceLoadsWithOfficialDefaultAndLegacyMigration(
+        string json,
+        DownloadSourcePreference expected)
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"), json);
+
+        var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
+
+        Assert.Equal(expected, loaded.DownloadSourcePreference);
+    }
+
     [Fact]
     public async Task InvalidValuesAreNormalizedTogether()
     {

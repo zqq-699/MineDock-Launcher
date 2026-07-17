@@ -516,7 +516,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             "Imported Forge Pack",
             "47.4.20",
             progress: null,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             CancellationToken.None,
             downloadSpeedLimitMbPerSecond: 0);
 

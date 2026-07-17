@@ -70,26 +70,6 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Theory]
-    [InlineData("China Standard Time", BmclManifestUrl, ManifestUrl)]
-    [InlineData("UTC", ManifestUrl, BmclManifestUrl)]
-    public void AutoPreferenceKeepsTimeZoneBasedOrdering(
-        string timeZoneId,
-        string expectedPrimaryUrl,
-        string expectedFallbackUrl)
-    {
-        var requests = MinecraftDownloadSourceResolver
-            .EnumerateRequests(
-                ManifestUrl,
-                DownloadSourcePreference.Auto,
-                categoryHint: "Mojang",
-                localTimeZoneIdProvider: () => timeZoneId)
-            .ToArray();
-
-        Assert.Equal([expectedPrimaryUrl, expectedFallbackUrl], requests.Select(request => request.ActualUrl));
-    }
-
-    [Theory]
-    [InlineData(DownloadSourcePreference.Auto)]
     [InlineData(DownloadSourcePreference.Official)]
     [InlineData(DownloadSourcePreference.BmclApi)]
     public void ThirdPartyAddressProducesSingleCandidate(DownloadSourcePreference preference)
@@ -223,7 +203,7 @@ public sealed class MinecraftDownloadRetryTests
 
         var result = await executor.ExecuteAsync(
             ManifestUrl,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             categoryHint: "Mojang",
             async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
             CancellationToken.None);
@@ -292,7 +272,7 @@ public sealed class MinecraftDownloadRetryTests
 
         var result = await executor.ExecuteAsync(
             ManifestUrl,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             categoryHint: "Mojang",
             async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
             CancellationToken.None);
@@ -313,7 +293,7 @@ public sealed class MinecraftDownloadRetryTests
 
         var result = await executor.ExecuteAsync(
             "https://downloads.example.test/files/archive.json",
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             categoryHint: "ThirdParty",
             async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
             CancellationToken.None);
@@ -360,7 +340,7 @@ public sealed class MinecraftDownloadRetryTests
 
         await executor.ExecuteAsync(
             ManifestUrl,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             categoryHint: "Mojang",
             static (_, _) => Task.FromResult(true),
             CancellationToken.None);
@@ -383,7 +363,7 @@ public sealed class MinecraftDownloadRetryTests
         await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
             () => executor.ExecuteLookupAsync(
                 ManifestUrl,
-                DownloadSourcePreference.Auto,
+                LauncherDefaults.DefaultDownloadSourcePreference,
                 categoryHint: "Mojang",
                 static (_, _) => Task.FromResult<IReadOnlyList<string>>(["value"]),
                 statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
@@ -402,7 +382,7 @@ public sealed class MinecraftDownloadRetryTests
 
         var result = await executor.ExecuteLookupAsync(
             ManifestUrl,
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             categoryHint: "Mojang",
             static (_, _) => Task.FromResult<IReadOnlyList<string>>(["value"]),
             statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
@@ -426,7 +406,7 @@ public sealed class MinecraftDownloadRetryTests
         await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
             () => executor.ExecuteLookupAsync(
                 ManifestUrl,
-                DownloadSourcePreference.Auto,
+                LauncherDefaults.DefaultDownloadSourcePreference,
                 categoryHint: "Mojang",
                 async (context, token) =>
                 {
@@ -529,7 +509,7 @@ public sealed class MinecraftDownloadRetryTests
         {
             await executor.DownloadFileAsync(
                 ManifestUrl,
-                DownloadSourcePreference.Auto,
+                LauncherDefaults.DefaultDownloadSourcePreference,
                 categoryHint: "Mojang",
                 destination,
                 expectedSha1,
@@ -1001,7 +981,7 @@ public sealed class MinecraftDownloadRetryTests
         await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
             () => executor.ExecuteAsync(
                 ManifestUrl,
-                DownloadSourcePreference.Auto,
+                LauncherDefaults.DefaultDownloadSourcePreference,
                 categoryHint: "Mojang",
                 static (_, _) => Task.FromResult(true),
                 CancellationToken.None));
@@ -1516,7 +1496,7 @@ public sealed class MinecraftDownloadRetryTests
                 requestNumber == 1 ? "<html>error</html>" : "{\"versions\":[]}",
                 request)));
         using var httpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
-            DownloadSourcePreference.Auto,
+            LauncherDefaults.DefaultDownloadSourcePreference,
             DownloadConcurrencyCategory.Metadata,
             transport,
             limiter: new ImportConcurrencyLimiter(),

@@ -122,7 +122,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         ArgumentNullException.ThrowIfNull(preparedModpack);
@@ -179,7 +179,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         var manualDownloads = await DownloadFilesAsync(

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
@@ -36,7 +36,7 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
     public string? LastLoaderVersion { get; private set; }
-    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = LauncherDefaults.DefaultDownloadSourcePreference;
     public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeInstall { get; init; }
@@ -48,7 +48,7 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -76,7 +76,7 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         string isolatedVersionName,
         string? loaderVersion,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {

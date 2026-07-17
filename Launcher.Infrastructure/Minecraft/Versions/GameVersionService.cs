@@ -43,7 +43,7 @@ public sealed class GameVersionService : IGameVersionService
     }
 
     public async Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {

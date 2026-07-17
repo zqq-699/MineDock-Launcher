@@ -40,7 +40,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
     private Task? loadTask;
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
-    private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
+    private DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference;
     private int downloadSpeedLimitMbPerSecond;
 
     [ObservableProperty]

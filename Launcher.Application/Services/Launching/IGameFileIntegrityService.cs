@@ -40,7 +40,7 @@ public sealed record GameFileIntegrityRequest(
     string MinecraftDirectory,
     string VersionName,
     string InstanceDirectory,
-    DownloadSourcePreference DownloadSourcePreference = DownloadSourcePreference.Auto,
+    DownloadSourcePreference DownloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
     int DownloadSpeedLimitMbPerSecond = 0)
 {
     /// <summary>

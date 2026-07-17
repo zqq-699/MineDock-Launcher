@@ -105,7 +105,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         string archivePath,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         int downloadSpeedLimitMbPerSecond = 0)
     {
         // 会话记录每个阶段已经取得的资源，使成功与任意失败点都能按实际进度执行对应清理。

@@ -52,7 +52,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
 
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
@@ -104,7 +104,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
         string isolatedVersionName,
         string? loaderVersion,
         IProgress<LauncherProgress>? progress,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {

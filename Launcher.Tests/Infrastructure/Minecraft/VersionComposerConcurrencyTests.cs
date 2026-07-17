@@ -41,14 +41,14 @@ public sealed class VersionComposerConcurrencyTests : TestTempDirectory
             "0.19.3",
             "1.20.2-fabric-0.19.3",
             fabricMinecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
         var quiltTask = QuiltVersionComposer.CreateFinalVersionAsync(
             httpClient,
             "1.20.2",
             "0.29.2",
             "1.20.2-quilt-0.29.2",
             quiltMinecraftDirectory,
-            DownloadSourcePreference.Auto);
+            LauncherDefaults.DefaultDownloadSourcePreference);
 
         await Task.WhenAll(fabricTask, quiltTask).WaitAsync(TimeSpan.FromSeconds(5));
 

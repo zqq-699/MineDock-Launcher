@@ -50,7 +50,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
     private readonly DownloadModpackManualDownloadsDialogViewModel modpackManualDownloadsDialog;
     private readonly IExistingFilePathValidator existingFilePathValidator;
     private readonly ILogger<DownloadLocalImportDialogViewModel> logger;
-    private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
+    private DownloadSourcePreference downloadSourcePreference = LauncherDefaults.DefaultDownloadSourcePreference;
     private int downloadSpeedLimitMbPerSecond;
 
     [ObservableProperty]
