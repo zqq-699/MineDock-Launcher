@@ -258,9 +258,9 @@ public sealed class ResourcesModPageViewContractTests
     }
 
     [Theory]
-    [InlineData("ProjectList.LoadingMessage", "0,172,12,0")]
-    [InlineData("ProjectList.EmptyMessage", "0,172,12,0")]
-    [InlineData("ProjectList.LoadErrorMessage", "0,172,12,0")]
+    [InlineData("ProjectList.LoadingMessage", "0,132,12,0")]
+    [InlineData("ProjectList.EmptyMessage", "0,132,12,0")]
+    [InlineData("ProjectList.LoadErrorMessage", "0,132,12,0")]
     [InlineData("Versions.LoadingMessage", "0,172,12,64")]
     [InlineData("Versions.EmptyMessage", "0,172,12,64")]
     [InlineData("Versions.LoadErrorMessage", "0,172,12,64")]
@@ -272,6 +272,26 @@ public sealed class ResourcesModPageViewContractTests
             .Where(element => element.Attribute("Text")?.Value.Contains(bindingPath, StringComparison.Ordinal) == true));
 
         Assert.Equal(expectedMargin, message.Attribute("Margin")?.Value);
+    }
+
+    [Theory]
+    [InlineData("ResourcesModListBox", "132", "0,132,12,64")]
+    [InlineData("ResourcesModVersionListBox", "172", "0,172,0,64")]
+    public void ListOffsetsMatchTheirVisibleHeaderRows(string listName, string expectedOffset, string expectedPanelMargin)
+    {
+        var list = Assert.Single(LoadView()
+            .Descendants()
+            .Where(element => element.Name.LocalName == "ListBox")
+            .Where(element => element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Name" && attribute.Value == listName)));
+
+        var offset = Assert.Single(list.Attributes()
+            .Where(attribute => attribute.Name.LocalName.EndsWith(".ContentTopOffset", StringComparison.Ordinal)));
+        var panel = Assert.Single(list.Descendants()
+            .Where(element => element.Name.LocalName == "VirtualizingStackPanel"));
+
+        Assert.Equal(expectedOffset, offset.Value);
+        Assert.Equal(expectedPanelMargin, panel.Attribute("Margin")?.Value);
     }
 
     private static XElement FindDetailRow(XDocument document, string labelKey)

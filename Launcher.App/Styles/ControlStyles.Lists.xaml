@@ -207,7 +207,7 @@
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Root"
                             Background="Transparent"
-                            CornerRadius="10">
+                            CornerRadius="{Binding SearchBoxCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="12"
                                               Color="{DynamicResource Color.000000}"
@@ -220,9 +220,9 @@
                                     Opacity="1"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="10"
+                                    CornerRadius="{Binding SearchBoxCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}"
                                     ClipToBounds="True"
-                                    behaviors:RoundedClip.Radius="10" />
+                                    behaviors:RoundedClip.Radius="{Binding SearchBoxCornerRadius.TopLeft, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}" />
                             <controls:SvgIcon Width="15"
                                               Height="15"
                                               Margin="8,0,0,0"

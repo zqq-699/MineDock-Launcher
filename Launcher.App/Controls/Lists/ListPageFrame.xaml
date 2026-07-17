@@ -280,11 +280,37 @@
                         </Style>
                     </Grid.Style>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBox Tag="{Binding ElementName=PART_ListLayer}"
+                    <ContentPresenter Grid.Column="0"
+                                      Content="{Binding SearchLeadingContent, ElementName=Root}"
+                                      ContentTemplate="{Binding SearchLeadingContentTemplate, ElementName=Root}"
+                                      DataContext="{Binding DataContext, ElementName=Root}"
+                                      VerticalAlignment="Center">
+                        <ContentPresenter.Style>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="0,0,10,0" />
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchLeadingContent, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSearchLeadingContentVisible, ElementName=Root}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SearchLeadingContent.Visibility, ElementName=Root}" Value="Collapsed">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentPresenter.Style>
+                    </ContentPresenter>
+
+                    <TextBox Grid.Column="1"
+                             Tag="{Binding ElementName=PART_ListLayer}"
                              Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                         <TextBox.Style>
                             <Style TargetType="TextBox" BasedOn="{StaticResource ListPageSearchBoxStyle}">
@@ -294,7 +320,7 @@
                         </TextBox.Style>
                     </TextBox>
 
-                    <ContentPresenter Grid.Column="1"
+                    <ContentPresenter Grid.Column="2"
                                       Content="{Binding SearchTrailingContent, ElementName=Root}"
                                       DataContext="{Binding DataContext, ElementName=Root}"
                                       VerticalAlignment="Center">

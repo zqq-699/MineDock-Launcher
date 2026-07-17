@@ -13,6 +13,20 @@ namespace Launcher.Tests.ViewModels;
 public sealed class ResourcesProjectListViewModelTests
 {
     [Fact]
+    public void OpeningFilterDialogCopiesCurrentSelectionsAndOpensDialog()
+    {
+        using var viewModel = CreateViewModel(new RecordingCatalogService());
+
+        viewModel.OpenFilterDialogCommand.Execute(null);
+
+        Assert.True(viewModel.IsFilterDialogOpen);
+        Assert.Same(viewModel.SelectedVersionOption, viewModel.PendingVersionOption);
+        Assert.Same(viewModel.SelectedLoaderOption, viewModel.PendingLoaderOption);
+        Assert.Same(viewModel.SelectedSourceOption, viewModel.PendingSourceOption);
+        Assert.Same(viewModel.SelectedTypeOption, viewModel.PendingTypeOption);
+    }
+
+    [Fact]
     public void FilterChangeRefreshesImmediately()
     {
         var service = new RecordingCatalogService();

@@ -36,34 +36,19 @@
                                                 CommandParameter="{Binding}" />
         </DataTemplate>
 
-        <DataTemplate x:Key="ResourcesModFilterTemplate" DataType="{x:Type resources:ResourcesModPageViewModel}">
-            <Grid>
-                <views:ResourcesModFilterView>
-                    <views:ResourcesModFilterView.Style>
-                        <Style TargetType="views:ResourcesModFilterView">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsProjectVersionsStep}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </views:ResourcesModFilterView.Style>
-                </views:ResourcesModFilterView>
+        <DataTemplate x:Key="ResourcesModVersionFilterTemplate" DataType="{x:Type resources:ResourcesModPageViewModel}">
+            <views:ResourcesModVersionFilterView />
+        </DataTemplate>
 
-                <views:ResourcesModVersionFilterView>
-                    <views:ResourcesModVersionFilterView.Style>
-                        <Style TargetType="views:ResourcesModVersionFilterView">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsProjectVersionsStep}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </views:ResourcesModVersionFilterView.Style>
-                </views:ResourcesModVersionFilterView>
-            </Grid>
+        <DataTemplate x:Key="ResourcesProjectFilterButtonTemplate" DataType="{x:Type resources:ResourcesModPageViewModel}">
+            <Button Height="32"
+                    MinWidth="68"
+                    Padding="12,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Content="{x:Static res:Strings.Resources_ModFilterButtonLabel}"
+                    Command="{Binding ProjectList.OpenFilterDialogCommand}"
+                    Style="{StaticResource LauncherDialogButtonStyle}" />
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesModPageViewModel}">
@@ -103,9 +88,12 @@
                                 HeaderBackCommand="{Binding CurrentOnlineProjectPage.BackToProjectListCommand}"
                                 SearchText="{Binding ActiveModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsModSearchVisible}"
+                                SearchLeadingContent="{Binding CurrentOnlineProjectPage}"
+                                SearchLeadingContentTemplate="{StaticResource ResourcesProjectFilterButtonTemplate}"
+                                IsSearchLeadingContentVisible="{Binding CurrentOnlineProjectPage.IsProjectListStep}"
                                 SearchFilterContent="{Binding CurrentOnlineProjectPage}"
-                                SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"
-                                IsSearchFilterVisible="{Binding IsModSearchVisible}"
+                                SearchFilterContentTemplate="{StaticResource ResourcesModVersionFilterTemplate}"
+                                IsSearchFilterVisible="{Binding CurrentOnlineProjectPage.IsProjectVersionsStep}"
                                 IsListVisible="True"
                                 IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="False">

@@ -62,6 +62,22 @@ public partial class ListPageFrame : UserControl
     public static readonly DependencyProperty IsSearchVisibleProperty =
         DependencyProperty.Register(nameof(IsSearchVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
+    public static readonly DependencyProperty SearchBoxCornerRadiusProperty =
+        DependencyProperty.Register(
+            nameof(SearchBoxCornerRadius),
+            typeof(CornerRadius),
+            typeof(ListPageFrame),
+            new PropertyMetadata(new CornerRadius(8)));
+
+    public static readonly DependencyProperty SearchLeadingContentProperty =
+        DependencyProperty.Register(nameof(SearchLeadingContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SearchLeadingContentTemplateProperty =
+        DependencyProperty.Register(nameof(SearchLeadingContentTemplate), typeof(DataTemplate), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsSearchLeadingContentVisibleProperty =
+        DependencyProperty.Register(nameof(IsSearchLeadingContentVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
+
     public static readonly DependencyProperty SearchTrailingContentProperty =
         DependencyProperty.Register(nameof(SearchTrailingContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
 
@@ -184,6 +200,30 @@ public partial class ListPageFrame : UserControl
     {
         get => (bool)GetValue(IsSearchVisibleProperty);
         set => SetValue(IsSearchVisibleProperty, value);
+    }
+
+    public CornerRadius SearchBoxCornerRadius
+    {
+        get => (CornerRadius)GetValue(SearchBoxCornerRadiusProperty);
+        set => SetValue(SearchBoxCornerRadiusProperty, value);
+    }
+
+    public object? SearchLeadingContent
+    {
+        get => GetValue(SearchLeadingContentProperty);
+        set => SetValue(SearchLeadingContentProperty, value);
+    }
+
+    public DataTemplate? SearchLeadingContentTemplate
+    {
+        get => (DataTemplate?)GetValue(SearchLeadingContentTemplateProperty);
+        set => SetValue(SearchLeadingContentTemplateProperty, value);
+    }
+
+    public bool IsSearchLeadingContentVisible
+    {
+        get => (bool)GetValue(IsSearchLeadingContentVisibleProperty);
+        set => SetValue(IsSearchLeadingContentVisibleProperty, value);
     }
 
     public object? SearchTrailingContent

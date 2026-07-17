@@ -157,10 +157,10 @@
                          ScrollViewer.CanContentScroll="True"
                          behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
                          behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ProjectList.ListEntranceAnimationToken}"
-                         behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="172">
+                         behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <VirtualizingStackPanel Margin="0,172,12,64"
+                            <VirtualizingStackPanel Margin="0,132,12,64"
                                                     VirtualizingPanel.IsVirtualizing="True"
                                                     VirtualizingPanel.VirtualizationMode="Recycling"
                                                     VirtualizingPanel.ScrollUnit="Pixel" />
@@ -169,17 +169,17 @@
                 </ListBox>
             </controls:DeferredListContentHost>
 
-            <TextBlock Margin="0,172,12,0"
+            <TextBlock Margin="0,132,12,0"
                        Text="{Binding ProjectList.LoadingMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
                        Visibility="{Binding ProjectList.CanShowLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-            <TextBlock Margin="0,172,12,0"
+            <TextBlock Margin="0,132,12,0"
                        Text="{Binding ProjectList.EmptyMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
                        Visibility="{Binding ProjectList.CanShowEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-            <TextBlock Margin="0,172,12,0"
+            <TextBlock Margin="0,132,12,0"
                        Text="{Binding ProjectList.LoadErrorMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
                        Visibility="{Binding ProjectList.CanShowLoadErrorState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
