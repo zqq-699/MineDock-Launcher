@@ -224,12 +224,12 @@
                            Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"
                            SnapsToDevicePixels="True"
-                           Source="{Binding TitleIconSource, ElementName=Root}">
+                           Source="{Binding ResolvedTitleIconSource, ElementName=Root}">
                         <Image.Style>
                             <Style TargetType="Image">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding TitleIconSource, ElementName=Root}" Value="{x:Null}">
+                                    <DataTrigger Binding="{Binding ResolvedTitleIconSource, ElementName=Root}" Value="{x:Null}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
                                 </Style.Triggers>

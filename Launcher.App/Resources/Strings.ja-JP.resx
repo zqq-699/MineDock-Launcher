@@ -1831,6 +1831,9 @@
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve">
     <value>{0} をダウンロード中</value>
   </data>
+  <data name="Status_ModpackProcessingFiles" xml:space="preserve">
+    <value>Modパックファイルを処理中</value>
+  </data>
   <data name="Status_ModpackDownloading" xml:space="preserve">
     <value>Modパックをダウンロード中...</value>
   </data>

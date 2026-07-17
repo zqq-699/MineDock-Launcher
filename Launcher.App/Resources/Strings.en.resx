@@ -1831,6 +1831,9 @@ Longer content wraps automatically.</value>
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve">
     <value>Downloading {0}</value>
   </data>
+  <data name="Status_ModpackProcessingFiles" xml:space="preserve">
+    <value>Processing modpack files</value>
+  </data>
   <data name="Status_ModpackDownloading" xml:space="preserve">
     <value>Downloading modpack...</value>
   </data>

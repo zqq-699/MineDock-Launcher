@@ -28,6 +28,7 @@ public static class ImportProgressStages
     public const string InstallingMinecraftBase = "Import.InstallingMinecraftBase";
     public const string InstallingLoader = "Import.InstallingLoader";
     public const string DownloadingPackFiles = "Import.DownloadingPackFiles";
+    public const string ProcessingPackFiles = "Import.ProcessingPackFiles";
     public const string CopyingOverrides = "Import.CopyingOverrides";
     public const string CleaningUp = "Import.CleaningUp";
 }

@@ -180,7 +180,8 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Empty(manualDownloads);
         Assert.True(firstDownloadReport >= 0);
         Assert.True(resolutionCompletedReport > firstDownloadReport);
-        Assert.Contains(reports, report => report.Stage == ImportProgressStages.DownloadingPackFiles && report.Percent == 100);
+        Assert.Contains(reports, report => report.Stage == ImportProgressStages.ProcessingPackFiles && report.Percent == 100);
+        Assert.Equal(ImportProgressStages.ProcessingPackFiles, reports[^1].Stage);
         Assert.Equal("first", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "first.jar")));
         Assert.Equal("second", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "second.jar")));
         Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
@@ -246,10 +247,58 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         var service = CreateService(new HttpClient(new FailingCurseForgeResolutionHandler()), apiKey: "test-key");
         var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
         var prepared = CreateCurseForgePreparedModpack();
+        var progress = new ThreadSafeProgress();
 
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, null);
+        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress);
 
         Assert.Equal([1L, 2L], manualDownloads.Select(download => download.ProjectId).ToArray());
+        Assert.DoesNotContain(
+            progress.Snapshot(),
+            report => report.Stage == ImportProgressStages.DownloadingPackFiles);
+        Assert.Contains(
+            progress.Snapshot(),
+            report => report.Stage == ImportProgressStages.ProcessingPackFiles && report.Percent == 100);
+    }
+
+    [Fact]
+    public async Task DownloadStatusBeginsOnlyAfterResponseBodyBytesArrive()
+    {
+        var handler = new BodyGateHandler("downloaded");
+        var service = CreateService(new HttpClient(handler));
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.Modrinth,
+            PackageName = "Pack",
+            MinecraftVersion = "1.20.1",
+            Files =
+            [
+                new PreparedModpackDownload
+                {
+                    FileName = "mod.jar",
+                    RelativePath = "mods/mod.jar",
+                    SourceUrl = "https://download.test/mod.jar"
+                }
+            ]
+        };
+        var progress = new ThreadSafeProgress();
+
+        var downloadTask = service.DownloadFilesAsync(prepared, instance, progress);
+        await handler.RequestStarted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.DoesNotContain(
+            progress.Snapshot(),
+            report => report.Stage == ImportProgressStages.DownloadingPackFiles);
+
+        handler.ReleaseBody();
+        await downloadTask.WaitAsync(TimeSpan.FromSeconds(5));
+        var reports = progress.Snapshot();
+
+        Assert.Contains(
+            reports,
+            report => report.Stage == ImportProgressStages.DownloadingPackFiles
+                && report.Message == "mod.jar");
+        Assert.Equal(ImportProgressStages.ProcessingPackFiles, reports[^1].Stage);
     }
 
     [Fact]
@@ -402,6 +451,77 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             requestStarted.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The cancellation test request unexpectedly completed.");
+        }
+    }
+
+    private sealed class BodyGateHandler(string content) : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource requestStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseBody = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task RequestStarted => requestStarted.Task;
+
+        public void ReleaseBody() => releaseBody.TrySetResult();
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            requestStarted.TrySetResult();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new BodyGateStream(Encoding.UTF8.GetBytes(content), releaseBody.Task))
+            });
+        }
+    }
+
+    private sealed class BodyGateStream(byte[] content, Task release) : Stream
+    {
+        private readonly MemoryStream inner = new(content, writable: false);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            release.GetAwaiter().GetResult();
+            return inner.Read(buffer, offset, count);
+        }
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            await release.WaitAsync(cancellationToken);
+            return await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            await release.WaitAsync(cancellationToken);
+            return await inner.ReadAsync(buffer, cancellationToken);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                inner.Dispose();
+            base.Dispose(disposing);
         }
     }
 

@@ -614,7 +614,7 @@
                                         <Grid Width="28"
                                               Height="28"
                                               VerticalAlignment="Center">
-                                            <Image Source="{Binding IconSource}"
+                                            <Image Source="{Binding IconSource, Converter={StaticResource IconSourceImageConverter}}"
                                                    Stretch="UniformToFill"
                                                    RenderOptions.BitmapScalingMode="HighQuality">
                                                 <Image.Style>

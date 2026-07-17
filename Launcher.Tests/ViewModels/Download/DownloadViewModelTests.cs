@@ -319,6 +319,16 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public void ProcessingModpackFilesUsesProcessingStatusText()
+    {
+        var status = LauncherProgressTextFormatter.Format(new LauncherProgress(
+            ImportProgressStages.ProcessingPackFiles,
+            string.Empty));
+
+        Assert.Equal(Strings.Status_ModpackProcessingFiles, status);
+    }
+
+    [Fact]
     public void CheckingInstallerJavaUsesExistingLocalizedStatusText()
     {
         var status = LauncherProgressTextFormatter.Format(new LauncherProgress(

@@ -1831,6 +1831,9 @@
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve">
     <value>正在下載 {0}</value>
   </data>
+  <data name="Status_ModpackProcessingFiles" xml:space="preserve">
+    <value>正在處理整合包檔案</value>
+  </data>
   <data name="Status_ModpackDownloading" xml:space="preserve">
     <value>正在下載整合包...</value>
   </data>

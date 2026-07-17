@@ -35,7 +35,7 @@
 
                 <Image Width="24"
                        Height="24"
-                       Source="{Binding IconSource}"
+                       Source="{Binding IconSource, Converter={StaticResource IconSourceImageConverter}}"
                        Stretch="Fill"
                        SnapsToDevicePixels="True"
                        RenderOptions.BitmapScalingMode="NearestNeighbor"

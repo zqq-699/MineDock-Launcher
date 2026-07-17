@@ -1021,6 +1021,7 @@ public static class Strings
     public static string Status_ModpackInstallingLoader => Get(nameof(Status_ModpackInstallingLoader));
     public static string Status_ModpackDownloadingFiles => Get(nameof(Status_ModpackDownloadingFiles));
     public static string Status_ModpackDownloadingFileFormat => Get(nameof(Status_ModpackDownloadingFileFormat));
+    public static string Status_ModpackProcessingFiles => Get(nameof(Status_ModpackProcessingFiles));
     public static string Status_ModpackDownloading => Get(nameof(Status_ModpackDownloading));
     public static string Status_ModpackDownloadingFormat => Get(nameof(Status_ModpackDownloadingFormat));
     public static string Status_ModpackDownloadedFormat => Get(nameof(Status_ModpackDownloadedFormat));

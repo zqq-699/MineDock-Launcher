@@ -36,6 +36,7 @@
             <converters:CapeDisplayNameConverter x:Key="CapeDisplayNameConverter" />
             <converters:CapeStateTextConverter x:Key="CapeStateTextConverter" />
             <converters:SkinActiveStateVisibilityConverter x:Key="SkinActiveStateVisibilityConverter" />
+            <converters:IconSourceImageConverter x:Key="IconSourceImageConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -26,12 +26,14 @@ namespace Launcher.Application.Services;
 /// </summary>
 internal sealed class ModpackImportSession
 {
-    public ModpackImportSession(IProgress<LauncherProgress>? progress)
+    public ModpackImportSession(OverallModpackImportProgress? progress)
     {
-        Progress = progress;
+        ImportProgress = progress;
     }
 
-    public IProgress<LauncherProgress>? Progress { get; }
+    public OverallModpackImportProgress? ImportProgress { get; }
+
+    public IProgress<LauncherProgress>? Progress => ImportProgress;
 
     public PreparedModpack? PreparedModpack { get; set; }
 

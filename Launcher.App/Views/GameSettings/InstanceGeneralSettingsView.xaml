@@ -28,7 +28,7 @@
         <Image Width="64"
                Height="64"
                HorizontalAlignment="Left"
-               Source="{Binding InstanceIconSource}"
+               Source="{Binding InstanceIconSource, Converter={StaticResource IconSourceImageConverter}}"
                Stretch="UniformToFill"
                behaviors:RoundedClip.Radius="8"
                SnapsToDevicePixels="True"

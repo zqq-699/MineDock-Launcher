@@ -24,7 +24,7 @@ namespace Launcher.Application.Services;
 /// <summary>
 /// 将多个可并行、量纲不同的导入阶段映射为单调递增的总体百分比。
 /// </summary>
-internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> innerProgress)
+internal sealed class OverallModpackImportProgress
     : IProgress<LauncherProgress>, ISpeedMeterProgress
 {
     private const double ArchiveWeight = 2;
@@ -35,6 +35,10 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private const double DownloadWeight = 40;
     private const double OverridesWeight = 4;
     private const double CleanupWeight = 1;
+    private readonly object syncRoot = new();
+    private readonly IProgress<LauncherProgress> innerProgress;
+    private readonly Dictionary<ModpackImportProgressBranch, ParallelBranchState> parallelBranches = [];
+    private long reportSequence;
     private double lastPercent;
     private double archiveProgress;
     private double manifestProgress;
@@ -44,17 +48,66 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private double downloadProgress;
     private double overridesProgress;
     private double cleanupProgress;
+
+    public OverallModpackImportProgress(IProgress<LauncherProgress> innerProgress)
+    {
+        this.innerProgress = innerProgress;
+    }
+
     public SpeedMeter? SpeedMeter => SpeedMeterProgress.TryGet(innerProgress);
 
     public void Report(LauncherProgress value)
     {
-        if (value.DownloadSpeedTelemetry is not null)
+        lock (syncRoot)
         {
-            innerProgress.Report(value);
-            return;
+            innerProgress.Report(value.DownloadSpeedTelemetry is not null
+                ? value
+                : MapProgress(value));
         }
+    }
 
-        innerProgress.Report(MapProgress(value));
+    public IProgress<LauncherProgress> CreateParallelBranch(ModpackImportProgressBranch branch)
+    {
+        lock (syncRoot)
+            parallelBranches[branch] = new ParallelBranchState();
+        return new ParallelBranchProgress(this, branch);
+    }
+
+    public void CompleteParallelBranch(ModpackImportProgressBranch branch)
+    {
+        lock (syncRoot)
+        {
+            if (parallelBranches.TryGetValue(branch, out var completedBranch))
+                completedBranch.IsActive = false;
+
+            var remainingProgress = parallelBranches.Values
+                .Where(state => state.IsActive && state.LastProgress is not null)
+                .OrderByDescending(state => state.LastSequence)
+                .Select(state => state.LastProgress)
+                .FirstOrDefault();
+            if (remainingProgress is not null)
+                innerProgress.Report(MapProgress(remainingProgress));
+        }
+    }
+
+    private void ReportParallelBranch(ModpackImportProgressBranch branch, LauncherProgress value)
+    {
+        lock (syncRoot)
+        {
+            if (value.DownloadSpeedTelemetry is not null)
+            {
+                innerProgress.Report(value);
+                return;
+            }
+
+            if (parallelBranches.TryGetValue(branch, out var state))
+            {
+                state.LastProgress = value;
+                state.LastSequence = ++reportSequence;
+            }
+
+            innerProgress.Report(MapProgress(value));
+        }
     }
 
     /// <summary>
@@ -100,6 +153,7 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
                 resolveProgress = Math.Max(resolveProgress, normalizedPercent);
                 break;
             case ImportProgressStages.DownloadingPackFiles:
+            case ImportProgressStages.ProcessingPackFiles:
                 downloadProgress = Math.Max(downloadProgress, normalizedPercent);
                 break;
             case ImportProgressStages.CopyingOverrides:
@@ -158,4 +212,27 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
 
         return Math.Clamp(percent.Value, 0, 100) / 100d;
     }
+
+    private sealed class ParallelBranchState
+    {
+        public bool IsActive { get; set; } = true;
+        public LauncherProgress? LastProgress { get; set; }
+        public long LastSequence { get; set; }
+    }
+
+    private sealed class ParallelBranchProgress(
+        OverallModpackImportProgress owner,
+        ModpackImportProgressBranch branch)
+        : IProgress<LauncherProgress>, ISpeedMeterProgress
+    {
+        public SpeedMeter? SpeedMeter => owner.SpeedMeter;
+
+        public void Report(LauncherProgress value) => owner.ReportParallelBranch(branch, value);
+    }
+}
+
+internal enum ModpackImportProgressBranch
+{
+    PackFiles,
+    LoaderInstall
 }

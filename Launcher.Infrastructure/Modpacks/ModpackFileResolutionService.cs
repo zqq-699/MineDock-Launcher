@@ -84,6 +84,7 @@ internal sealed class ModpackFileResolutionService
         try
         {
             await RunDownloadPipelineAsync(context, cancellationToken).ConfigureAwait(false);
+            context.ReportProcessing();
             PublishPendingDownloads(context, cancellationToken);
             return context.ManualDownloads
                 .Where(download => download is not null)
@@ -160,7 +161,7 @@ internal sealed class ModpackFileResolutionService
                     if (resolution.ManualDownload is not null)
                     {
                         context.ManualDownloads[index] = resolution.ManualDownload;
-                        context.ReportDownload(file.FileName, completed: true);
+                        context.ReportFileCompleted(networkTransferStarted: false);
                         return;
                     }
                     if (resolution.Download is null)
@@ -215,20 +216,25 @@ internal sealed class ModpackFileResolutionService
         ResolvedPackFileWorkItem workItem,
         CancellationToken cancellationToken)
     {
-        var file = context.Package.Files[workItem.FileIndex];
+        var networkTransferStarted = 0;
         try
         {
-            context.ReportDownload(workItem.Download.FileName, completed: false);
             var result = await DownloadResolvedPackFileToTemporaryAsync(
                 context,
                 workItem.Download,
+                (_, _, _) =>
+                {
+                    if (Interlocked.Exchange(ref networkTransferStarted, 1) == 0)
+                        context.ReportDownloadStarted(workItem.Download.FileName);
+                },
                 cancellationToken).ConfigureAwait(false);
             context.ManualDownloads[workItem.FileIndex] = result.ManualDownload;
             context.PendingDownloads[workItem.FileIndex] = result.PendingDownload;
         }
         finally
         {
-            context.ReportDownload(file.FileName, completed: true);
+            context.ReportFileCompleted(
+                networkTransferStarted: Volatile.Read(ref networkTransferStarted) != 0);
         }
     }
 
@@ -333,6 +339,7 @@ internal sealed class ModpackFileResolutionService
     private async Task<PackFileDownloadResult> DownloadResolvedPackFileToTemporaryAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
+        Action<int, long, long?> reportAttemptProgress,
         CancellationToken cancellationToken)
     {
         var targetPath = ModpackArchiveUtility.GetValidatedTargetPath(
@@ -357,7 +364,13 @@ internal sealed class ModpackFileResolutionService
                 ModpackFileDownloader.DeleteFileIfExists(tempPath);
                 try
                 {
-                    await DownloadAndVerifyAsync(context, file, sourceUrl, tempPath, cancellationToken)
+                    await DownloadAndVerifyAsync(
+                            context,
+                            file,
+                            sourceUrl,
+                            tempPath,
+                            reportAttemptProgress,
+                            cancellationToken)
                         .ConfigureAwait(false);
                     retainTemporaryFile = true;
                     return new PackFileDownloadResult(
@@ -410,6 +423,7 @@ internal sealed class ModpackFileResolutionService
         ResolvedPackDownload file,
         string sourceUrl,
         string tempPath,
+        Action<int, long, long?> reportAttemptProgress,
         CancellationToken cancellationToken)
     {
         await fileDownloader.DownloadToTemporaryFileAsync(
@@ -421,6 +435,7 @@ internal sealed class ModpackFileResolutionService
             file.Sha512,
             context.DownloadSpeedLimitMbPerSecond,
             context.SpeedMeter,
+            reportAttemptProgress,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -505,7 +520,8 @@ internal sealed class ModpackFileResolutionService
         private readonly object targetSyncRoot = new();
         private readonly Dictionary<string, int> reservedTargets = new(StringComparer.OrdinalIgnoreCase);
         private int resolvedCount;
-        private int downloadedCount;
+        private int completedFileCount;
+        private int activeDownloadCount;
         private readonly IProgress<LauncherProgress>? progress;
 
         public DownloadBatchContext(
@@ -560,7 +576,6 @@ internal sealed class ModpackFileResolutionService
         public void ReportStarted()
         {
             progress?.Report(new LauncherProgress(ImportProgressStages.ResolvingPackFiles, $"0/{TotalCount}", 0));
-            progress?.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 0));
         }
 
         public void ReportResolutionCompleted()
@@ -570,18 +585,62 @@ internal sealed class ModpackFileResolutionService
                 ImportProgressStages.ResolvingPackFiles,
                 $"{count}/{TotalCount}",
                 count * 100d / TotalCount));
+            if (Volatile.Read(ref activeDownloadCount) > 0)
+                ReportActiveDownloads();
         }
 
-        public void ReportDownload(string fileName, bool completed)
+        public void ReportDownloadStarted(string fileName)
         {
-            var count = completed
-                ? Interlocked.Increment(ref downloadedCount)
-                : Volatile.Read(ref downloadedCount);
+            Interlocked.Increment(ref activeDownloadCount);
             progress?.Report(new LauncherProgress(
                 ImportProgressStages.DownloadingPackFiles,
                 fileName,
-                count * 100d / TotalCount));
+                GetCompletedPercent()));
         }
+
+        public void ReportFileCompleted(bool networkTransferStarted)
+        {
+            Interlocked.Increment(ref completedFileCount);
+            if (networkTransferStarted)
+                Interlocked.Decrement(ref activeDownloadCount);
+
+            if (Volatile.Read(ref activeDownloadCount) > 0)
+            {
+                ReportActiveDownloads();
+                return;
+            }
+
+            var resolved = Volatile.Read(ref resolvedCount);
+            if (resolved < TotalCount)
+            {
+                progress?.Report(new LauncherProgress(
+                    ImportProgressStages.ResolvingPackFiles,
+                    $"{resolved}/{TotalCount}",
+                    resolved * 100d / TotalCount));
+                return;
+            }
+
+            ReportProcessing();
+        }
+
+        public void ReportProcessing()
+        {
+            progress?.Report(new LauncherProgress(
+                ImportProgressStages.ProcessingPackFiles,
+                string.Empty,
+                GetCompletedPercent()));
+        }
+
+        private void ReportActiveDownloads()
+        {
+            progress?.Report(new LauncherProgress(
+                ImportProgressStages.DownloadingPackFiles,
+                string.Empty,
+                GetCompletedPercent()));
+        }
+
+        private double GetCompletedPercent() =>
+            Volatile.Read(ref completedFileCount) * 100d / TotalCount;
 
         public void CleanupPendingDownloads()
         {

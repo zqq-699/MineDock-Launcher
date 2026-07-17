@@ -226,23 +226,32 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         // 游戏安装与内容下载并行执行；任一分支失败都通过链接 CTS 尽快停止另一分支。
         using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var importCancellationToken = importCancellation.Token;
+        var importProgress = session.ImportProgress;
+        var packFileProgress = importProgress?.CreateParallelBranch(ModpackImportProgressBranch.PackFiles);
+        var loaderProgress = importProgress?.CreateParallelBranch(ModpackImportProgressBranch.LoaderInstall);
 
-        var downloadModsTask = DownloadModpackFilesWithTimingAsync(
-            preparedModpack,
-            stagedInstance,
-            session.Progress,
-            importCancellationToken,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond);
+        var downloadModsTask = CompleteParallelBranchAsync(
+            DownloadModpackFilesWithTimingAsync(
+                preparedModpack,
+                stagedInstance,
+                packFileProgress,
+                importCancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond),
+            importProgress,
+            ModpackImportProgressBranch.PackFiles);
         _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
 
-        var loaderInstallTask = InstallLoaderIntoStagingAsync(
-            preparedModpack,
-            stagedInstance,
-            session.Progress,
-            importCancellationToken,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond);
+        var loaderInstallTask = CompleteParallelBranchAsync(
+            InstallLoaderIntoStagingAsync(
+                preparedModpack,
+                stagedInstance,
+                loaderProgress,
+                importCancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond),
+            importProgress,
+            ModpackImportProgressBranch.LoaderInstall);
         _ = CancelImportOnBranchFailureAsync(loaderInstallTask, importCancellation);
 
         await AwaitImportBranchesAsync(importCancellation, loaderInstallTask, downloadModsTask)
@@ -273,7 +282,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                     downloadSourcePreference,
                     downloadSpeedLimitMbPerSecond),
                 progress,
-                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100))
+                new LauncherProgress(ImportProgressStages.ProcessingPackFiles, string.Empty, 100))
             .ConfigureAwait(false);
         logger.LogInformation(
             "Modpack content download completed. InstanceName={InstanceName} DeclaredFileCount={DeclaredFileCount} ManualDownloadCount={ManualDownloadCount} DurationMs={DurationMs}",
@@ -412,6 +421,21 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     {
         await task.ConfigureAwait(false);
         progress?.Report(completionProgress);
+    }
+
+    private static async Task<T> CompleteParallelBranchAsync<T>(
+        Task<T> task,
+        OverallModpackImportProgress? progress,
+        ModpackImportProgressBranch branch)
+    {
+        try
+        {
+            return await task.ConfigureAwait(false);
+        }
+        finally
+        {
+            progress?.CompleteParallelBranch(branch);
+        }
     }
 
     private static string NormalizePreferredInstanceName(string preferredName)

@@ -61,6 +61,7 @@ internal static class LauncherProgressTextFormatter
             ImportProgressStages.DownloadingPackFiles when !string.IsNullOrWhiteSpace(progress.Message)
                 => string.Format(Strings.Status_ModpackDownloadingFileFormat, progress.Message),
             ImportProgressStages.DownloadingPackFiles => Strings.Status_ModpackDownloadingFiles,
+            ImportProgressStages.ProcessingPackFiles => Strings.Status_ModpackProcessingFiles,
             ImportProgressStages.CopyingOverrides => Strings.Status_ModpackCopyingOverrides,
             ImportProgressStages.CleaningUp => Strings.Status_ModpackCleaningUp,
             LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,

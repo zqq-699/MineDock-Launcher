@@ -627,6 +627,7 @@
   <data name="Status_ModpackInstallingLoader" xml:space="preserve"><value>正在安装 Loader</value></data>
   <data name="Status_ModpackDownloadingFiles" xml:space="preserve"><value>正在下载整合包文件</value></data>
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ModpackProcessingFiles" xml:space="preserve"><value>正在处理整合包文件</value></data>
   <data name="Status_ModpackDownloading" xml:space="preserve"><value>正在下载整合包...</value></data>
   <data name="Status_ModpackDownloadingFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
   <data name="Status_ModpackDownloadedFormat" xml:space="preserve"><value>{0} 已下载</value></data>

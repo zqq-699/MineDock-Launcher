@@ -36,7 +36,7 @@
 
                 <Image Width="32"
                        Height="32"
-                       Source="{Binding IconSource}"
+                       Source="{Binding IconSource, Converter={StaticResource IconSourceImageConverter}}"
                        Stretch="UniformToFill"
                        behaviors:RoundedClip.Radius="6"
                        SnapsToDevicePixels="True"

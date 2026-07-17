@@ -230,7 +230,7 @@
                                               VerticalAlignment="Center"
                                               ClipToBounds="True"
                                               behaviors:RoundedClip.Radius="8">
-                                            <Image Source="{Binding IconSource}"
+                                            <Image Source="{Binding IconSource, Converter={StaticResource IconSourceImageConverter}}"
                                                    Stretch="UniformToFill"
                                                    RenderOptions.BitmapScalingMode="HighQuality">
                                                 <Image.Style>
@@ -364,7 +364,7 @@
                                                               VerticalAlignment="Center"
                                                               ClipToBounds="True"
                                                               behaviors:RoundedClip.Radius="4">
-                                                            <Image Source="{Binding IconSource}"
+                                            <Image Source="{Binding IconSource, Converter={StaticResource IconSourceImageConverter}}"
                                                                    Stretch="UniformToFill"
                                                                    RenderOptions.BitmapScalingMode="HighQuality">
                                                                 <Image.Style>

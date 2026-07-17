@@ -51,6 +51,7 @@ internal sealed class ModpackFileDownloader
         string? expectedSha512,
         int downloadSpeedLimitMbPerSecond,
         SpeedMeter? speedMeter,
+        Action<int, long, long?>? reportAttemptProgress,
         CancellationToken cancellationToken)
     {
         var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
@@ -80,7 +81,8 @@ internal sealed class ModpackFileDownloader
                     expectedSha1: null, expectedSize: null,
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
-                    speedMeter: speedMeter).ConfigureAwait(false);
+                    speedMeter: speedMeter,
+                    reportAttemptProgress: reportAttemptProgress).ConfigureAwait(false);
             }
             else
             {
@@ -89,7 +91,8 @@ internal sealed class ModpackFileDownloader
                     new DownloadIntegrityExpectation(expectedSize: null, hashes),
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
-                    speedMeter: speedMeter).ConfigureAwait(false);
+                    speedMeter: speedMeter,
+                    reportAttemptProgress: reportAttemptProgress).ConfigureAwait(false);
             }
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)

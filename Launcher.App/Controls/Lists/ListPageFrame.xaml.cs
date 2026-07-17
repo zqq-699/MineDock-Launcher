@@ -30,7 +30,21 @@ public partial class ListPageFrame : UserControl
         DependencyProperty.Register(nameof(Title), typeof(string), typeof(ListPageFrame), new PropertyMetadata(string.Empty));
 
     public static readonly DependencyProperty TitleIconSourceProperty =
-        DependencyProperty.Register(nameof(TitleIconSource), typeof(ImageSource), typeof(ListPageFrame), new PropertyMetadata(null));
+        DependencyProperty.Register(
+            nameof(TitleIconSource),
+            typeof(object),
+            typeof(ListPageFrame),
+            new PropertyMetadata(null, OnTitleIconSourceChanged));
+
+    private static readonly DependencyPropertyKey ResolvedTitleIconSourcePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(ResolvedTitleIconSource),
+            typeof(ImageSource),
+            typeof(ListPageFrame),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ResolvedTitleIconSourceProperty =
+        ResolvedTitleIconSourcePropertyKey.DependencyProperty;
 
     public static readonly DependencyProperty IsHeaderBackButtonVisibleProperty =
         DependencyProperty.Register(nameof(IsHeaderBackButtonVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(false));
@@ -130,16 +144,28 @@ public partial class ListPageFrame : UserControl
         set => SetValue(TitleProperty, value);
     }
 
-    public ImageSource? TitleIconSource
+    public object? TitleIconSource
     {
-        get => (ImageSource?)GetValue(TitleIconSourceProperty);
+        get => GetValue(TitleIconSourceProperty);
         set => SetValue(TitleIconSourceProperty, value);
+    }
+
+    public ImageSource? ResolvedTitleIconSource
+    {
+        get => (ImageSource?)GetValue(ResolvedTitleIconSourceProperty);
+        private set => SetValue(ResolvedTitleIconSourcePropertyKey, value);
     }
 
     public bool IsHeaderBackButtonVisible
     {
         get => (bool)GetValue(IsHeaderBackButtonVisibleProperty);
         set => SetValue(IsHeaderBackButtonVisibleProperty, value);
+    }
+
+    private static void OnTitleIconSourceChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    {
+        if (dependencyObject is ListPageFrame frame)
+            frame.ResolvedTitleIconSource = IconSourceImageLoader.TryLoad(args.NewValue);
     }
 
     public ICommand? HeaderBackCommand
