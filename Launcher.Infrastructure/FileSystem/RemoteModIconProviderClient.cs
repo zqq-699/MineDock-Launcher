@@ -22,7 +22,9 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
+using Launcher.Infrastructure.Resources;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.FileSystem;
@@ -59,6 +61,9 @@ internal sealed class RemoteModIconProviderClient
         try
         {
             var hashes = candidates.Select(candidate => candidate.Sha1).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var candidatesBySha1 = candidates
+                .GroupBy(candidate => candidate.Sha1, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             using var response = await httpClient.PostAsJsonAsync(
                     $"{ModrinthBaseUrl}/version_files",
                     new ModrinthVersionFilesRequest(hashes, "sha1"),
@@ -102,12 +107,16 @@ internal sealed class RemoteModIconProviderClient
             {
                 if (string.IsNullOrWhiteSpace(version.ProjectId)
                     || !projectsById.TryGetValue(version.ProjectId, out var project)
-                    || string.IsNullOrWhiteSpace(project.IconUrl))
+                    || !candidatesBySha1.TryGetValue(sha1, out var candidate))
                 {
                     continue;
                 }
 
-                result[sha1] = new RemoteIconCandidate("modrinth", version.ProjectId, project.IconUrl);
+                result[sha1] = new RemoteIconCandidate(
+                    "modrinth",
+                    version.ProjectId,
+                    project.IconUrl ?? string.Empty,
+                    ResourceProjectCategoryMapping.MapModrinth(candidate.Kind, project.Categories));
             }
 
             logger.LogInformation(
@@ -198,8 +207,13 @@ internal sealed class RemoteModIconProviderClient
                 }
 
                 var iconUrl = string.IsNullOrWhiteSpace(mod.Logo?.Url) ? mod.Logo?.ThumbnailUrl : mod.Logo.Url;
-                if (!string.IsNullOrWhiteSpace(iconUrl))
-                    result[candidate.Sha1] = new RemoteIconCandidate("curseforge", projectId.ToString(), iconUrl);
+                result[candidate.Sha1] = new RemoteIconCandidate(
+                    "curseforge",
+                    projectId.ToString(),
+                    iconUrl ?? string.Empty,
+                    ResourceProjectCategoryMapping.MapCurseForge(
+                        candidate.Kind,
+                        mod.Categories.SelectMany(category => new[] { category.Name, category.Slug })));
             }
 
             logger.LogInformation(
@@ -308,6 +322,9 @@ internal sealed class RemoteModIconProviderClient
 
         [JsonPropertyName("icon_url")]
         public string? IconUrl { get; init; }
+
+        [JsonPropertyName("categories")]
+        public List<string?> Categories { get; init; } = [];
     }
 
     private sealed record CurseForgeFingerprintRequest(
@@ -329,6 +346,18 @@ internal sealed class RemoteModIconProviderClient
 
         [JsonPropertyName("logo")]
         public CurseForgeModLogo? Logo { get; init; }
+
+        [JsonPropertyName("categories")]
+        public List<CurseForgeCategory> Categories { get; init; } = [];
+    }
+
+    private sealed class CurseForgeCategory
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("slug")]
+        public string? Slug { get; init; }
     }
 
     private sealed class CurseForgeModLogo
@@ -341,9 +370,18 @@ internal sealed class RemoteModIconProviderClient
     }
 }
 
-internal sealed record ModIconLookupCandidate(string FullPath, string Sha1, string FileAlias, long CurseForgeFingerprint)
+internal sealed record ModIconLookupCandidate(
+    string FullPath,
+    string Sha1,
+    string FileAlias,
+    long CurseForgeFingerprint,
+    ResourceProjectKind Kind)
 {
     public string Sha1Alias => $"sha1:{Sha1}";
 }
 
-internal sealed record RemoteIconCandidate(string Source, string ProjectId, string IconUrl);
+internal sealed record RemoteIconCandidate(
+    string Source,
+    string ProjectId,
+    string IconUrl,
+    IReadOnlyList<ResourceProjectCategory> Categories);

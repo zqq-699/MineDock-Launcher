@@ -40,6 +40,7 @@ public sealed class LocalModsViewModel : IDisposable
     // 文件操作和图标解析都在服务层完成；本类只维护当前实例快照及通知顺序。
     private readonly IModService modService;
     private readonly ILocalModIconEnrichmentService? iconEnrichmentService;
+    private readonly LocalResourceCategoryEnrichmentCoordinator<LocalMod> categoryEnrichmentCoordinator;
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalModsViewModel> logger;
@@ -60,13 +61,24 @@ public sealed class LocalModsViewModel : IDisposable
         IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
         ILocalModIconEnrichmentService? iconEnrichmentService = null,
-        ILogger<LocalModsViewModel>? logger = null)
+        ILogger<LocalModsViewModel>? logger = null,
+        ILocalResourceCategoryEnrichmentService? categoryEnrichmentService = null)
     {
         this.modService = modService;
         this.iconEnrichmentService = iconEnrichmentService;
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalModsViewModel>.Instance;
+        categoryEnrichmentCoordinator = new LocalResourceCategoryEnrichmentCoordinator<LocalMod>(
+            categoryEnrichmentService,
+            ResourceProjectKind.Mod,
+            mod => mod.FullPath,
+            mod => mod.Categories,
+            static (mod, categories) => mod.Categories = categories,
+            () => currentMods,
+            () => ModsChanged?.Invoke(this, EventArgs.Empty),
+            this.uiDispatcher,
+            this.logger);
         contentWatcher = new InstanceContentRefreshWatcher(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.Mods,
@@ -92,6 +104,7 @@ public sealed class LocalModsViewModel : IDisposable
         Interlocked.Increment(ref modRefreshVersion);
         CancelRefresh();
         CancelIconEnrichment();
+        categoryEnrichmentCoordinator.Cancel();
         contentWatcher.SetInstance(instance);
         ClearMods();
         logger.LogInformation(
@@ -107,6 +120,7 @@ public sealed class LocalModsViewModel : IDisposable
             Interlocked.Increment(ref modRefreshVersion);
             CancelRefresh();
             CancelIconEnrichment();
+            categoryEnrichmentCoordinator.Cancel();
         }
     }
 
@@ -190,6 +204,7 @@ public sealed class LocalModsViewModel : IDisposable
             Mods.Count);
         // 远程补全是非阻断增强，失败不会撤回已经可用的本地列表。
         QueueRemoteIconEnrichment(instance, loadedMods, refreshVersion);
+        categoryEnrichmentCoordinator.Queue(loadedMods);
         return true;
     }
 
@@ -386,6 +401,7 @@ public sealed class LocalModsViewModel : IDisposable
         contentWatcher.Dispose();
         CancelRefresh();
         CancelIconEnrichment();
+        categoryEnrichmentCoordinator.Dispose();
     }
 
     private void ReportStatus(string message)

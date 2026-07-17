@@ -152,7 +152,10 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
 
             cancellationToken.ThrowIfCancellationRequested();
             var items = result.RequiredProjects
-                .Select(dependency => new ResourcesModProjectItemViewModel(dependency, fallbackIconKey: options.FallbackIconKey))
+                .Select(dependency => new ResourcesModProjectItemViewModel(
+                    dependency,
+                    fallbackIconKey: options.FallbackIconKey,
+                    typeOptions: options.TypeOptions))
                 .ToList();
             if (thumbnailService is not null)
             {

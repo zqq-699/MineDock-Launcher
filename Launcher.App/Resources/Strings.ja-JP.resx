@@ -264,6 +264,9 @@
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
     <value>ダウンロード数</value>
   </data>
+  <data name="Resources_ModDetailsTagsLabel" xml:space="preserve">
+    <value>&#x30BF;&#x30B0;</value>
+  </data>
   <data name="Resources_ModDetailsDependenciesLabel" xml:space="preserve">
     <value>必須 Mod</value>
   </data>

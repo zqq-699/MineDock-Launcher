@@ -39,12 +39,14 @@ public sealed partial class ResourcesModProjectItemViewModel : ObservableObject
     public ResourcesModProjectItemViewModel(
         ResourceProject project,
         IReadOnlyList<string>? minecraftReleaseVersionOrder = null,
-        string fallbackIconKey = "instance_setting_page/mod")
+        string fallbackIconKey = "instance_setting_page/mod",
+        IReadOnlyList<ResourcesOnlineProjectTypeOption>? typeOptions = null)
     {
         Project = project;
         this.minecraftReleaseVersionOrder = minecraftReleaseVersionOrder;
         this.fallbackIconKey = fallbackIconKey;
         iconSource = project.IconUrl;
+        TitleTags = CreateTitleTags(project.Categories, typeOptions);
     }
 
     public ResourceProject Project { get; }
@@ -52,6 +54,12 @@ public sealed partial class ResourcesModProjectItemViewModel : ObservableObject
     public string Title => Project.Title;
 
     public string Description => Project.Description;
+
+    public IReadOnlyList<string> TitleTags { get; }
+
+    public bool HasTitleTags => TitleTags.Count > 0;
+
+    public string TitleTagsText => string.Join(", ", TitleTags);
 
     public string Subtitle => Project.Kind is ResourceProjectKind.Mod
         ? string.Join("  ", SupportedMinecraftVersionsText, SupportedLoadersText, SourceText)
@@ -117,5 +125,24 @@ public sealed partial class ResourcesModProjectItemViewModel : ObservableObject
             return string.Format(Strings.Resources_ModDownloadsTenThousandFormat, downloads / 10_000d);
 
         return downloads.ToString("N0");
+    }
+
+    private static IReadOnlyList<string> CreateTitleTags(
+        IReadOnlyList<ResourceProjectCategory> categories,
+        IReadOnlyList<ResourcesOnlineProjectTypeOption>? typeOptions)
+    {
+        if (categories.Count == 0 || typeOptions is null || typeOptions.Count == 0)
+            return [];
+
+        var titlesByCategory = typeOptions
+            .GroupBy(option => option.Category)
+            .ToDictionary(group => group.Key, group => group.First().Title);
+        var titles = categories
+            .Distinct()
+            .Where(titlesByCategory.ContainsKey)
+            .Select(category => titlesByCategory[category])
+            .Where(title => !string.IsNullOrWhiteSpace(title))
+            .ToList();
+        return titles;
     }
 }

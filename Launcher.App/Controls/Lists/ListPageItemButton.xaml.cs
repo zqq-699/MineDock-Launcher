@@ -46,6 +46,9 @@ public partial class ListPageItemButton : UserControl
     public static readonly DependencyProperty TrailingContentProperty =
         DependencyProperty.Register(nameof(TrailingContent), typeof(object), typeof(ListPageItemButton), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty TitleTrailingContentProperty =
+        DependencyProperty.Register(nameof(TitleTrailingContent), typeof(object), typeof(ListPageItemButton), new PropertyMetadata(null));
+
     public static readonly DependencyProperty IconSourceProperty =
         DependencyProperty.Register(
             nameof(IconSource),
@@ -191,6 +194,12 @@ public partial class ListPageItemButton : UserControl
     {
         get => GetValue(TrailingContentProperty);
         set => SetValue(TrailingContentProperty, value);
+    }
+
+    public object? TitleTrailingContent
+    {
+        get => GetValue(TitleTrailingContentProperty);
+        set => SetValue(TitleTrailingContentProperty, value);
     }
 
     public object? IconSource

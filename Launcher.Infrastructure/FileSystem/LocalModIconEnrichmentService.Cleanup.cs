@@ -156,7 +156,8 @@ public sealed partial class LocalModIconEnrichmentService
                 mod.FullPath,
                 sha1Text,
                 fileAlias,
-                ComputeCurseForgeMurmurHash2(fingerprintBytes.GetBuffer().AsSpan(0, (int)fingerprintBytes.Length)));
+                ComputeCurseForgeMurmurHash2(fingerprintBytes.GetBuffer().AsSpan(0, (int)fingerprintBytes.Length)),
+                ResourceProjectKind.Mod);
         }
         catch (OperationCanceledException)
         {

@@ -33,17 +33,20 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly ILogger<LocalResourcePacksViewModel> logger;
     private readonly LocalContentRefreshCoordinator<LocalResourcePack> refreshCoordinator;
+    private readonly LocalResourceCategoryEnrichmentCoordinator<LocalResourcePack> categoryEnrichmentCoordinator;
 
     public LocalResourcePacksViewModel(
         ILocalResourcePackService localResourcePackService,
         IStatusService statusService,
         IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
-        ILogger<LocalResourcePacksViewModel>? logger = null)
+        ILogger<LocalResourcePacksViewModel>? logger = null,
+        ILocalResourceCategoryEnrichmentService? categoryEnrichmentService = null)
     {
         service = localResourcePackService;
         this.statusService = statusService;
         this.logger = logger ?? NullLogger<LocalResourcePacksViewModel>.Instance;
+        var dispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         refreshCoordinator = new LocalContentRefreshCoordinator<LocalResourcePack>(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.ResourcePacks,
@@ -51,7 +54,17 @@ public sealed class LocalResourcePacksViewModel : IDisposable
             Apply,
             Clear,
             _ => ReportStatus(Strings.Status_LoadLocalResourcePacksFailed),
-            uiDispatcher ?? ImmediateUiDispatcher.Instance,
+            dispatcher,
+            this.logger);
+        categoryEnrichmentCoordinator = new LocalResourceCategoryEnrichmentCoordinator<LocalResourcePack>(
+            categoryEnrichmentService,
+            ResourceProjectKind.ResourcePack,
+            resourcePack => resourcePack.FullPath,
+            resourcePack => resourcePack.Categories,
+            static (resourcePack, categories) => resourcePack.Categories = categories,
+            () => CurrentResourcePacks,
+            () => ResourcePacksChanged?.Invoke(this, EventArgs.Empty),
+            dispatcher,
             this.logger);
     }
 
@@ -61,15 +74,30 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public IReadOnlyList<LocalResourcePack> CurrentResourcePacks => refreshCoordinator.CurrentItems;
 
-    public void SetSelectedInstance(GameInstance? instance) => refreshCoordinator.SetInstance(instance);
+    public void SetSelectedInstance(GameInstance? instance)
+    {
+        categoryEnrichmentCoordinator.Cancel();
+        refreshCoordinator.SetInstance(instance);
+    }
 
-    public void SetWatcherEnabled(bool enabled) => refreshCoordinator.SetWatcherEnabled(enabled);
+    public void SetWatcherEnabled(bool enabled)
+    {
+        if (!enabled)
+            categoryEnrichmentCoordinator.Cancel();
+        refreshCoordinator.SetWatcherEnabled(enabled);
+    }
 
     public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
     public void ResumeWatcherAfterInstanceRename(bool restart = true) => refreshCoordinator.ResumeAfterRename(restart);
 
-    public Task<bool> RefreshResourcePacksAsync() => refreshCoordinator.RefreshAsync();
+    public async Task<bool> RefreshResourcePacksAsync()
+    {
+        var refreshed = await refreshCoordinator.RefreshAsync();
+        if (refreshed)
+            categoryEnrichmentCoordinator.Queue(CurrentResourcePacks);
+        return refreshed;
+    }
 
     public async Task<int> DeleteResourcePacksAsync(IEnumerable<LocalResourcePack> resourcePacks)
     {
@@ -104,7 +132,11 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         return result;
     }
 
-    public void Dispose() => refreshCoordinator.Dispose();
+    public void Dispose()
+    {
+        categoryEnrichmentCoordinator.Dispose();
+        refreshCoordinator.Dispose();
+    }
 
     private void Apply(IReadOnlyList<LocalResourcePack> items)
     {

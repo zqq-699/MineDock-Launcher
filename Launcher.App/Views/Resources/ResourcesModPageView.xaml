@@ -111,7 +111,12 @@
                                              EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
                                              Command="{Binding DataContext.ProjectList.SelectProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                              CommandParameter="{Binding}"
-                                             Style="{StaticResource ListPageItemButtonEntranceStyle}" />
+                                             Style="{StaticResource ListPageItemButtonEntranceStyle}">
+                    <controls:ListPageItemButton.TitleTrailingContent>
+                        <controls:AdaptiveTagList ItemsSource="{Binding TitleTags}"
+                                                  Visibility="{Binding HasTitleTags, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    </controls:ListPageItemButton.TitleTrailingContent>
+                </controls:ListPageItemButton>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type viewModels:ResourcesModVersionItemViewModel}">
@@ -315,6 +320,19 @@
                                                Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding DownloadsText}"
+                                               Style="{StaticResource ResourcesModDetailValueTextStyle}" />
+                                </Grid>
+
+                                <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}"
+                                      Visibility="{Binding HasTitleTags, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="128" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Static res:Strings.Resources_ModDetailsTagsLabel}"
+                                               Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding TitleTagsText}"
                                                Style="{StaticResource ResourcesModDetailValueTextStyle}" />
                                 </Grid>
 

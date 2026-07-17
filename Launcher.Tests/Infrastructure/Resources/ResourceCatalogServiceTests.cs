@@ -119,6 +119,59 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ModrinthSearchMapsOnlyUnifiedCategoriesForKind()
+    {
+        var handler = new StubHandler(_ => Json(
+            """{"hits":[{"project_id":"m","slug":"project","title":"Project","description":"","downloads":1,"categories":["fabric","optimization","decoration","client","optimization"]}]}"""));
+        var service = CreateService(handler);
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth
+        });
+
+        Assert.Equal(
+            [ResourceProjectCategory.Optimization, ResourceProjectCategory.Decoration],
+            Assert.Single(result.Projects).Categories);
+    }
+
+    [Fact]
+    public async Task CurseForgeSearchMapsAliasesWithinRequestedKindAndRemovesDuplicates()
+    {
+        var handler = new StubHandler(_ => Json(
+            """{"data":[{"id":9,"name":"Pack","slug":"pack","summary":"","downloadCount":1,"categories":[{"name":"Fantasy","slug":"fantasy"},{"name":"Realistic","slug":"realistic"},{"name":"Technology","slug":"technology"},{"name":"Fantasy","slug":"fantasy"}]}]}"""));
+        var service = CreateService(handler, "key");
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            Source = ResourceProjectSource.CurseForge
+        });
+
+        Assert.Equal(
+            [ResourceProjectCategory.Themed, ResourceProjectCategory.Realistic],
+            Assert.Single(result.Projects).Categories);
+    }
+
+    [Theory]
+    [InlineData(ResourceProjectKind.Mod, "performance", ResourceProjectCategory.Optimization, "audio")]
+    [InlineData(ResourceProjectKind.ResourcePack, "fantasy", ResourceProjectCategory.Themed, "technology")]
+    [InlineData(ResourceProjectKind.ShaderPack, "semi-realistic", ResourceProjectCategory.SemiRealistic, "quests")]
+    [InlineData(ResourceProjectKind.World, "minigame", ResourceProjectCategory.GameMap, "magic")]
+    [InlineData(ResourceProjectKind.Modpack, "questing", ResourceProjectCategory.Quests, "decoration")]
+    public void CurseForgeCategoryMappingIsScopedToResourceKind(
+        ResourceProjectKind kind,
+        string accepted,
+        ResourceProjectCategory expected,
+        string rejected)
+    {
+        var categories = ResourceProjectCategoryMapping.MapCurseForge(kind, [accepted, rejected]);
+
+        Assert.Equal([expected], categories);
+    }
+
+    [Fact]
     public async Task VersionsMapRequiredModrinthDependencies()
     {
         var handler = new StubHandler(request => Json(request.RequestUri!.AbsolutePath switch

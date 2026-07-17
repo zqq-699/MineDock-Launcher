@@ -259,15 +259,11 @@ internal sealed class CurseForgeResourceClient(
     {
         if (!category.HasValue)
             return null;
-        var aliases = ResolveCategoryAliases(category.Value)
-            .Select(NormalizeCategory)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var categories = await GetCategoriesAsync(kind, apiKey, cancellationToken).ConfigureAwait(false);
-        return categories.FirstOrDefault(candidate =>
-            new[] { candidate.Name, candidate.Slug }
-                .SelectMany(value => new[] { value, value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? value })
-                .Select(NormalizeCategory)
-                .Any(aliases.Contains))?.Id;
+        return categories.FirstOrDefault(candidate => ResourceProjectCategoryMapping.MatchesCurseForge(
+            category.Value,
+            candidate.Name,
+            candidate.Slug))?.Id;
     }
 
     private Task<IReadOnlyList<CurseForgeCategory>> GetCategoriesAsync(
@@ -358,6 +354,9 @@ internal sealed class CurseForgeResourceClient(
         Description = mod.Summary,
         IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
         Downloads = mod.DownloadCount,
+        Categories = ResourceProjectCategoryMapping.MapCurseForge(
+            kind,
+            mod.Categories.SelectMany(category => new[] { category.Name, category.Slug })),
         SupportedMinecraftVersions = NormalizeDistinct(mod.LatestFilesIndexes.Select(value => value.GameVersion)
             .Concat(mod.GameVersionLatestFiles.Select(value => value.GameVersion))),
         SupportedLoaders = HasLoaderFacet(kind)
@@ -446,45 +445,6 @@ internal sealed class CurseForgeResourceClient(
     private static string BuildCdnUrl(string host, long id, string fileName) =>
         $"https://{host}/files/{id / 1000}/{id % 1000}/{Uri.EscapeDataString(fileName)}";
 
-    private static string NormalizeCategory(string value) => string.IsNullOrWhiteSpace(value)
-        ? string.Empty
-        : new string(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
-
-    private static IReadOnlyList<string> ResolveCategoryAliases(ResourceProjectCategory category) => category switch
-    {
-        ResourceProjectCategory.Optimization => ["optimization", "performance"],
-        ResourceProjectCategory.Utility => ["utility", "utilities", "qol", "quality of life", "miscellaneous"],
-        ResourceProjectCategory.Adventure => ["adventure", "rpg", "adventure rpg", "adventure and rpg"],
-        ResourceProjectCategory.Decoration => ["decoration", "decorative", "cosmetic"],
-        ResourceProjectCategory.Equipment => ["equipment", "armor weapons tools", "armor", "weapons", "tools"],
-        ResourceProjectCategory.Technology => ["technology", "tech"],
-        ResourceProjectCategory.Magic => ["magic"],
-        ResourceProjectCategory.Mobs => ["mobs", "creatures"],
-        ResourceProjectCategory.WorldGeneration => ["worldgen", "world gen", "world generation", "biomes", "dimensions"],
-        ResourceProjectCategory.Storage => ["storage"],
-        ResourceProjectCategory.Library => ["library", "api", "library api", "api and library"],
-        ResourceProjectCategory.Simplistic => ["simplistic", "simple", "16x"],
-        ResourceProjectCategory.Themed => ["themed", "theme", "medieval", "modern", "fantasy"],
-        ResourceProjectCategory.Realistic => ["realistic", "realism", "photorealistic", "128x", "256x", "512x"],
-        ResourceProjectCategory.VanillaLike => ["vanilla like", "vanilla-like", "vanilla"],
-        ResourceProjectCategory.Audio => ["audio", "sound", "music"],
-        ResourceProjectCategory.Cartoon => ["cartoon"],
-        ResourceProjectCategory.Cursed => ["cursed"],
-        ResourceProjectCategory.Fantasy => ["fantasy"],
-        ResourceProjectCategory.SemiRealistic => ["semi realistic", "semi-realistic", "semirealistic"],
-        ResourceProjectCategory.Creation => ["creation", "creations", "building", "buildings", "creative"],
-        ResourceProjectCategory.GameMap => ["game map", "game maps", "minigame", "mini game", "mini games"],
-        ResourceProjectCategory.Parkour => ["parkour"],
-        ResourceProjectCategory.Puzzle => ["puzzle", "puzzles"],
-        ResourceProjectCategory.Survival => ["survival"],
-        ResourceProjectCategory.Quests => ["quests", "questing", "quest"],
-        ResourceProjectCategory.KitchenSink => ["kitchen sink", "kitchen-sink", "kitchensink"],
-        ResourceProjectCategory.Lightweight => ["lightweight", "small", "light"],
-        ResourceProjectCategory.Multiplayer => ["multiplayer", "server", "servers"],
-        ResourceProjectCategory.Exploration => ["exploration", "explore"],
-        _ => []
-    };
-
     private enum CurseForgeLoader { Forge = 1, Fabric = 4, Quilt = 5, NeoForge = 6 }
 
     private sealed class SearchResponse
@@ -516,6 +476,7 @@ internal sealed class CurseForgeResourceClient(
         [JsonPropertyName("downloadCount")] public long DownloadCount { get; init; }
         [JsonPropertyName("links")] public Links? Links { get; init; }
         [JsonPropertyName("logo")] public Logo? Logo { get; init; }
+        [JsonPropertyName("categories")] public List<CurseForgeCategory> Categories { get; init; } = [];
         [JsonPropertyName("latestFilesIndexes")] public List<LatestFile> LatestFilesIndexes { get; init; } = [];
         [JsonPropertyName("gameVersionLatestFiles")] public List<LatestFile> GameVersionLatestFiles { get; init; } = [];
     }

@@ -127,6 +127,10 @@
                                              Command="{Binding DataContext.SelectModCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
                                              CommandParameter="{Binding}"
                                              Style="{StaticResource ListPageItemButtonEntranceStyle}">
+                    <controls:ListPageItemButton.TitleTrailingContent>
+                        <controls:AdaptiveTagList ItemsSource="{Binding TitleTags}"
+                                                  Visibility="{Binding HasTitleTags, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    </controls:ListPageItemButton.TitleTrailingContent>
                     <controls:ListPageItemButton.TrailingContent>
                         <StackPanel Orientation="Horizontal">
                             <Button Command="{Binding DataContext.ToggleModEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"

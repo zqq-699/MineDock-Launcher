@@ -18,6 +18,7 @@
  */
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.App.ViewModels.Resources;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -53,6 +54,12 @@ public sealed partial class ShaderPackManagementItemViewModel : ObservableObject
     [ObservableProperty]
     private bool isSelected;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTitleTags))]
+    private IReadOnlyList<string> titleTags = [];
+
+    public bool HasTitleTags => TitleTags.Count > 0;
+
     public void SyncFrom(LocalShaderPack shaderPack)
     {
         Title = shaderPack.Name;
@@ -61,6 +68,7 @@ public sealed partial class ShaderPackManagementItemViewModel : ObservableObject
             : shaderPack.FileName;
         FullPath = shaderPack.FullPath;
         IconSource = shaderPack.IconSource;
+        TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.ShaderPack, shaderPack.Categories);
         CreatedAt = shaderPack.CreatedAt;
     }
 

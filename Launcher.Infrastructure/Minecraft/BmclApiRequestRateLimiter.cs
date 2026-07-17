@@ -12,7 +12,7 @@ namespace Launcher.Infrastructure.Minecraft;
 /// </summary>
 internal sealed class BmclApiRequestRateLimiter
 {
-    internal static readonly TimeSpan DefaultRequestInterval = TimeSpan.FromMilliseconds(50);
+    internal static readonly TimeSpan DefaultRequestInterval = TimeSpan.FromMilliseconds(10);
 
     public static BmclApiRequestRateLimiter Shared { get; } = new();
 

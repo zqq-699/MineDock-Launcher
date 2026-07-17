@@ -102,6 +102,7 @@ public static class Strings
     public static string Resources_ModDetailsLoaderLabel => Get(nameof(Resources_ModDetailsLoaderLabel));
     public static string Resources_ModDetailsSourceLabel => Get(nameof(Resources_ModDetailsSourceLabel));
     public static string Resources_ModDetailsDownloadsLabel => Get(nameof(Resources_ModDetailsDownloadsLabel));
+    public static string Resources_ModDetailsTagsLabel => Get(nameof(Resources_ModDetailsTagsLabel));
     public static string Resources_ModDetailsDependenciesLabel => Get(nameof(Resources_ModDetailsDependenciesLabel));
     public static string Resources_ModInstallTargetSection => Get(nameof(Resources_ModInstallTargetSection));
     public static string Resources_ModInstallTargetLocal => Get(nameof(Resources_ModInstallTargetLocal));

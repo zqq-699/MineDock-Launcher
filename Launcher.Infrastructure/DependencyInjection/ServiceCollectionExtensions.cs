@@ -97,6 +97,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalModIconEnrichmentService, LocalModIconEnrichmentService>();
+        services.AddSingleton<ILocalResourceCategoryEnrichmentService, LocalResourceCategoryEnrichmentService>();
         services.AddSingleton<IInstanceBackupService, InstanceBackupService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
         services.AddSingleton<ModpackSandboxCleanupService>();
@@ -117,7 +118,11 @@ public static class ServiceCollectionExtensions
             serviceProvider.GetService<ISettingsService>(),
             serviceProvider.GetService<IDownloadSpeedLimitState>(),
             serviceProvider.GetService<IImportConcurrencyLimiter>()));
-        services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
+        services.AddSingleton<ResourceCatalogService>();
+        services.AddSingleton<IResourceCatalogService>(serviceProvider =>
+            serviceProvider.GetRequiredService<ResourceCatalogService>());
+        services.AddSingleton<IResourceThumbnailService>(serviceProvider =>
+            serviceProvider.GetRequiredService<ResourceCatalogService>());
         services.AddSingleton<IResourceProjectInstallationService, ResourceProjectInstallationService>();
         services.AddSingleton<ILauncherUpdateService, RemoteManifestLauncherUpdateService>();
         services.AddSingleton<LauncherUpdateCacheCleaner>();

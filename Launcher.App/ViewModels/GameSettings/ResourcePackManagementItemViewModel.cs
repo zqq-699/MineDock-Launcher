@@ -18,6 +18,7 @@
  */
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.App.ViewModels.Resources;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -53,6 +54,12 @@ public sealed partial class ResourcePackManagementItemViewModel : ObservableObje
     [ObservableProperty]
     private bool isSelected;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTitleTags))]
+    private IReadOnlyList<string> titleTags = [];
+
+    public bool HasTitleTags => TitleTags.Count > 0;
+
     public void SyncFrom(LocalResourcePack resourcePack)
     {
         Title = resourcePack.Name;
@@ -61,6 +68,7 @@ public sealed partial class ResourcePackManagementItemViewModel : ObservableObje
             : resourcePack.FileName;
         FullPath = resourcePack.FullPath;
         IconSource = resourcePack.IconSource;
+        TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.ResourcePack, resourcePack.Categories);
         CreatedAt = resourcePack.CreatedAt;
     }
 

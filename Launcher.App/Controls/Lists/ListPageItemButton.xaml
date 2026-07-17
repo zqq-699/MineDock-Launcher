@@ -132,11 +132,32 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{Binding Title, ElementName=Root}"
-                               Foreground="{Binding TitleForeground, ElementName=Root}"
-                               FontSize="{Binding TitleFontSize, ElementName=Root}"
-                               FontWeight="{Binding TitleFontWeight, ElementName=Root}"
-                               TextTrimming="CharacterEllipsis" />
+                    <DockPanel LastChildFill="False"
+                               ClipToBounds="True">
+                        <TextBlock DockPanel.Dock="Left"
+                                   Text="{Binding Title, ElementName=Root}"
+                                   Foreground="{Binding TitleForeground, ElementName=Root}"
+                                   FontSize="{Binding TitleFontSize, ElementName=Root}"
+                                   FontWeight="{Binding TitleFontWeight, ElementName=Root}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+
+                        <ContentPresenter DockPanel.Dock="Left"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          Content="{Binding TitleTrailingContent, ElementName=Root}">
+                            <ContentPresenter.Style>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TitleTrailingContent, ElementName=Root}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ContentPresenter.Style>
+                        </ContentPresenter>
+                    </DockPanel>
 
                     <TextBlock Grid.Row="1"
                                Margin="0,2,0,0"

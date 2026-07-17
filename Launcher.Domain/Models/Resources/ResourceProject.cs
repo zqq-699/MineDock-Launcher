@@ -37,6 +37,8 @@ public sealed class ResourceProject
 
     public long Downloads { get; init; }
 
+    public IReadOnlyList<ResourceProjectCategory> Categories { get; init; } = [];
+
     public IReadOnlyList<string> SupportedMinecraftVersions { get; init; } = [];
 
     public IReadOnlyList<string> SupportedLoaders { get; init; } = [];

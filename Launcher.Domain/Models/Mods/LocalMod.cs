@@ -28,6 +28,7 @@ public sealed class LocalMod
     public string FileName { get; set; } = string.Empty;
     public string FullPath { get; set; } = string.Empty;
     public string? IconSource { get; set; }
+    public IReadOnlyList<ResourceProjectCategory> Categories { get; set; } = [];
     public bool IsEnabled { get; set; }
     public long SizeBytes { get; set; }
     public string Source { get; set; } = "Local";

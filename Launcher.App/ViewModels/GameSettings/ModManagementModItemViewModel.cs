@@ -19,6 +19,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
+using Launcher.App.ViewModels.Resources;
 using Launcher.Domain.Models;
 using System.IO;
 
@@ -68,6 +69,12 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
     [ObservableProperty]
     private bool isSelected;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTitleTags))]
+    private IReadOnlyList<string> titleTags = [];
+
+    public bool HasTitleTags => TitleTags.Count > 0;
+
     public void SyncFrom(LocalMod mod)
     {
         Title = string.IsNullOrWhiteSpace(mod.Name)
@@ -79,6 +86,7 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
         FileName = mod.FileName;
         FullPath = mod.FullPath;
         IconSource = mod.IconSource;
+        TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.Mod, mod.Categories);
         IsEnabled = mod.IsEnabled;
     }
 

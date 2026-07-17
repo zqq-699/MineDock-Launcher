@@ -264,6 +264,9 @@
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
     <value>Downloads</value>
   </data>
+  <data name="Resources_ModDetailsTagsLabel" xml:space="preserve">
+    <value>Tags</value>
+  </data>
   <data name="Resources_ModDetailsDependenciesLabel" xml:space="preserve">
     <value>Required Mods</value>
   </data>

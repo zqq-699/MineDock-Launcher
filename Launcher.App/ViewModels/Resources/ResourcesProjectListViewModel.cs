@@ -399,7 +399,11 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             var result = await resourceCatalogService!.SearchProjectsAsync(request, cancellationToken).ConfigureAwait(false);
             var releaseOrder = await releaseOrderTask.ConfigureAwait(false);
             var items = result.Projects
-                .Select(project => new ResourcesModProjectItemViewModel(project, releaseOrder, options.FallbackIconKey))
+                .Select(project => new ResourcesModProjectItemViewModel(
+                    project,
+                    releaseOrder,
+                    options.FallbackIconKey,
+                    options.TypeOptions))
                 .ToList();
             ApplyCachedThumbnailSources(items);
 

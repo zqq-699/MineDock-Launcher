@@ -33,17 +33,20 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly ILogger<LocalShaderPacksViewModel> logger;
     private readonly LocalContentRefreshCoordinator<LocalShaderPack> refreshCoordinator;
+    private readonly LocalResourceCategoryEnrichmentCoordinator<LocalShaderPack> categoryEnrichmentCoordinator;
 
     public LocalShaderPacksViewModel(
         ILocalShaderPackService localShaderPackService,
         IStatusService statusService,
         IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
-        ILogger<LocalShaderPacksViewModel>? logger = null)
+        ILogger<LocalShaderPacksViewModel>? logger = null,
+        ILocalResourceCategoryEnrichmentService? categoryEnrichmentService = null)
     {
         service = localShaderPackService;
         this.statusService = statusService;
         this.logger = logger ?? NullLogger<LocalShaderPacksViewModel>.Instance;
+        var dispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         refreshCoordinator = new LocalContentRefreshCoordinator<LocalShaderPack>(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.ShaderPacks,
@@ -51,8 +54,20 @@ public sealed class LocalShaderPacksViewModel : IDisposable
             Apply,
             Clear,
             _ => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed),
-            uiDispatcher ?? ImmediateUiDispatcher.Instance,
+            dispatcher,
             this.logger);
+        categoryEnrichmentCoordinator = new LocalResourceCategoryEnrichmentCoordinator<LocalShaderPack>(
+            categoryEnrichmentService,
+            ResourceProjectKind.ShaderPack,
+            shaderPack => shaderPack.FullPath,
+            shaderPack => shaderPack.Categories,
+            static (shaderPack, categories) => shaderPack.Categories = categories,
+            () => CurrentShaderPacks,
+            () => ShaderPacksChanged?.Invoke(this, EventArgs.Empty),
+            dispatcher,
+            this.logger,
+            shaderPack => shaderPack.IconSource,
+            static (shaderPack, iconSource) => shaderPack.IconSource = iconSource);
     }
 
     public event EventHandler? ShaderPacksChanged;
@@ -61,15 +76,30 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public IReadOnlyList<LocalShaderPack> CurrentShaderPacks => refreshCoordinator.CurrentItems;
 
-    public void SetSelectedInstance(GameInstance? instance) => refreshCoordinator.SetInstance(instance);
+    public void SetSelectedInstance(GameInstance? instance)
+    {
+        categoryEnrichmentCoordinator.Cancel();
+        refreshCoordinator.SetInstance(instance);
+    }
 
-    public void SetWatcherEnabled(bool enabled) => refreshCoordinator.SetWatcherEnabled(enabled);
+    public void SetWatcherEnabled(bool enabled)
+    {
+        if (!enabled)
+            categoryEnrichmentCoordinator.Cancel();
+        refreshCoordinator.SetWatcherEnabled(enabled);
+    }
 
     public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
     public void ResumeWatcherAfterInstanceRename(bool restart = true) => refreshCoordinator.ResumeAfterRename(restart);
 
-    public Task<bool> RefreshShaderPacksAsync() => refreshCoordinator.RefreshAsync();
+    public async Task<bool> RefreshShaderPacksAsync()
+    {
+        var refreshed = await refreshCoordinator.RefreshAsync();
+        if (refreshed)
+            categoryEnrichmentCoordinator.Queue(CurrentShaderPacks);
+        return refreshed;
+    }
 
     public async Task<int> DeleteShaderPacksAsync(IEnumerable<LocalShaderPack> shaderPacks)
     {
@@ -104,7 +134,11 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         return result;
     }
 
-    public void Dispose() => refreshCoordinator.Dispose();
+    public void Dispose()
+    {
+        categoryEnrichmentCoordinator.Dispose();
+        refreshCoordinator.Dispose();
+    }
 
     private void Apply(IReadOnlyList<LocalShaderPack> items)
     {

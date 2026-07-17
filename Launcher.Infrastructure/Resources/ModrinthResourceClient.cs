@@ -74,6 +74,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
             Description = hit.Description,
             IconUrl = hit.IconUrl,
             Downloads = hit.Downloads,
+            Categories = ResourceProjectCategoryMapping.MapModrinth(request.Kind, hit.Categories),
             SupportedMinecraftVersions = NormalizeDistinct(hit.Versions),
             SupportedLoaders = HasLoaderFacet(request.Kind)
                 ? NormalizeDistinct(hit.Categories.Where(KnownLoaders.Contains))
@@ -222,6 +223,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         Description = project.Description,
         IconUrl = project.IconUrl,
         Downloads = project.Downloads,
+        Categories = ResourceProjectCategoryMapping.MapModrinth(ResourceProjectKind.Mod, project.Categories),
         SupportedMinecraftVersions = NormalizeDistinct(project.GameVersions),
         SupportedLoaders = NormalizeDistinct(project.Loaders.Where(KnownLoaders.Contains)),
         ProjectUrl = string.IsNullOrWhiteSpace(project.Slug) ? string.Empty : $"https://modrinth.com/mod/{project.Slug}"
@@ -294,25 +296,8 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         _ => "mod"
     };
 
-    private static string MapCategory(ResourceProjectCategory category) => category switch
-    {
-        ResourceProjectCategory.Optimization => "optimization",
-        ResourceProjectCategory.Utility => "utility",
-        ResourceProjectCategory.Adventure => "adventure",
-        ResourceProjectCategory.Decoration => "decoration",
-        ResourceProjectCategory.Equipment => "equipment",
-        ResourceProjectCategory.Technology => "technology",
-        ResourceProjectCategory.Magic => "magic",
-        ResourceProjectCategory.Mobs => "mobs",
-        ResourceProjectCategory.WorldGeneration => "worldgen",
-        ResourceProjectCategory.Storage => "storage",
-        ResourceProjectCategory.Library => "library",
-        ResourceProjectCategory.VanillaLike => "vanilla-like",
-        ResourceProjectCategory.SemiRealistic => "semi-realistic",
-        ResourceProjectCategory.GameMap => "game-map",
-        ResourceProjectCategory.KitchenSink => "kitchen-sink",
-        _ => category.ToString().ToLowerInvariant()
-    };
+    private static string MapCategory(ResourceProjectCategory category) =>
+        ResourceProjectCategoryMapping.GetModrinthId(category);
 
     private sealed class ModrinthSearchResponse
     {
@@ -373,5 +358,6 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         [JsonPropertyName("downloads")] public long Downloads { get; init; }
         [JsonPropertyName("game_versions")] public List<string> GameVersions { get; init; } = [];
         [JsonPropertyName("loaders")] public List<string> Loaders { get; init; } = [];
+        [JsonPropertyName("categories")] public List<string> Categories { get; init; } = [];
     }
 }

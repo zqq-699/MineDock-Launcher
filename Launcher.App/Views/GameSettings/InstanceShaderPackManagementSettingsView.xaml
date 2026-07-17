@@ -77,6 +77,10 @@
                                              Command="{Binding DataContext.SelectShaderPackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
                                              CommandParameter="{Binding}"
                                              Style="{StaticResource ListPageItemButtonEntranceStyle}">
+                    <controls:ListPageItemButton.TitleTrailingContent>
+                        <controls:AdaptiveTagList ItemsSource="{Binding TitleTags}"
+                                                  Visibility="{Binding HasTitleTags, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    </controls:ListPageItemButton.TitleTrailingContent>
                     <controls:ListPageItemButton.TrailingContent>
                         <StackPanel Orientation="Horizontal">
                             <Button Style="{StaticResource InlineIconButtonStyle}"

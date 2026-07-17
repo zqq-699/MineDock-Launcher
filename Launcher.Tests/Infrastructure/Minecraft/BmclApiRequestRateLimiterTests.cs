@@ -11,6 +11,12 @@ public sealed class BmclApiRequestRateLimiterTests
     private static readonly Uri BmclApiUri = new("https://bmclapi2.bangbang93.com/assets/aa/hash");
 
     [Fact]
+    public void DefaultRequestIntervalIsTenMilliseconds()
+    {
+        Assert.Equal(TimeSpan.FromMilliseconds(10), BmclApiRequestRateLimiter.DefaultRequestInterval);
+    }
+
+    [Fact]
     public async Task BmclApiRequestsAreReleasedAtConfiguredIntervals()
     {
         var clock = new TestTimeProvider();
