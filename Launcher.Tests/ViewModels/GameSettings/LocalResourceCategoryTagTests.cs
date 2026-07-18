@@ -52,6 +52,23 @@ public sealed class LocalResourceCategoryTagTests
     }
 
     [Fact]
+    public void LocalItemInfoAvailabilityRequiresRecognizedProjectReference()
+    {
+        var recognized = new ResourceProjectReference(
+            ResourceProjectKind.Mod,
+            ResourceProjectSource.Modrinth,
+            "recognized-project");
+
+        var recognizedMod = new ModManagementModItemViewModel(new LocalMod { ProjectReference = recognized });
+        var unknownResourcePack = new ResourcePackManagementItemViewModel(new LocalResourcePack());
+        var unknownShaderPack = new ShaderPackManagementItemViewModel(new LocalShaderPack());
+
+        Assert.True(recognizedMod.HasProjectDetails);
+        Assert.False(unknownResourcePack.HasProjectDetails);
+        Assert.False(unknownShaderPack.HasProjectDetails);
+    }
+
+    [Fact]
     public async Task ShaderPackEnrichmentAppliesWebsiteIconWithoutReplacingExistingIcon()
     {
         var matched = new LocalShaderPack { FullPath = "matched.zip" };
@@ -69,13 +86,16 @@ public sealed class LocalResourceCategoryTagTests
             ImmediateUiDispatcher.Instance,
             NullLogger.Instance,
             shaderPack => shaderPack.IconSource,
-            static (shaderPack, iconSource) => shaderPack.IconSource = iconSource);
+            static (shaderPack, iconSource) => shaderPack.IconSource = iconSource,
+            shaderPack => shaderPack.ProjectReference,
+            static (shaderPack, reference) => shaderPack.ProjectReference = reference);
 
         coordinator.Queue(items);
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal("file:///website.png", matched.IconSource);
         Assert.Equal("file:///embedded.png", embedded.IconSource);
+        Assert.Equal("shader-project", matched.ProjectReference?.ProjectId);
     }
 
     private sealed class ShaderMetadataService : ILocalResourceCategoryEnrichmentService
@@ -92,7 +112,13 @@ public sealed class LocalResourceCategoryTagTests
             Task.FromResult<IReadOnlyDictionary<string, LocalResourceEnrichmentResult>>(
                 resources.ToDictionary(
                     resource => resource.FullPath,
-                    _ => new LocalResourceEnrichmentResult([], "file:///website.png"),
+                    _ => new LocalResourceEnrichmentResult(
+                        [],
+                        "file:///website.png",
+                        new ResourceProjectReference(
+                            ResourceProjectKind.ShaderPack,
+                            ResourceProjectSource.Modrinth,
+                            "shader-project")),
                     StringComparer.OrdinalIgnoreCase));
 
         public Task<IReadOnlyDictionary<string, IReadOnlyList<ResourceProjectCategory>>> ResolveCachedCategoriesAsync(

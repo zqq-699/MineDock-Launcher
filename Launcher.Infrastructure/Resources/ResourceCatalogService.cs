@@ -85,6 +85,17 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         CancellationToken cancellationToken = default) =>
         thumbnailCache.GetOrCreateThumbnailSourceAsync(project, cancellationToken);
 
+    public Task<ResourceProject?> GetProjectAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        return providers.TryGetValue(reference.Source, out var provider)
+            && provider.Supports(reference.Kind)
+            ? provider.GetProjectAsync(reference, cancellationToken)
+            : Task.FromResult<ResourceProject?>(null);
+    }
+
     public Task<ResourceCatalogSearchResult> SearchModsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken = default)

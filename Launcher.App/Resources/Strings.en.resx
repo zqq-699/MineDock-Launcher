@@ -2053,6 +2053,9 @@ Longer content wraps automatically.</value>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve">
     <value>Open instance folder</value>
   </data>
+  <data name="GameSettings_OpenResourceDetailsTooltip" xml:space="preserve">
+    <value>View resource details</value>
+  </data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve">
     <value>Select and return home</value>
   </data>
@@ -2109,6 +2112,9 @@ Longer content wraps automatically.</value>
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>Failed to open the reference project.</value>
+  </data>
+  <data name="Status_OpenResourceDetailsFailed" xml:space="preserve">
+    <value>Could not open the resource details. Please try again later.</value>
   </data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve">
     <value>Update checking is currently unavailable.</value>

@@ -701,6 +701,7 @@
   <data name="FilePicker_LocalImportFileFilter" xml:space="preserve"><value>整合包 (*.mrpack;*.zip)|*.mrpack;*.zip|Modrinth 整合包 (*.mrpack)|*.mrpack|CurseForge 整合包 (*.zip)|*.zip|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve"><value>删除版本</value></data>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve"><value>打开文件夹位置</value></data>
+  <data name="GameSettings_OpenResourceDetailsTooltip" xml:space="preserve"><value>查看资源详情</value></data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>
   <data name="Dialog_DeleteInstanceTitle" xml:space="preserve"><value>删除版本</value></data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve"><value>是否确定删除版本“{0}”？</value></data>
@@ -720,6 +721,7 @@
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve"><value>打开 GitHub 仓库失败</value></data>
   <data name="Status_OpenFeedbackPageFailed" xml:space="preserve"><value>打开反馈页面失败，请稍后重试。</value></data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve"><value>打开项目链接失败</value></data>
+  <data name="Status_OpenResourceDetailsFailed" xml:space="preserve"><value>无法打开资源详情，请稍后重试</value></data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve"><value>更新检查暂未接入</value></data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
   <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve"><value>详细设置</value></data>

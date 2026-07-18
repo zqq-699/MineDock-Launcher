@@ -26,5 +26,6 @@ public sealed class LocalShaderPack
     public string FullPath { get; set; } = string.Empty;
     public string? IconSource { get; set; }
     public IReadOnlyList<ResourceProjectCategory> Categories { get; set; } = [];
+    public ResourceProjectReference? ProjectReference { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

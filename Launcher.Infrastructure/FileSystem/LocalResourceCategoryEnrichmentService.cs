@@ -58,7 +58,8 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
         var categories = await ResolveCachedCategoriesAsync(resources, cancellationToken).ConfigureAwait(false);
         var icons = await ResolveShaderPackIconSourcesAsync(resources, downloadMissing: false, cancellationToken)
             .ConfigureAwait(false);
-        return CombineMetadata(categories, icons);
+        var references = await ResolveProjectReferencesAsync(resources, cancellationToken).ConfigureAwait(false);
+        return CombineMetadata(categories, icons, references);
     }
 
     public async Task<IReadOnlyDictionary<string, LocalResourceEnrichmentResult>> ResolveMetadataAsync(
@@ -68,7 +69,8 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
         var categories = await ResolveCategoriesAsync(resources, cancellationToken).ConfigureAwait(false);
         var icons = await ResolveShaderPackIconSourcesAsync(resources, downloadMissing: true, cancellationToken)
             .ConfigureAwait(false);
-        return CombineMetadata(categories, icons);
+        var references = await ResolveProjectReferencesAsync(resources, cancellationToken).ConfigureAwait(false);
+        return CombineMetadata(categories, icons, references);
     }
 
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<ResourceProjectCategory>>> ResolveCachedCategoriesAsync(
@@ -404,15 +406,56 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
 
     private static IReadOnlyDictionary<string, LocalResourceEnrichmentResult> CombineMetadata(
         IReadOnlyDictionary<string, IReadOnlyList<ResourceProjectCategory>> categories,
-        IReadOnlyDictionary<string, string> icons)
+        IReadOnlyDictionary<string, string> icons,
+        IReadOnlyDictionary<string, ResourceProjectReference> references)
     {
-        var paths = categories.Keys.Concat(icons.Keys).Distinct(StringComparer.OrdinalIgnoreCase);
+        var paths = categories.Keys
+            .Concat(icons.Keys)
+            .Concat(references.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
         return paths.ToDictionary(
             path => path,
             path => new LocalResourceEnrichmentResult(
                 categories.TryGetValue(path, out var values) ? values : [],
-                icons.GetValueOrDefault(path)),
+                icons.GetValueOrDefault(path),
+                references.GetValueOrDefault(path)),
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<IReadOnlyDictionary<string, ResourceProjectReference>> ResolveProjectReferencesAsync(
+        IReadOnlyList<LocalResourceCategoryCandidate> resources,
+        CancellationToken cancellationToken)
+    {
+        var identities = CreateFileIdentities(resources);
+        var result = new Dictionary<string, ResourceProjectReference>(StringComparer.OrdinalIgnoreCase);
+        if (identities.Count == 0)
+            return result;
+
+        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var index = await GetCacheIndexAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var identity in identities)
+            {
+                if (!TryGetCurrentEntry(index, identity, out var entry)
+                    || entry.Source is null
+                    || string.IsNullOrWhiteSpace(entry.ProjectId))
+                {
+                    continue;
+                }
+
+                result[identity.Resource.FullPath] = new ResourceProjectReference(
+                    identity.Resource.Kind,
+                    entry.Source.Value,
+                    entry.ProjectId);
+            }
+        }
+        finally
+        {
+            cacheLock.Release();
+        }
+
+        return result;
     }
 
     private static ResourceProjectSource? ParseSource(string source) => source.ToLowerInvariant() switch

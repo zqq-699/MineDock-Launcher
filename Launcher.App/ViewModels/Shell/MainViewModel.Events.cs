@@ -53,6 +53,21 @@ public Task SyncCurrentStateAsync()
         DownloadPage.LocalImportDialog.Open();
     }
 
+    private void GameSettingsPage_ResourceProjectDetailsRequested(ResourceProjectReference reference)
+    {
+        ObserveShellTask(OpenResourceProjectDetailsAsync(reference), "open recognized resource project details");
+    }
+
+    private async Task OpenResourceProjectDetailsAsync(ResourceProjectReference reference)
+    {
+        if (!await ResourcesPage.OpenProjectDetailsAsync(reference))
+            return;
+
+        CurrentPage = NavigationCatalog.ResourcesPage;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
+    }
+
     private void UpdateSecondaryItems()
     {
         SecondaryItems.Clear();

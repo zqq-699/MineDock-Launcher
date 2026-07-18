@@ -113,6 +113,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
     public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
+    public event Action<ResourceProjectReference>? ResourceDetailsRequested;
 
     public override bool UsesFullViewportLayout => true;
 

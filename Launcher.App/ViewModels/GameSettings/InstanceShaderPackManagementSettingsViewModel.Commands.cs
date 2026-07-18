@@ -32,6 +32,13 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed partial class InstanceShaderPackManagementSettingsViewModel
 {
+    [RelayCommand]
+    private void OpenResourceDetails(ShaderPackManagementItemViewModel? shaderPack)
+    {
+        if (shaderPack?.ProjectReference is { } reference)
+            ResourceDetailsRequested?.Invoke(reference);
+    }
+
 [RelayCommand]
     private void OpenShaderPackFolder()
     {

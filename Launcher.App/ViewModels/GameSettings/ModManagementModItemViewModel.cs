@@ -75,6 +75,12 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
 
     public bool HasTitleTags => TitleTags.Count > 0;
 
+    public bool HasProjectDetails => ProjectReference is not null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProjectDetails))]
+    private ResourceProjectReference? projectReference;
+
     public void SyncFrom(LocalMod mod)
     {
         Title = string.IsNullOrWhiteSpace(mod.Name)
@@ -87,6 +93,7 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
         FullPath = mod.FullPath;
         IconSource = mod.IconSource;
         TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.Mod, mod.Categories);
+        ProjectReference = mod.ProjectReference;
         IsEnabled = mod.IsEnabled;
     }
 

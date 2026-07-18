@@ -25,6 +25,8 @@ internal sealed class LocalResourceCategoryEnrichmentCoordinator<T> : IDisposabl
     private readonly Action<T, IReadOnlyList<ResourceProjectCategory>> categoriesSetter;
     private readonly Func<T, string?>? iconSourceSelector;
     private readonly Action<T, string>? iconSourceSetter;
+    private readonly Func<T, ResourceProjectReference?>? projectReferenceSelector;
+    private readonly Action<T, ResourceProjectReference>? projectReferenceSetter;
     private readonly Func<IReadOnlyList<T>> currentItemsProvider;
     private readonly Action changed;
     private readonly IUiDispatcher dispatcher;
@@ -43,7 +45,9 @@ internal sealed class LocalResourceCategoryEnrichmentCoordinator<T> : IDisposabl
         IUiDispatcher dispatcher,
         ILogger logger,
         Func<T, string?>? iconSourceSelector = null,
-        Action<T, string>? iconSourceSetter = null)
+        Action<T, string>? iconSourceSetter = null,
+        Func<T, ResourceProjectReference?>? projectReferenceSelector = null,
+        Action<T, ResourceProjectReference>? projectReferenceSetter = null)
     {
         this.service = service;
         this.kind = kind;
@@ -52,6 +56,8 @@ internal sealed class LocalResourceCategoryEnrichmentCoordinator<T> : IDisposabl
         this.categoriesSetter = categoriesSetter;
         this.iconSourceSelector = iconSourceSelector;
         this.iconSourceSetter = iconSourceSetter;
+        this.projectReferenceSelector = projectReferenceSelector;
+        this.projectReferenceSetter = projectReferenceSetter;
         this.currentItemsProvider = currentItemsProvider;
         this.changed = changed;
         this.dispatcher = dispatcher;
@@ -156,6 +162,15 @@ internal sealed class LocalResourceCategoryEnrichmentCoordinator<T> : IDisposabl
                 && !string.IsNullOrWhiteSpace(metadata.IconSource))
             {
                 iconSourceSetter(item, metadata.IconSource);
+                updated = true;
+            }
+
+            if (projectReferenceSelector is not null
+                && projectReferenceSetter is not null
+                && metadata.ProjectReference is not null
+                && projectReferenceSelector(item) != metadata.ProjectReference)
+            {
+                projectReferenceSetter(item, metadata.ProjectReference);
                 updated = true;
             }
         }

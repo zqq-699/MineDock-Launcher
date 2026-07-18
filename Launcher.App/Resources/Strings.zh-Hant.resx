@@ -2053,6 +2053,9 @@
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve">
     <value>開啟資料夾位置</value>
   </data>
+  <data name="GameSettings_OpenResourceDetailsTooltip" xml:space="preserve">
+    <value>查看資源詳情</value>
+  </data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve">
     <value>返回首頁並選擇此版本</value>
   </data>
@@ -2109,6 +2112,9 @@
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>開啟專案連結失敗</value>
+  </data>
+  <data name="Status_OpenResourceDetailsFailed" xml:space="preserve">
+    <value>無法開啟資源詳情，請稍後再試</value>
   </data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve">
     <value>更新檢查暫未支援</value>

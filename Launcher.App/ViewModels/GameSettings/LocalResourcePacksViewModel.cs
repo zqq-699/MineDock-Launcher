@@ -65,7 +65,9 @@ public sealed class LocalResourcePacksViewModel : IDisposable
             () => CurrentResourcePacks,
             () => ResourcePacksChanged?.Invoke(this, EventArgs.Empty),
             dispatcher,
-            this.logger);
+            this.logger,
+            projectReferenceSelector: resourcePack => resourcePack.ProjectReference,
+            projectReferenceSetter: static (resourcePack, reference) => resourcePack.ProjectReference = reference);
     }
 
     public event EventHandler? ResourcePacksChanged;

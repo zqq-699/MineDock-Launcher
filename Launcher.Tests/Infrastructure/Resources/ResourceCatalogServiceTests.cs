@@ -119,6 +119,42 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task RecognizedModrinthReferenceLoadsCompleteProjectById()
+    {
+        var handler = new StubHandler(_ => Json(
+            """{"id":"shader-project","slug":"shader-slug","project_type":"shader","title":"Shader","description":"Description","downloads":42,"game_versions":["1.21"],"categories":["fantasy"]}"""));
+        var service = CreateService(handler);
+
+        var project = await service.GetProjectAsync(new ResourceProjectReference(
+            ResourceProjectKind.ShaderPack,
+            ResourceProjectSource.Modrinth,
+            "shader-project"));
+
+        Assert.NotNull(project);
+        Assert.Equal("Shader", project.Title);
+        Assert.Equal(ResourceProjectKind.ShaderPack, project.Kind);
+        Assert.Equal("https://modrinth.com/shader/shader-slug", project.ProjectUrl);
+    }
+
+    [Fact]
+    public async Task RecognizedCurseForgeReferenceLoadsCompleteProjectById()
+    {
+        var handler = new StubHandler(_ => Json(
+            """{"data":{"id":42,"name":"Pack","slug":"pack-slug","summary":"Description","downloadCount":7,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/pack-slug"}}}"""));
+        var service = CreateService(handler, "key");
+
+        var project = await service.GetProjectAsync(new ResourceProjectReference(
+            ResourceProjectKind.ResourcePack,
+            ResourceProjectSource.CurseForge,
+            "42"));
+
+        Assert.NotNull(project);
+        Assert.Equal("Pack", project.Title);
+        Assert.Equal(ResourceProjectKind.ResourcePack, project.Kind);
+        Assert.Equal("https://www.curseforge.com/minecraft/texture-packs/pack-slug", project.ProjectUrl);
+    }
+
+    [Fact]
     public async Task ModrinthSearchMapsOnlyUnifiedCategoriesForKind()
     {
         var handler = new StubHandler(_ => Json(

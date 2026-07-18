@@ -76,6 +76,15 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
+            <Style x:Key="ResourcesModDetailHyperlinkStyle" TargetType="Hyperlink">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Primary}" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Hover}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
             <Style x:Key="ResourcesModInstallTargetStateTextStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Muted}" />
                 <Setter Property="FontSize" Value="13" />
@@ -307,8 +316,13 @@
                                     <TextBlock Text="{x:Static res:Strings.Resources_ModDetailsSourceLabel}"
                                                Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
                                     <TextBlock Grid.Column="1"
-                                               Text="{Binding SourceText}"
-                                               Style="{StaticResource ResourcesModDetailValueTextStyle}" />
+                                               Style="{StaticResource ResourcesModDetailValueTextStyle}">
+                                        <Hyperlink Command="{Binding DataContext.Parent.OpenProjectPageCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                   CommandParameter="{Binding}"
+                                                   Style="{StaticResource ResourcesModDetailHyperlinkStyle}">
+                                            <Run Text="{Binding SourceText, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
                                 </Grid>
 
                                 <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}">

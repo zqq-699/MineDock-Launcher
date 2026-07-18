@@ -133,6 +133,7 @@ public sealed partial class MainViewModel : ObservableObject
         HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
         HomePage.LaunchFailureReported += HomePage_LaunchFailureReported;
         GameSettingsPage.LocalImportRequested += GameSettingsPage_LocalImportRequested;
+        GameSettingsPage.ResourceProjectDetailsRequested += GameSettingsPage_ResourceProjectDetailsRequested;
 
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;

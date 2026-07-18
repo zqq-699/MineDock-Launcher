@@ -9,7 +9,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Runtime.ExceptionServices;
 using Launcher.App.Controls;
+using Launcher.App.Services;
 using Launcher.App.ViewModels.Resources;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Views.Resources;
@@ -129,6 +131,75 @@ public sealed class ResourcesModPageViewContractTests
         Assert.Contains("HasTitleTags", row.Attribute("Visibility")?.Value, StringComparison.Ordinal);
         Assert.Contains("ResourcesModDetailValueTextStyle", tagText.Attribute("Style")?.Value, StringComparison.Ordinal);
         Assert.DoesNotContain(row.Descendants(), element => element.Name.LocalName == "ItemsControl");
+    }
+
+    [Fact]
+    public void SourceDetailUsesProjectPageHyperlink()
+    {
+        var row = FindDetailRow(LoadView(), "Resources_ModDetailsSourceLabel");
+        var hyperlink = Assert.Single(row.Descendants()
+            .Where(element => element.Name.LocalName == "Hyperlink"));
+        var sourceText = Assert.Single(hyperlink.Descendants()
+            .Where(element => element.Name.LocalName == "Run"));
+
+        Assert.Contains("Parent.OpenProjectPageCommand", hyperlink.Attribute("Command")?.Value, StringComparison.Ordinal);
+        Assert.Equal("{Binding}", hyperlink.Attribute("CommandParameter")?.Value);
+        Assert.Contains("ResourcesModDetailHyperlinkStyle", hyperlink.Attribute("Style")?.Value, StringComparison.Ordinal);
+        Assert.Contains("Mode=OneWay", sourceText.Attribute("Text")?.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectPageCommandOpensHttpProjectUrl()
+    {
+        const string projectUrl = "https://modrinth.com/mod/sodium";
+        var externalLinks = new RecordingExternalLinkService();
+        var parent = new ResourcesPageViewModel(externalLinkService: externalLinks);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            ProjectUrl = projectUrl
+        });
+
+        Assert.True(parent.OpenProjectPageCommand.CanExecute(project));
+
+        parent.OpenProjectPageCommand.Execute(project);
+
+        Assert.Equal(projectUrl, externalLinks.LastUrl);
+    }
+
+    [Fact]
+    public void ProjectPageCommandRejectsNonHttpUrl()
+    {
+        var externalLinks = new RecordingExternalLinkService();
+        var parent = new ResourcesPageViewModel(externalLinkService: externalLinks);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            ProjectUrl = "file:///C:/Windows/System32/calc.exe"
+        });
+
+        Assert.False(parent.OpenProjectPageCommand.CanExecute(project));
+    }
+
+    [Fact]
+    public async Task RecognizedLocalResourceOpensMatchingResourceSectionDetails()
+    {
+        var project = new ResourceProject
+        {
+            Kind = ResourceProjectKind.ShaderPack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "complementary-reimagined",
+            Title = "Complementary Reimagined"
+        };
+        var parent = new ResourcesPageViewModel(resourceCatalogService: new ProjectCatalogService(project));
+
+        var opened = await parent.OpenProjectDetailsAsync(new ResourceProjectReference(
+            project.Kind,
+            project.Source,
+            project.ProjectId));
+
+        Assert.True(opened);
+        Assert.Equal("shader_packs", parent.SelectedSection?.Id);
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, parent.ShaderPacksPage.CurrentStep);
+        Assert.Same(project, parent.ShaderPacksPage.Details.CurrentProject?.Project);
     }
 
     [Fact]
@@ -338,5 +409,58 @@ public sealed class ResourcesModPageViewContractTests
         while (root.GetFiles("Launcher.sln").Length == 0)
             root = root.Parent ?? throw new DirectoryNotFoundException("Could not locate repository root.");
         return root;
+    }
+
+    private sealed class RecordingExternalLinkService : IExternalLinkService
+    {
+        public string? LastUrl { get; private set; }
+
+        public bool TryOpen(string url)
+        {
+            LastUrl = url;
+            return true;
+        }
+    }
+
+    private sealed class ProjectCatalogService(ResourceProject project) : IResourceCatalogService
+    {
+        public Task<ResourceProject?> GetProjectAsync(
+            ResourceProjectReference reference,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ResourceProject?>(project);
+
+        public Task<ResourceCatalogSearchResult> SearchModsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResourceCatalogSearchResult());
+
+        public Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
+            ResourceProjectVersionsRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResourceProjectVersionsResult());
+
+        public Task<string> InstallProjectVersionAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(string.Empty);
+
+        public Task<string> DownloadProjectVersionAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(string.Empty);
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

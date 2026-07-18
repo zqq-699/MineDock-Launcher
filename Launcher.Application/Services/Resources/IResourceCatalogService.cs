@@ -23,6 +23,13 @@ namespace Launcher.Application.Services;
 
 public interface IResourceCatalogService
 {
+    Task<ResourceProject?> GetProjectAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<ResourceProject?>(null);
+    }
+
     Task<ResourceCatalogSearchResult> SearchProjectsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken = default)

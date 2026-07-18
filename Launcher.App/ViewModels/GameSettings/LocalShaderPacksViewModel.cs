@@ -67,7 +67,9 @@ public sealed class LocalShaderPacksViewModel : IDisposable
             dispatcher,
             this.logger,
             shaderPack => shaderPack.IconSource,
-            static (shaderPack, iconSource) => shaderPack.IconSource = iconSource);
+            static (shaderPack, iconSource) => shaderPack.IconSource = iconSource,
+            shaderPack => shaderPack.ProjectReference,
+            static (shaderPack, reference) => shaderPack.ProjectReference = reference);
     }
 
     public event EventHandler? ShaderPacksChanged;

@@ -15,7 +15,8 @@ public sealed record LocalResourceCategoryCandidate(
 
 public sealed record LocalResourceEnrichmentResult(
     IReadOnlyList<ResourceProjectCategory> Categories,
-    string? IconSource = null);
+    string? IconSource = null,
+    ResourceProjectReference? ProjectReference = null);
 
 public interface ILocalResourceCategoryEnrichmentService
 {

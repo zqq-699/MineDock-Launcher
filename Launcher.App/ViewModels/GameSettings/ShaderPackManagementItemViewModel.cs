@@ -60,6 +60,12 @@ public sealed partial class ShaderPackManagementItemViewModel : ObservableObject
 
     public bool HasTitleTags => TitleTags.Count > 0;
 
+    public bool HasProjectDetails => ProjectReference is not null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProjectDetails))]
+    private ResourceProjectReference? projectReference;
+
     public void SyncFrom(LocalShaderPack shaderPack)
     {
         Title = shaderPack.Name;
@@ -69,6 +75,7 @@ public sealed partial class ShaderPackManagementItemViewModel : ObservableObject
         FullPath = shaderPack.FullPath;
         IconSource = shaderPack.IconSource;
         TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.ShaderPack, shaderPack.Categories);
+        ProjectReference = shaderPack.ProjectReference;
         CreatedAt = shaderPack.CreatedAt;
     }
 

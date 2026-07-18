@@ -84,6 +84,18 @@
                     <controls:ListPageItemButton.TrailingContent>
                         <StackPanel Orientation="Horizontal">
                             <Button Style="{StaticResource InlineIconButtonStyle}"
+                                    ToolTip="{x:Static res:Strings.GameSettings_OpenResourceDetailsTooltip}"
+                                    IsEnabled="{Binding HasProjectDetails}"
+                                    Command="{Binding DataContext.OpenResourceDetailsCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
+                                    CommandParameter="{Binding}">
+                                <controls:SvgIcon Width="16"
+                                                  Height="16"
+                                                  IconKey="instance_setting_page/info"
+                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                            </Button>
+
+                            <Button Margin="4,0,0,0"
+                                    Style="{StaticResource InlineIconButtonStyle}"
                                     ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
                                     Command="{Binding DataContext.OpenShaderPackLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
                                     CommandParameter="{Binding}">

@@ -163,6 +163,12 @@ public sealed class LocalResourceCategoryEnrichmentServiceTests : TestTempDirect
             Assert.Equal(ResourceProjectSource.Modrinth, firstThumbnailService.LastProject?.Source);
             Assert.Equal("shader-project", firstThumbnailService.LastProject?.ProjectId);
             Assert.Equal("https://cdn.example/shader.png", firstThumbnailService.LastProject?.IconUrl);
+            Assert.Equal(
+                new ResourceProjectReference(
+                    ResourceProjectKind.ShaderPack,
+                    ResourceProjectSource.Modrinth,
+                    "shader-project"),
+                Assert.Single(first).Value.ProjectReference);
         }
 
         var restartedThumbnailService = new RecordingThumbnailService("file:///cached-shader-icon.png");
@@ -179,6 +185,7 @@ public sealed class LocalResourceCategoryEnrichmentServiceTests : TestTempDirect
 
         Assert.Equal("file:///cached-shader-icon.png", Assert.Single(cached).Value.IconSource);
         Assert.Equal("file:///cached-shader-icon.png", Assert.Single(resolved).Value.IconSource);
+        Assert.Equal("shader-project", Assert.Single(cached).Value.ProjectReference?.ProjectId);
         Assert.Equal(0, restartedThumbnailService.CreateCount);
         Assert.Equal("shader-project", restartedThumbnailService.LastProject?.ProjectId);
     }

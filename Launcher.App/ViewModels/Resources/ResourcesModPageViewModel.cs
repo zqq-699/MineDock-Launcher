@@ -209,6 +209,15 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 
     public void BeginLoadMoreAvailableVersions() => Versions.BeginLoadMore();
 
+    public void ShowProjectDetails(ResourceProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        Details.SelectRoot(new ResourcesModProjectItemViewModel(
+            project,
+            fallbackIconKey: options.FallbackIconKey,
+            typeOptions: options.TypeOptions));
+    }
+
     public void Dispose()
     {
         ProjectList.ProjectSelected -= Details.SelectRoot;

@@ -32,6 +32,13 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed partial class InstanceResourcePackManagementSettingsViewModel
 {
+    [RelayCommand]
+    private void OpenResourceDetails(ResourcePackManagementItemViewModel? resourcePack)
+    {
+        if (resourcePack?.ProjectReference is { } reference)
+            ResourceDetailsRequested?.Invoke(reference);
+    }
+
 [RelayCommand]
     private void OpenResourcePackFolder()
     {

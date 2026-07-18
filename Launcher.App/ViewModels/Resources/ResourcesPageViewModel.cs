@@ -37,6 +37,9 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 {
     // 各在线页面保持长期实例以复用搜索缓存；顶层只切换当前分区而不重建子页面。
     private readonly ILogger<ResourcesPageViewModel>? logger;
+    private readonly IStatusService? statusService;
+    private readonly IExternalLinkService? externalLinkService;
+    private readonly IResourceCatalogService? resourceCatalogService;
 
     public ResourcesPageViewModel(
         IResourceCatalogService? resourceCatalogService = null,
@@ -49,9 +52,13 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
         IResourceProjectInstallationService? resourceProjectInstallationService = null,
-        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null,
+        IExternalLinkService? externalLinkService = null)
     {
         this.logger = logger;
+        this.statusService = statusService;
+        this.externalLinkService = externalLinkService;
+        this.resourceCatalogService = resourceCatalogService;
 
         Sections =
         [
@@ -143,6 +150,41 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         SelectSection(Sections[0], logSelection: false);
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenProjectPage))]
+    private void OpenProjectPage(ResourcesModProjectItemViewModel? project)
+    {
+        if (project is null || externalLinkService is null)
+            return;
+
+        try
+        {
+            if (externalLinkService.TryOpen(project.Project.ProjectUrl))
+                return;
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(
+                exception,
+                "Failed to open resource project page. Source={Source} ProjectId={ProjectId}",
+                project.Project.Source,
+                project.Project.ProjectId);
+        }
+
+        statusService?.Report(Strings.Status_OpenReferenceProjectFailed);
+    }
+
+    private bool CanOpenProjectPage(ResourcesModProjectItemViewModel? project)
+    {
+        if (externalLinkService is null
+            || !Uri.TryCreate(project?.Project.ProjectUrl, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+    }
+
     public ObservableCollection<ResourcesSectionItem> Sections { get; }
 
     public ResourcesModPageViewModel ModPage { get; }
@@ -217,6 +259,54 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     {
         // 页面激活事件不能等待网络请求，子页面自行观察并管理加载状态。
         CurrentOnlineProjectPage?.BeginEnsureProjectsLoaded();
+    }
+
+    public async Task<bool> OpenProjectDetailsAsync(ResourceProjectReference reference)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        if (resourceCatalogService is null)
+            return false;
+
+        try
+        {
+            var project = await resourceCatalogService.GetProjectAsync(reference);
+            if (project is null)
+            {
+                statusService?.Report(Strings.Status_OpenResourceDetailsFailed);
+                return false;
+            }
+
+            var sectionId = reference.Kind switch
+            {
+                ResourceProjectKind.Mod => "mods",
+                ResourceProjectKind.ResourcePack => "resource_packs",
+                ResourceProjectKind.ShaderPack => "shader_packs",
+                _ => string.Empty
+            };
+            var section = Sections.FirstOrDefault(item => item.Id == sectionId);
+            if (section is null)
+                return false;
+
+            SelectSection(section, logSelection: false);
+            CurrentOnlineProjectPage?.ShowProjectDetails(project);
+            logger?.LogInformation(
+                "Opened recognized local resource project details. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                reference.Kind,
+                reference.Source,
+                reference.ProjectId);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            logger?.LogError(
+                exception,
+                "Failed to open recognized local resource project details. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                reference.Kind,
+                reference.Source,
+                reference.ProjectId);
+            statusService?.Report(Strings.Status_OpenResourceDetailsFailed);
+            return false;
+        }
     }
 
     public async Task OpenModsForInstanceAsync(GameInstance instance)

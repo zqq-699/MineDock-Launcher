@@ -27,6 +27,10 @@ internal interface IResourceProviderClient
 
     bool Supports(ResourceProjectKind kind);
 
+    Task<ResourceProject?> GetProjectAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken);
+
     Task<ResourceProviderSearchResult> SearchAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken);

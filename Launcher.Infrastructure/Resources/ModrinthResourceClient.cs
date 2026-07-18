@@ -40,6 +40,19 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
 
     public bool Supports(ResourceProjectKind kind) => kind is not ResourceProjectKind.World;
 
+    public async Task<ResourceProject?> GetProjectAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken)
+    {
+        if (!Supports(reference.Kind) || string.IsNullOrWhiteSpace(reference.ProjectId))
+            return null;
+
+        var project = await httpClient.GetFromJsonAsync<ModrinthProject>(
+            $"{BaseUrl}/project/{Uri.EscapeDataString(reference.ProjectId)}",
+            cancellationToken).ConfigureAwait(false);
+        return project is null ? null : MapProject(project, reference.Kind);
+    }
+
     public async Task<ResourceProviderSearchResult> SearchAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
@@ -166,7 +179,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         return projects
             .Where(project => !string.IsNullOrWhiteSpace(project.Id)
                 && string.Equals(project.ProjectType, "mod", StringComparison.OrdinalIgnoreCase))
-            .Select(MapDependencyProject)
+            .Select(project => MapProject(project, ResourceProjectKind.Mod))
             .GroupBy(project => project.ProjectId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
     }
@@ -213,20 +226,24 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         };
     }
 
-    private static ResourceProject MapDependencyProject(ModrinthProject project) => new()
+    private static ResourceProject MapProject(ModrinthProject project, ResourceProjectKind kind) => new()
     {
         Source = ResourceProjectSource.Modrinth,
-        Kind = ResourceProjectKind.Mod,
+        Kind = kind,
         ProjectId = project.Id,
         Slug = project.Slug,
         Title = project.Title,
         Description = project.Description,
         IconUrl = project.IconUrl,
         Downloads = project.Downloads,
-        Categories = ResourceProjectCategoryMapping.MapModrinth(ResourceProjectKind.Mod, project.Categories),
+        Categories = ResourceProjectCategoryMapping.MapModrinth(kind, project.Categories),
         SupportedMinecraftVersions = NormalizeDistinct(project.GameVersions),
-        SupportedLoaders = NormalizeDistinct(project.Loaders.Where(KnownLoaders.Contains)),
-        ProjectUrl = string.IsNullOrWhiteSpace(project.Slug) ? string.Empty : $"https://modrinth.com/mod/{project.Slug}"
+        SupportedLoaders = HasLoaderFacet(kind)
+            ? NormalizeDistinct(project.Loaders.Where(KnownLoaders.Contains))
+            : [],
+        ProjectUrl = string.IsNullOrWhiteSpace(project.Slug)
+            ? string.Empty
+            : $"https://modrinth.com/{MapProjectType(kind)}/{project.Slug}"
     };
 
     private static List<string> CollectRequiredProjectIds(IEnumerable<ModrinthVersion> versions, ISet<string> excludedIds)

@@ -2053,6 +2053,9 @@
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve">
     <value>フォルダーの場所を開く</value>
   </data>
+  <data name="GameSettings_OpenResourceDetailsTooltip" xml:space="preserve">
+    <value>リソースの詳細を表示</value>
+  </data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve">
     <value>ホームに戻ってこのバージョンを選択</value>
   </data>
@@ -2109,6 +2112,9 @@
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>プロジェクトリンクを開けませんでした</value>
+  </data>
+  <data name="Status_OpenResourceDetailsFailed" xml:space="preserve">
+    <value>リソースの詳細を開けませんでした。しばらくしてからもう一度お試しください。</value>
   </data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve">
     <value>更新確認はまだ対応していません</value>

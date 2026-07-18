@@ -580,6 +580,7 @@ public static class Strings
     public static string GameSettings_InstanceSubtitleLoaderFormat => Get(nameof(GameSettings_InstanceSubtitleLoaderFormat));
     public static string GameSettings_DeleteInstanceTooltip => Get(nameof(GameSettings_DeleteInstanceTooltip));
     public static string GameSettings_OpenInstanceFolderTooltip => Get(nameof(GameSettings_OpenInstanceFolderTooltip));
+    public static string GameSettings_OpenResourceDetailsTooltip => Get(nameof(GameSettings_OpenResourceDetailsTooltip));
     public static string GameSettings_SelectInstanceAndGoHomeTooltip => Get(nameof(GameSettings_SelectInstanceAndGoHomeTooltip));
     public static string Nav_GameInstanceList => Get(nameof(Nav_GameInstanceList));
     public static string Nav_JavaMemory => Get(nameof(Nav_JavaMemory));
@@ -984,6 +985,7 @@ public static class Strings
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
     public static string Status_OpenFeedbackPageFailed => Get(nameof(Status_OpenFeedbackPageFailed));
     public static string Status_OpenReferenceProjectFailed => Get(nameof(Status_OpenReferenceProjectFailed));
+    public static string Status_OpenResourceDetailsFailed => Get(nameof(Status_OpenResourceDetailsFailed));
     public static string Status_UpdateCheckUnavailable => Get(nameof(Status_UpdateCheckUnavailable));
     public static string Status_CheckingUpdates => Get(nameof(Status_CheckingUpdates));
     public static string Status_LauncherAlreadyLatest => Get(nameof(Status_LauncherAlreadyLatest));

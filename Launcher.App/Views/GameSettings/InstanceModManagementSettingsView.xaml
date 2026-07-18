@@ -133,7 +133,19 @@
                     </controls:ListPageItemButton.TitleTrailingContent>
                     <controls:ListPageItemButton.TrailingContent>
                         <StackPanel Orientation="Horizontal">
-                            <Button Command="{Binding DataContext.ToggleModEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                            <Button Style="{StaticResource InlineIconButtonStyle}"
+                                    ToolTip="{x:Static res:Strings.GameSettings_OpenResourceDetailsTooltip}"
+                                    IsEnabled="{Binding HasProjectDetails}"
+                                    Command="{Binding DataContext.OpenResourceDetailsCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                    CommandParameter="{Binding}">
+                                <controls:SvgIcon Width="16"
+                                                  Height="16"
+                                                  IconKey="instance_setting_page/info"
+                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                            </Button>
+
+                            <Button Margin="4,0,0,0"
+                                    Command="{Binding DataContext.ToggleModEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
                                     CommandParameter="{Binding}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource InlineIconButtonStyle}">

@@ -78,7 +78,9 @@ public sealed class LocalModsViewModel : IDisposable
             () => currentMods,
             () => ModsChanged?.Invoke(this, EventArgs.Empty),
             this.uiDispatcher,
-            this.logger);
+            this.logger,
+            projectReferenceSelector: mod => mod.ProjectReference,
+            projectReferenceSetter: static (mod, reference) => mod.ProjectReference = reference);
         contentWatcher = new InstanceContentRefreshWatcher(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.Mods,

@@ -33,6 +33,13 @@ namespace Launcher.App.ViewModels.GameSettings;
 public sealed partial class InstanceModManagementSettingsViewModel
 {
     [RelayCommand]
+    private void OpenResourceDetails(ModManagementModItemViewModel? mod)
+    {
+        if (mod?.ProjectReference is { } reference)
+            ResourceDetailsRequested?.Invoke(reference);
+    }
+
+    [RelayCommand]
     private void InstallOnlineMod()
     {
         if (selectedInstance is null || !IsModManagementSupported)

@@ -52,6 +52,27 @@ internal sealed class CurseForgeResourceClient(
 
     public bool Supports(ResourceProjectKind kind) => true;
 
+    public async Task<ResourceProject?> GetProjectAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(reference.ProjectId, out var projectId))
+            return null;
+
+        var apiKey = await apiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return null;
+
+        using var request = CreateRequest(HttpMethod.Get, $"{BaseUrl}/mods/{projectId}", apiKey);
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<ModResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return payload?.Data is { } project ? MapProject(project, reference.Kind) : null;
+    }
+
     public async Task<ResourceProviderSearchResult> SearchAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
@@ -451,6 +472,10 @@ internal sealed class CurseForgeResourceClient(
     {
         [JsonPropertyName("data")] public List<CurseForgeMod> Data { get; init; } = [];
         [JsonPropertyName("pagination")] public Pagination? Pagination { get; init; }
+    }
+    private sealed class ModResponse
+    {
+        [JsonPropertyName("data")] public CurseForgeMod? Data { get; init; }
     }
     private sealed class FilesResponse
     {

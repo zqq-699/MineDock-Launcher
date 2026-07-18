@@ -121,6 +121,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     public event Action<ModDeleteRequest>? DeleteModsRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
     public event Action<GameInstance>? OnlineModInstallRequested;
+    public event Action<ResourceProjectReference>? ResourceDetailsRequested;
 
     public override bool UsesFullViewportLayout => true;
 

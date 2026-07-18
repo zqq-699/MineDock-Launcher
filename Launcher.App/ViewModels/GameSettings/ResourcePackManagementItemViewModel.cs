@@ -60,6 +60,12 @@ public sealed partial class ResourcePackManagementItemViewModel : ObservableObje
 
     public bool HasTitleTags => TitleTags.Count > 0;
 
+    public bool HasProjectDetails => ProjectReference is not null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProjectDetails))]
+    private ResourceProjectReference? projectReference;
+
     public void SyncFrom(LocalResourcePack resourcePack)
     {
         Title = resourcePack.Name;
@@ -69,6 +75,7 @@ public sealed partial class ResourcePackManagementItemViewModel : ObservableObje
         FullPath = resourcePack.FullPath;
         IconSource = resourcePack.IconSource;
         TitleTags = ResourceProjectCategoryTitleFormatter.Format(ResourceProjectKind.ResourcePack, resourcePack.Categories);
+        ProjectReference = resourcePack.ProjectReference;
         CreatedAt = resourcePack.CreatedAt;
     }
 

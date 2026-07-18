@@ -29,6 +29,7 @@ public sealed class LocalMod
     public string FullPath { get; set; } = string.Empty;
     public string? IconSource { get; set; }
     public IReadOnlyList<ResourceProjectCategory> Categories { get; set; } = [];
+    public ResourceProjectReference? ProjectReference { get; set; }
     public bool IsEnabled { get; set; }
     public long SizeBytes { get; set; }
     public string Source { get; set; } = "Local";
