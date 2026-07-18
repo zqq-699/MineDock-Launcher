@@ -66,7 +66,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
             archivePaths,
             async archivePath =>
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Importing local save archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                     selectedInstance.Id,
                     archivePath);
@@ -106,6 +106,11 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
                 ? Strings.Status_LocalSaveImported
                 : string.Format(Strings.Status_LocalSavesImportedFormat, batch.SuccessCount));
         }
+        logger.LogInformation(
+            "Local save import batch completed. InstanceId={InstanceId} RequestedCount={RequestedCount} ImportedCount={ImportedCount}",
+            selectedInstance.Id,
+            archivePaths.Count,
+            batch.SuccessCount);
     }
 
     private bool TryValidateImportPaths(

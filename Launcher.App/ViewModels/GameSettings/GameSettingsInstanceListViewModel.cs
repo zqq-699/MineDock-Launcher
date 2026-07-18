@@ -230,7 +230,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
             var instances = await instanceService.GetInstancesAsync(cancellationToken);
             if (generation != Volatile.Read(ref refreshGeneration))
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Discarded stale game settings instance refresh. RefreshGeneration={RefreshGeneration} CurrentGeneration={CurrentGeneration}",
                     generation,
                     Volatile.Read(ref refreshGeneration));
@@ -265,7 +265,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
                     EntranceAnimationToken++;
                 if (hasLoadedInstances && logRefreshResult)
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "Game settings instances refreshed. Count={InstanceCount} VisibleCount={VisibleCount} SelectedInstanceId={SelectedInstanceId}",
                         AllInstances.Count,
                         VisibleInstances.Count,

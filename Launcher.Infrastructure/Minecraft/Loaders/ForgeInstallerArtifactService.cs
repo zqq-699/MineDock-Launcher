@@ -155,7 +155,7 @@ internal sealed partial class LoaderInstallerArtifactService
                 fullHashVerificationCount++;
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Loader installer artifact validation completed. FullHashVerificationCount={FullHashVerificationCount} CurrentOperationVerificationReuseCount={CurrentOperationVerificationReuseCount}",
             fullHashVerificationCount,
             currentOperationVerificationReuseCount);
@@ -254,11 +254,38 @@ internal sealed partial class LoaderInstallerArtifactService
                 var executor = new MinecraftDownloadRequestExecutor(httpClient, logger,
                     DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
                     category: DownloadConcurrencyCategory.Runtime);
-                await executor.DownloadFileAsync(library.Artifact.Url, downloadSourcePreference, library.Artifact.ResourceCategory,
-                    destinationPath, library.Artifact.Sha1, library.Artifact.Size, cancellationToken,
-                    options: CreateDownloadOptions(library.Artifact, operationContext, minecraftDirectory),
-                    speedMeter: speedMeter)
-                    .ConfigureAwait(false);
+                var logScope = new ForegroundDownloadLogScope(
+                    logger,
+                    "ForgeInstall",
+                    Path.GetFileName(destinationPath),
+                    destinationPath,
+                    library.Artifact.Url,
+                    library.Artifact.Size);
+                try
+                {
+                    var resolution = await executor.DownloadFileAsync(
+                        library.Artifact.Url,
+                        downloadSourcePreference,
+                        library.Artifact.ResourceCategory,
+                        destinationPath,
+                        library.Artifact.Sha1,
+                        library.Artifact.Size,
+                        cancellationToken,
+                        reportAttemptProgress: logScope.BeginSource(),
+                        options: CreateDownloadOptions(library.Artifact, operationContext, minecraftDirectory),
+                        speedMeter: speedMeter).ConfigureAwait(false);
+                    logScope.Complete(resolution);
+                }
+                catch (OperationCanceledException)
+                {
+                    logScope.CompleteWithoutDownload("Canceled", library.Artifact.Url);
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    logScope.Fail(exception, library.Artifact.Url);
+                    throw;
+                }
             }
         }
     }

@@ -67,7 +67,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
             archivePaths,
             async archivePath =>
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Importing local resource pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                     selectedInstance.Id,
                     archivePath);
@@ -105,6 +105,11 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
                 ? Strings.Status_LocalResourcePackImported
                 : string.Format(Strings.Status_LocalResourcePacksImportedFormat, batch.SuccessCount));
         }
+        logger.LogInformation(
+            "Local resource pack import batch completed. InstanceId={InstanceId} RequestedCount={RequestedCount} ImportedCount={ImportedCount}",
+            selectedInstance.Id,
+            archivePaths.Count,
+            batch.SuccessCount);
     }
 
     private bool TryValidateImportPaths(

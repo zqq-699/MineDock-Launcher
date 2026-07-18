@@ -298,7 +298,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
         var wasCanceled = false;
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Installing modpack loader version through sandbox. Loader={Loader} MinecraftVersion={MinecraftVersion} TargetMinecraftDirectory={TargetMinecraftDirectory} TargetVersionName={TargetVersionName} SessionDirectory={SessionDirectory}",
             loaderName,
             minecraftVersion,
@@ -349,7 +349,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken: cancellationToken);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Installed modpack loader version through split sandbox paths. Loader={Loader} MinecraftVersion={MinecraftVersion} FinalVersionName={FinalVersionName} SessionDirectory={SessionDirectory} SharedMinecraftDirectory={SharedMinecraftDirectory}",
                 loaderName,
                 minecraftVersion,
@@ -433,7 +433,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             if (!string.Equals(finalVersionName, target.LogicalVersionName, StringComparison.Ordinal))
                 throw new InvalidDataException("Loader returned a version identity different from the logical install name.");
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance loader sandbox publication started. Loader={Loader} VersionName={VersionName} SessionDirectory={SessionDirectory}",
                 provider.Kind,
                 finalVersionName,
@@ -463,7 +463,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 sharedFilePublishDuration = sharedFilePublishStopwatch.ElapsedMilliseconds;
             }
             publicationStopwatch.Stop();
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance loader sandbox publication completed. Loader={Loader} VersionName={VersionName} TotalDurationMs={TotalDurationMs} VersionCopyDurationMs={VersionCopyDurationMs} SharedFilePublishDurationMs={SharedFilePublishDurationMs}",
                 provider.Kind,
                 finalVersionName,
@@ -479,7 +479,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         }
         finally
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance loader sandbox cleanup started. Loader={Loader} VersionName={VersionName} SessionDirectory={SessionDirectory}",
                 provider.Kind,
                 finalVersionName,
@@ -489,7 +489,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 .CleanupAsync(wasCanceled || cancellationToken.IsCancellationRequested)
                 .ConfigureAwait(false);
             cleanupStopwatch.Stop();
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance loader sandbox cleanup completed. Loader={Loader} VersionName={VersionName} DurationMs={DurationMs} SessionDirectory={SessionDirectory}",
                 provider.Kind,
                 finalVersionName,

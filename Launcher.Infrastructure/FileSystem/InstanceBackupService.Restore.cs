@@ -167,7 +167,10 @@ public sealed partial class InstanceBackupService
                     DeleteRestoreOwnerIfOwned(normalizedInstanceDirectory, transactionId);
                     TryDeleteEmptyDirectory(stagingDirectory);
                     logger.LogInformation(
-                        "Instance backup restored. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupFile={BackupFile}",
+                        "Instance backup restored. InstanceId={InstanceId}",
+                        instance.Id);
+                    logger.LogDebug(
+                        "Instance backup restore paths. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupFile={BackupFile}",
                         instance.Id,
                         normalizedInstanceDirectory,
                         normalizedBackupFullPath);

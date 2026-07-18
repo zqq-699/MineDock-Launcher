@@ -225,7 +225,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
         CurrentStep = ResourcesModPageStep.ProjectDetails;
         Versions.SetProject(project);
         RaisePageTitleChanged();
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Resource project selected. Kind={Kind} Source={Source} ProjectId={ProjectId}",
             options.Kind,
             project.Project.Source,

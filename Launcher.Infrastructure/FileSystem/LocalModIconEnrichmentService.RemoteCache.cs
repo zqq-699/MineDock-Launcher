@@ -47,7 +47,7 @@ public sealed partial class LocalModIconEnrichmentService
         }
         catch (Exception exception)
         {
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Failed to cache remote local mod icon. Source={Source} ProjectId={ProjectId}",
                 icon.Source,
@@ -130,7 +130,7 @@ public sealed partial class LocalModIconEnrichmentService
             index.FileAliases[lookup.FileAlias] = entryKey;
             await cacheIndexStore.SaveAsync(index, cancellationToken).ConfigureAwait(false);
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Remote local mod icon cached. Source={Source} ProjectId={ProjectId} SizeBytes={SizeBytes}",
                 icon.Source,
                 icon.ProjectId,

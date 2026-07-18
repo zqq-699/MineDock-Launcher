@@ -67,7 +67,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
             archivePaths,
             async archivePath =>
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Importing local shader pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                     selectedInstance.Id,
                     archivePath);
@@ -105,6 +105,11 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
                 ? Strings.Status_LocalShaderPackImported
                 : string.Format(Strings.Status_LocalShaderPacksImportedFormat, batch.SuccessCount));
         }
+        logger.LogInformation(
+            "Local shader pack import batch completed. InstanceId={InstanceId} RequestedCount={RequestedCount} ImportedCount={ImportedCount}",
+            selectedInstance.Id,
+            archivePaths.Count,
+            batch.SuccessCount);
     }
 
     private bool TryValidateImportPaths(

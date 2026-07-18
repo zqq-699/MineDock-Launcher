@@ -42,7 +42,7 @@ public sealed partial class InstanceModManagementSettingsViewModel
         {
             var modsDirectory = instanceFolderService.EnsureDirectoryExists(
                 Path.Combine(selectedInstance.InstanceDirectory, "mods"));
-            logger.LogInformation(
+            logger.LogDebug(
                 "Opening mod folder. InstanceId={InstanceId} ModsDirectory={ModsDirectory}",
                 selectedInstance.Id,
                 modsDirectory);
@@ -110,7 +110,7 @@ public sealed partial class InstanceModManagementSettingsViewModel
         if (selectedInstance is null || string.IsNullOrWhiteSpace(modPath))
             return;
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Importing local mod from file picker. InstanceId={InstanceId} SourcePath={SourcePath} OverwriteExisting={OverwriteExisting}",
             selectedInstance.Id,
             modPath,
@@ -167,7 +167,7 @@ public sealed partial class InstanceModManagementSettingsViewModel
                 var replace = await RequestModImportConflictResolutionAsync(modPath, fileName);
                 if (!replace)
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "Skipping local mod replacement after user canceled conflict dialog. InstanceId={InstanceId} SourcePath={SourcePath}",
                         selectedInstance.Id,
                         modPath);
@@ -209,5 +209,11 @@ public sealed partial class InstanceModManagementSettingsViewModel
                 ? Strings.Status_LocalModImported
                 : string.Format(Strings.Status_LocalModsImportedFormat, successCount));
         }
+        logger.LogInformation(
+            "Local mod import batch completed. InstanceId={InstanceId} RequestedCount={RequestedCount} ImportedCount={ImportedCount} SkippedCount={SkippedCount}",
+            selectedInstance.Id,
+            paths.Count,
+            successCount,
+            paths.Count - successCount);
     }
 }

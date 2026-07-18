@@ -53,7 +53,7 @@ public sealed class JsonAccountStateService : IAccountStateService
             {
                 var defaultState = Normalize(new LauncherAccountState());
                 await SaveCoreAsync(defaultState, cancellationToken);
-                logger.LogInformation("Default launcher account state created. AccountStatePath={AccountStatePath}", accountStatePath);
+                logger.LogDebug("Default launcher account state created. AccountStatePath={AccountStatePath}", accountStatePath);
                 return defaultState;
             }
 
@@ -76,7 +76,7 @@ public sealed class JsonAccountStateService : IAccountStateService
         try
         {
             await SaveCoreAsync(normalized, cancellationToken);
-            logger.LogInformation("Launcher account state saved. AccountStatePath={AccountStatePath}", accountStatePath);
+            logger.LogDebug("Launcher account state saved. AccountStatePath={AccountStatePath}", accountStatePath);
         }
         finally
         {

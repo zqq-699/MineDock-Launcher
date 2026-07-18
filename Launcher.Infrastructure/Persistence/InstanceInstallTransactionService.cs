@@ -129,7 +129,7 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                     FileMode.OpenOrCreate,
                     FileAccess.ReadWrite,
                     FileShare.Read | FileShare.Delete);
-                logger.LogInformation(
+                logger.LogDebug(
                     "Instance installation staged. InstanceId={InstanceId} LogicalVersionName={LogicalVersionName} PendingDirectory={PendingDirectory}",
                     instanceId,
                     logicalVersionName,
@@ -298,7 +298,7 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                 throw new GameInstanceMutationConflictException(instanceId, LogicalVersionName);
             }
             IsCommitted = true;
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance installation committed. InstanceId={InstanceId} LogicalVersionName={LogicalVersionName} FinalDirectory={FinalDirectory}",
                 instance.Id,
                 LogicalVersionName,

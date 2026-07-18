@@ -101,7 +101,7 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
             cacheLock.Release();
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Local resource category disk cache checked. CandidateCount={CandidateCount} HitCount={HitCount}",
             identities.Count,
             result.Count);
@@ -176,7 +176,7 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
             return result;
 
         await PersistLookupHashesAsync(lookups, identitiesByPath, now, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation(
+        logger.LogDebug(
             "Local resource category enrichment started. CandidateCount={CandidateCount} HashedCount={HashedCount}",
             lookups.Count,
             resourcesNeedingHashes.Count);
@@ -219,7 +219,7 @@ public sealed class LocalResourceCategoryEnrichmentService : ILocalResourceCateg
                 .ConfigureAwait(false);
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Local resource category enrichment completed. CandidateCount={CandidateCount} TaggedCount={TaggedCount} CachedCount={CachedCount}",
             lookups.Count,
             result.Count,

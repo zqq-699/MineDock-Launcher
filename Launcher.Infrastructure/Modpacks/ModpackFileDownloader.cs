@@ -42,7 +42,7 @@ internal sealed class ModpackFileDownloader
         this.limiter = limiter;
     }
 
-    public async Task DownloadToTemporaryFileAsync(
+    public async Task<ResolvedDownloadRequest> DownloadToTemporaryFileAsync(
         string sourceUrl,
         string tempFilePath,
         string? curseForgeApiKey,
@@ -76,7 +76,7 @@ internal sealed class ModpackFileDownloader
 
             if (hashes.Count == 0)
             {
-                await executor.DownloadFileAsync(
+                return await executor.DownloadFileAsync(
                     sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
                     expectedSha1: null, expectedSize: null,
                     cancellationToken: cancellationToken,
@@ -86,7 +86,7 @@ internal sealed class ModpackFileDownloader
             }
             else
             {
-                await executor.DownloadFileAsync(
+                return await executor.DownloadFileAsync(
                     sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
                     new DownloadIntegrityExpectation(expectedSize: null, hashes),
                     cancellationToken: cancellationToken,

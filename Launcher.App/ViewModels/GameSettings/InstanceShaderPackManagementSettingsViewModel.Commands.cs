@@ -42,7 +42,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel
         {
             var shaderPacksDirectory = instanceFolderService.EnsureDirectoryExists(
                 Path.Combine(selectedInstance.InstanceDirectory, "shaderpacks"));
-            logger.LogInformation(
+            logger.LogDebug(
                 "Opening shader pack folder. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
                 selectedInstance.Id,
                 shaderPacksDirectory);

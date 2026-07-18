@@ -371,7 +371,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         try
         {
             session.PrepareSegmentedDownload(totalLength);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Segmented download started. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
                 resolution.ResolvedSourceKind,
                 totalLength,
@@ -408,7 +408,7 @@ internal sealed class MinecraftDownloadRequestExecutor
 
             await Task.WhenAll(tasks).ConfigureAwait(false);
             await session.CompleteSegmentedDownloadAsync(cancellationToken).ConfigureAwait(false);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Segmented download completed. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
                 resolution.ResolvedSourceKind,
                 totalLength,
@@ -427,7 +427,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             segmentCancellation.Cancel();
             await ObserveSegmentTasksAsync(tasks).ConfigureAwait(false);
             session.ResetSegmentedDownload();
-            logger.LogInformation(
+            logger.LogDebug(
                 "Segmented download fell back to the existing single-stream path. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount} Reason={Reason}",
                 resolution.ResolvedSourceKind,
                 totalLength,
@@ -636,12 +636,13 @@ internal sealed class MinecraftDownloadRequestExecutor
                         enableSlowBodyWatchdog: slowWatchdogDisabledAttempt != attempt).ConfigureAwait(false);
                     hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, GetCandidateHost(resolution));
                     LogResolvedRequest(resolution, attempt);
+                    LogRecoveredRequest(resolution, attempt, failures);
                     return DownloadLookupResult<T>.Success(value);
                 }
                 catch (DownloadNoResultException exception)
                 {
                     sourceReportedNoResult = true;
-                    logger.LogInformation(
+                    logger.LogDebug(
                         exception,
                         "Download source explicitly reported no result. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
                         preference,
@@ -672,7 +673,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                             {
                                 slowWatchdogDisabledAttempt = attempt + 1;
                                 failure.WithDisposition(DownloadFailureDisposition.RetryCurrentSource);
-                                logger.LogInformation(
+                                logger.LogDebug(
                                     "Download slow-body watchdog disabled for the final fallback attempt. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
                                     preference,
                                     resolution.ResourceCategory,
@@ -786,6 +787,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                         enableSlowBodyWatchdog: true).ConfigureAwait(false);
                     hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, GetCandidateHost(resolution));
                     LogResolvedRequest(resolution, round);
+                    LogRecoveredRequest(resolution, round, failures);
                     return DownloadLookupResult<T>.Success(value);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -831,7 +833,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 .Select(failure => GetRetryDelay(failure, round))
                 .DefaultIfEmpty(TimeSpan.Zero)
                 .Max();
-            logger.LogInformation(
+            logger.LogDebug(
                 "File download source round exhausted. OriginalUrl={OriginalUrl} CompletedRound={CompletedRound} MaxRounds={MaxRounds} RetryCandidateCount={RetryCandidateCount} RetryDelay={RetryDelay}",
                 DownloadUriLogSanitizer.Sanitize(originalUrl),
                 round,
@@ -943,7 +945,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             var value = await operation(
                 new DownloadAttemptContext(resolution, response, transportResult, attempt),
                 cancellationToken).ConfigureAwait(false);
-            logger.LogInformation(
+            logger.LogTrace(
                 "Download transport completed. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} FinalHost={FinalHost} RedirectCount={RedirectCount} Attempt={Attempt} StatusCode={StatusCode} ResponseHeadersDuration={ResponseHeadersDuration} ResponseBodyDuration={ResponseBodyDuration} ContentLength={ContentLength} DownloadedBytes={DownloadedBytes} AverageBytesPerSecond={AverageBytesPerSecond} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostOrigin={HostOrigin} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget}",
                 resolution.RequestedSourcePreference,
                 resolution.ResolvedSourceKind,
@@ -976,7 +978,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         catch (DownloadAttemptException exception)
         {
             var slowFailure = exception as DownloadBodyTooSlowException;
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Download transport failed after response headers. FinalHost={FinalHost} Attempt={Attempt} FailureReason={FailureReason} ResponseHeadersDuration={ResponseHeadersDuration} ResponseBodyDuration={ResponseBodyDuration} DownloadedBytes={DownloadedBytes} AverageBytesPerSecond={AverageBytesPerSecond} SlowReadDuration={SlowReadDuration} SlowReadBytes={SlowReadBytes} SlowReadBytesPerSecond={SlowReadBytesPerSecond} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostOrigin={HostOrigin} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget}",
                 transportResult.FinalHost,
@@ -1169,7 +1171,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         var adjustment = hostConcurrencyController.RecordResult(origin, failureReason, statusCode);
         if (adjustment is null)
             return;
-        logger.LogInformation(
+        logger.LogDebug(
             "Download host concurrency adjusted. HostOrigin={HostOrigin} PreviousTarget={PreviousTarget} CurrentTarget={CurrentTarget} AdjustmentReason={AdjustmentReason} SuccessCount={SuccessCount} FailureCount={FailureCount}",
             adjustment.Origin,
             adjustment.PreviousTarget,
@@ -1210,7 +1212,7 @@ internal sealed class MinecraftDownloadRequestExecutor
 
     private void LogResolvedRequest(ResolvedDownloadRequest resolution, int attempt)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Download resource completed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
             resolution.RequestedSourcePreference,
             resolution.ResourceCategory,
@@ -1218,6 +1220,29 @@ internal sealed class MinecraftDownloadRequestExecutor
             DownloadUriLogSanitizer.Sanitize(resolution.ActualUrl),
             resolution.ResolvedSourceKind,
             attempt);
+    }
+
+    private void LogRecoveredRequest(
+        ResolvedDownloadRequest resolution,
+        int attempt,
+        IReadOnlyList<Exception> failures)
+    {
+        if (failures.Count == 0)
+            return;
+
+        var failureReasons = failures
+            .OfType<DownloadAttemptException>()
+            .Select(failure => failure.Reason)
+            .Distinct()
+            .Order()
+            .ToArray();
+        logger.LogWarning(
+            "Download recovered after retry or source fallback. ResourceCategory={ResourceCategory} FinalSource={FinalSource} Attempt={Attempt} RecoveredFailureCount={RecoveredFailureCount} FailureReasons={FailureReasons}",
+            resolution.ResourceCategory,
+            resolution.ResolvedSourceKind,
+            attempt,
+            failures.Count,
+            failureReasons);
     }
 
     private void LogFailure(
@@ -1230,7 +1255,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         int remainingCandidateCount = 0)
     {
         var slowFailure = failure as DownloadBodyTooSlowException;
-        logger.LogWarning(
+        logger.LogDebug(
             failure,
             "Download resource attempt failed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} FinalHost={FinalHost} Attempt={Attempt} SourceRound={SourceRound} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} RetryCurrentSource={RetryCurrentSource} RetryInLaterRound={RetryInLaterRound} RemainingCandidateCount={RemainingCandidateCount} SlowReadDuration={SlowReadDuration} SlowReadBytes={SlowReadBytes} SlowReadBytesPerSecond={SlowReadBytesPerSecond}",
             resolution.RequestedSourcePreference,

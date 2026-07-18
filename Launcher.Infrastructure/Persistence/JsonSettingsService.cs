@@ -48,10 +48,17 @@ public sealed class JsonSettingsService : ISettingsService
         this.logger = logger ?? NullLogger<JsonSettingsService>.Instance;
     }
 
-    public string LoadLauncherLanguageForBootstrap()
+    public string LoadLauncherLanguageForBootstrap() =>
+        LoadLauncherBootstrapPreferences().LauncherLanguage;
+
+    public LauncherBootstrapPreferences LoadLauncherBootstrapPreferences()
     {
         if (!File.Exists(settingsPath))
-            return LauncherDefaults.DefaultLauncherLanguage;
+        {
+            return new LauncherBootstrapPreferences(
+                LauncherDefaults.DefaultLauncherLanguage,
+                EnableDiagnosticLogging: false);
+        }
 
         try
         {
@@ -61,12 +68,17 @@ public sealed class JsonSettingsService : ISettingsService
                 .GetResult();
             using var stream = File.OpenRead(settingsPath);
             using var document = JsonDocument.Parse(stream);
-            return document.RootElement.TryGetProperty(
+            var language = document.RootElement.TryGetProperty(
                        nameof(LauncherSettings.LauncherLanguage),
                        out var languageProperty)
                    && languageProperty.ValueKind is JsonValueKind.String
                 ? NormalizeLauncherLanguage(languageProperty.GetString())
                 : LauncherDefaults.DefaultLauncherLanguage;
+            var enableDiagnosticLogging = document.RootElement.TryGetProperty(
+                    nameof(LauncherSettings.EnableDiagnosticLogging),
+                    out var diagnosticLoggingProperty)
+                && diagnosticLoggingProperty.ValueKind is JsonValueKind.True;
+            return new LauncherBootstrapPreferences(language, enableDiagnosticLogging);
         }
         catch (OperationCanceledException)
         {
@@ -74,7 +86,9 @@ public sealed class JsonSettingsService : ISettingsService
                 "Timed out waiting for the launcher settings lock during WPF resource bootstrap. SettingsPath={SettingsPath} TimeoutMilliseconds={TimeoutMilliseconds}",
                 settingsPath,
                 BootstrapCrossProcessLockTimeout.TotalMilliseconds);
-            return LauncherDefaults.DefaultLauncherLanguage;
+            return new LauncherBootstrapPreferences(
+                LauncherDefaults.DefaultLauncherLanguage,
+                EnableDiagnosticLogging: false);
         }
         catch (Exception exception) when (
             exception is JsonException
@@ -85,7 +99,9 @@ public sealed class JsonSettingsService : ISettingsService
                 exception,
                 "Failed to read launcher language during WPF resource bootstrap. SettingsPath={SettingsPath}",
                 settingsPath);
-            return LauncherDefaults.DefaultLauncherLanguage;
+            return new LauncherBootstrapPreferences(
+                LauncherDefaults.DefaultLauncherLanguage,
+                EnableDiagnosticLogging: false);
         }
     }
 
@@ -130,7 +146,7 @@ public sealed class JsonSettingsService : ISettingsService
             await SaveCoreAsync(toSave, cancellationToken);
             CopyPersistedProperties(toSave, settings);
             TrackBaseline(settings, toSave);
-            logger.LogInformation("Launcher settings saved. SettingsPath={SettingsPath}", settingsPath);
+            logger.LogDebug("Launcher settings saved. SettingsPath={SettingsPath}", settingsPath);
         }
         finally
         {
@@ -152,7 +168,7 @@ public sealed class JsonSettingsService : ISettingsService
             latest = Normalize(latest);
             latest.Revision = checked(latest.Revision + 1);
             await SaveCoreAsync(latest, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation("Launcher settings updated atomically. SettingsPath={SettingsPath}", settingsPath);
+            logger.LogDebug("Launcher settings updated atomically. SettingsPath={SettingsPath}", settingsPath);
             return latest;
         }
         finally
@@ -170,7 +186,7 @@ public sealed class JsonSettingsService : ISettingsService
                 DataDirectory = Path.GetDirectoryName(settingsPath) ?? pathProvider.DefaultDataDirectory
             });
             await SaveCoreAsync(defaultSettings, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation("Default launcher settings created. SettingsPath={SettingsPath}", settingsPath);
+            logger.LogDebug("Default launcher settings created. SettingsPath={SettingsPath}", settingsPath);
             return defaultSettings;
         }
 

@@ -125,12 +125,12 @@ public sealed partial class LaunchDiagnosticExportService : ILaunchDiagnosticExp
 
             File.Move(temporaryPath, destinationPath, overwrite: true);
             logger.LogInformation(
-                "Launch diagnostic export completed. InstanceName={InstanceName} VersionName={VersionName} ExportedFileCount={ExportedFileCount} SkippedFileCount={SkippedFileCount} OutputArchivePath={OutputArchivePath}",
+                "Launch diagnostic export completed. InstanceName={InstanceName} VersionName={VersionName} ExportedFileCount={ExportedFileCount} SkippedFileCount={SkippedFileCount}",
                 request.InstanceName,
                 request.VersionName,
                 exportedFileCount,
-                skippedFileCount,
-                destinationPath);
+                skippedFileCount);
+            logger.LogDebug("Launch diagnostic export path resolved. OutputArchivePath={OutputArchivePath}", destinationPath);
             return new LaunchDiagnosticExportResult(
                 true,
                 OutputArchivePath: destinationPath,

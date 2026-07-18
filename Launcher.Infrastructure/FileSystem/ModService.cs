@@ -89,7 +89,7 @@ public sealed class ModService : IModService
                     .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(m => m.FileName, StringComparer.OrdinalIgnoreCase)
                     .ToList();
-                logger.LogInformation(
+                logger.LogDebug(
                     "Local mods loaded. InstanceId={InstanceId} Count={ModCount}",
                     instance.Id,
                     result.Count);
@@ -125,7 +125,7 @@ public sealed class ModService : IModService
             FileAccess.Write,
             FileShare.None);
         await source.CopyToAsync(target, cancellationToken);
-        logger.LogInformation(
+        logger.LogDebug(
             "Local mod imported. InstanceId={InstanceId} FileName={FileName} Destination={Destination} OverwriteExisting={OverwriteExisting}",
             instance.Id,
             Path.GetFileName(destination),
@@ -147,10 +147,10 @@ public sealed class ModService : IModService
 
         File.Move(current, targetPath, overwrite: true);
         logger.LogInformation(
-            "Local mod enabled state changed. FileName={FileName} Enabled={Enabled} TargetPath={TargetPath}",
+            "Local mod enabled state changed. FileName={FileName} Enabled={Enabled}",
             mod.FileName,
-            enabled,
-            targetPath);
+            enabled);
+        logger.LogDebug("Local mod enabled state target. TargetPath={TargetPath}", targetPath);
         return Task.CompletedTask;
     }
 
@@ -405,7 +405,7 @@ public sealed class ModService : IModService
                 return;
 
             Directory.Delete(legacyIconCacheDirectory, recursive: true);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Legacy embedded mod icon cache directory deleted. CacheDirectory={CacheDirectory}",
                 legacyIconCacheDirectory);
         }

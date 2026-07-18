@@ -49,7 +49,15 @@ private async Task DownloadInstallerAsync(
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        await executor.DownloadFileAsync(
+        var logScope = new ForegroundDownloadLogScope(
+            logger,
+            "ForgeInstall",
+            Path.GetFileName(destinationPath),
+            destinationPath,
+            installerUrl.AbsoluteUri);
+        try
+        {
+            var resolution = await executor.DownloadFileAsync(
             installerUrl.AbsoluteUri,
             downloadSourcePreference,
             categoryHint: "Forge",
@@ -57,7 +65,20 @@ private async Task DownloadInstallerAsync(
             expectedSha1: null,
             expectedSize: null,
             cancellationToken,
+            reportAttemptProgress: logScope.BeginSource(),
             speedMeter: speedMeter);
+            logScope.Complete(resolution);
+        }
+        catch (OperationCanceledException)
+        {
+            logScope.CompleteWithoutDownload("Canceled", installerUrl.AbsoluteUri);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logScope.Fail(exception, installerUrl.AbsoluteUri);
+            throw;
+        }
     }
 
     /// <summary>

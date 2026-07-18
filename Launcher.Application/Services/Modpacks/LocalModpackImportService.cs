@@ -81,7 +81,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             var result = await modpackPackageService
                 .RecognizeAsync(archivePath, cancellationToken)
                 .ConfigureAwait(false);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Modpack archive recognition completed. ArchivePath={ArchivePath} IsSuccess={IsSuccess} FailureReason={FailureReason}",
                 archivePath,
                 result.IsSuccess,
@@ -109,6 +109,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         int downloadSpeedLimitMbPerSecond = 0)
     {
         // 会话记录每个阶段已经取得的资源，使成功与任意失败点都能按实际进度执行对应清理。
+        var importStopwatch = Stopwatch.StartNew();
         var importProgress = progress is null ? null : new OverallModpackImportProgress(progress);
         var session = new ModpackImportSession(importProgress);
 
@@ -128,48 +129,54 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             await cleanupCoordinator.CleanupSuccessfulImportAsync(preparedModpack).ConfigureAwait(false);
 
             logger.LogInformation(
-                "Modpack import completed. ArchivePath={ArchivePath} InstanceId={InstanceId} InstanceName={InstanceName} ManualDownloadCount={ManualDownloadCount}",
-                archivePath,
+                "Modpack import completed. InstanceId={InstanceId} InstanceName={InstanceName} ManualDownloadCount={ManualDownloadCount} DurationMs={DurationMs}",
                 importedInstance.Id,
                 importedInstance.Name,
-                preparedModpack.ManualDownloads.Count);
+                preparedModpack.ManualDownloads.Count,
+                importStopwatch.ElapsedMilliseconds);
+            logger.LogDebug("Imported modpack archive. ArchivePath={ArchivePath}", archivePath);
             return preparedModpack.ManualDownloads.Count > 0
                 ? ModpackImportResult.PartialSuccess(importedInstance, preparedModpack.ManualDownloads)
                 : ModpackImportResult.Success(importedInstance);
         }
         catch (ModpackImportException exception)
         {
-            logger.LogWarning(
+            logger.LogError(
                 exception,
-                "Modpack import failed with a known reason. ArchivePath={ArchivePath} FailureReason={FailureReason}",
-                archivePath,
-                exception.FailureReason);
+                "Modpack import failed. FailureReason={FailureReason} DurationMs={DurationMs}",
+                exception.FailureReason,
+                importStopwatch.ElapsedMilliseconds);
+            logger.LogDebug("Failed modpack archive path. ArchivePath={ArchivePath}", archivePath);
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(exception.FailureReason);
         }
         catch (JavaRuntimeSelectionException exception)
         {
-            logger.LogWarning(
+            logger.LogError(
                 exception,
-                "Modpack import could not select a compatible Java runtime. ArchivePath={ArchivePath} FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion}",
-                archivePath,
+                "Modpack import could not select a compatible Java runtime. FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion} DurationMs={DurationMs}",
                 exception.Reason,
                 exception.RequiredMajorVersion,
-                exception.CurrentMajorVersion);
+                exception.CurrentMajorVersion,
+                importStopwatch.ElapsedMilliseconds);
+            logger.LogDebug("Failed modpack archive path. ArchivePath={ArchivePath}", archivePath);
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(ModpackImportFailureReason.JavaRuntimeUnavailable);
         }
         catch (OperationCanceledException)
         {
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
+            logger.LogInformation("Modpack import canceled. DurationMs={DurationMs}", importStopwatch.ElapsedMilliseconds);
+            logger.LogDebug("Canceled modpack archive path. ArchivePath={ArchivePath}", archivePath);
             throw;
         }
         catch (Exception exception)
         {
             logger.LogError(
                 exception,
-                "Unexpected modpack import failure. ArchivePath={ArchivePath}",
-                archivePath);
+                "Unexpected modpack import failure. DurationMs={DurationMs}",
+                importStopwatch.ElapsedMilliseconds);
+            logger.LogDebug("Failed modpack archive path. ArchivePath={ArchivePath}", archivePath);
             await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);
         }
@@ -183,6 +190,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         string archivePath,
         CancellationToken cancellationToken)
     {
+        var prepareStopwatch = Stopwatch.StartNew();
         session.Progress?.Report(new LauncherProgress(ImportProgressStages.PreparingArchive, string.Empty));
         session.Progress?.Report(new LauncherProgress(ImportProgressStages.ParsingManifest, string.Empty));
         session.PreparedModpack = await modpackPackageService
@@ -191,20 +199,24 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         var preferredInstanceName = NormalizePreferredInstanceName(session.PreparedModpack.PackageName);
 
         logger.LogInformation(
-            "Importing modpack. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} PreferredInstanceName={PreferredInstanceName}",
+            "Modpack archive prepared. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} DeclaredFileCount={DeclaredFileCount} HasOverrides={HasOverrides} PreferredInstanceName={PreferredInstanceName} DurationMs={DurationMs}",
             archivePath,
             session.PreparedModpack.PackageName,
             session.PreparedModpack.MinecraftVersion,
             session.PreparedModpack.Loader,
             session.PreparedModpack.LoaderVersion,
-            preferredInstanceName);
+            session.PreparedModpack.Files.Count,
+            session.PreparedModpack.HasOverrides,
+            preferredInstanceName,
+            prepareStopwatch.ElapsedMilliseconds);
+        logger.LogDebug("Importing modpack archive. ArchivePath={ArchivePath}", archivePath);
 
         session.Progress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty));
         session.StagedInstance = await stagingService
             .StageAsync(session.PreparedModpack, preferredInstanceName, cancellationToken)
             .ConfigureAwait(false);
         logger.LogInformation(
-            "Modpack instance staged. ArchivePath={ArchivePath} PreferredInstanceName={PreferredInstanceName} ResolvedInstanceName={ResolvedInstanceName} InstanceDirectory={InstanceDirectory}",
+            "Modpack instance staging completed. ArchivePath={ArchivePath} PreferredInstanceName={PreferredInstanceName} ResolvedInstanceName={ResolvedInstanceName} InstanceDirectory={InstanceDirectory}",
             archivePath,
             preferredInstanceName,
             session.StagedInstance.ResolvedInstanceName,
@@ -229,6 +241,12 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         var importProgress = session.ImportProgress;
         var packFileProgress = importProgress?.CreateParallelBranch(ModpackImportProgressBranch.PackFiles);
         var loaderProgress = importProgress?.CreateParallelBranch(ModpackImportProgressBranch.LoaderInstall);
+
+        logger.LogInformation(
+            "Modpack parallel installation branches started. InstanceName={InstanceName} ContentFileCount={ContentFileCount} Loader={Loader}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Files.Count,
+            preparedModpack.Loader);
 
         var downloadModsTask = CompleteParallelBranchAsync(
             DownloadModpackFilesWithTimingAsync(
@@ -303,6 +321,12 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     {
         var preparedModpack = session.PreparedModpack!;
         var stagedInstance = session.StagedInstance!;
+        var finalizeStopwatch = Stopwatch.StartNew();
+        var overridesStopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Modpack overrides application started. InstanceName={InstanceName} HasOverrides={HasOverrides}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.HasOverrides);
         await CompleteWithProgressAsync(
                 modpackPackageService.CopyOverridesAsync(
                     preparedModpack,
@@ -312,6 +336,10 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 session.Progress,
                 new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100))
             .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack overrides application completed. InstanceName={InstanceName} DurationMs={DurationMs}",
+            stagedInstance.ResolvedInstanceName,
+            overridesStopwatch.ElapsedMilliseconds);
         preparedModpack.ManualDownloads = manualDownloads;
         preparedModpack.ManualDownloadsFilePath = await modpackPackageService
             .WriteManualDownloadsFileAsync(
@@ -320,9 +348,19 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 manualDownloads,
                 cancellationToken)
             .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack instance commit started. InstanceName={InstanceName} VersionName={VersionName} ManualDownloadCount={ManualDownloadCount}",
+            stagedInstance.ResolvedInstanceName,
+            session.FinalVersionName,
+            manualDownloads.Count);
         session.ImportedInstance = await stagingService
             .FinalizeAsync(stagedInstance, session.FinalVersionName!, cancellationToken)
             .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack instance commit completed. InstanceId={InstanceId} InstanceName={InstanceName} DurationMs={DurationMs}",
+            session.ImportedInstance.Id,
+            session.ImportedInstance.Name,
+            finalizeStopwatch.ElapsedMilliseconds);
     }
 
     private async Task<string> InstallLoaderIntoStagingAsync(
@@ -339,7 +377,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             : new InstallCardProgressMapper(installStageProgress, preparedModpack.Loader, hasOptionalContent: false);
         // 整合包文件下载已在并行分支中启动；租约只覆盖会写入共享 Minecraft 内容的 Loader 安装阶段。
         var coordinatorWait = Stopwatch.StartNew();
-        logger.LogInformation(
+        logger.LogDebug(
             "Modpack loader installation waiting for shared install coordinator. InstanceName={InstanceName} Loader={Loader}",
             stagedInstance.ResolvedInstanceName,
             preparedModpack.Loader);
@@ -350,7 +388,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 installProgress,
                 cancellationToken)
             .ConfigureAwait(false);
-        logger.LogInformation(
+        logger.LogDebug(
             "Modpack loader installation acquired shared install coordinator. InstanceName={InstanceName} Loader={Loader} WaitDurationMs={WaitDurationMs}",
             stagedInstance.ResolvedInstanceName,
             preparedModpack.Loader,

@@ -101,7 +101,7 @@ public sealed class AccountStore : IAccountStore
 
         if (shouldPersistOrder || shouldImportMicrosoftAccounts)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Persisting account order after load. AccountCount={AccountCount} ImportedMicrosoftAccounts={ImportedMicrosoftAccounts}",
                 accounts.Count,
                 shouldImportMicrosoftAccounts);
@@ -144,7 +144,7 @@ public sealed class AccountStore : IAccountStore
             state.OfflineUsername = firstOfflineAccount.DisplayName;
 
         await accountStateService.SaveAsync(state, cancellationToken);
-        logger.LogInformation(
+        logger.LogDebug(
             "Account order saved. AccountCount={AccountCount} SelectedAccountId={SelectedAccountId}",
             state.Accounts.Count,
             state.SelectedAccountId);

@@ -93,7 +93,7 @@ public sealed class GameVersionService : IGameVersionService
             .ThenByDescending(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Minecraft versions loaded. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} VersionCount={VersionCount}",
             downloadSourcePreference,
             manifestResult.Resolution.ResolvedSourceKind,

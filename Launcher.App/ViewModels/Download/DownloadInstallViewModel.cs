@@ -77,6 +77,7 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
 
     public async Task InstallAsync(DownloadInstallRequest request)
     {
+        var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var installSequence = Interlocked.Increment(ref latestInstallSequence);
         var installTask = downloadTasksPage.BeginTask(
             $"{request.LoaderDisplayName} {request.MinecraftVersion}",
@@ -122,10 +123,11 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
             SetLatestInstallCompletion(installSequence, completionMessage);
             installTask.Complete(completionMessage);
             logger.LogInformation(
-                "Instance installation completed. InstanceId={InstanceId} MinecraftVersion={MinecraftVersion} Loader={Loader}",
+                "Instance installation completed. InstanceId={InstanceId} MinecraftVersion={MinecraftVersion} Loader={Loader} DurationMs={DurationMs}",
                 instance.Id,
                 request.MinecraftVersion,
-                request.Loader);
+                request.Loader,
+                System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
             InstanceInstalled?.Invoke(this, instance);
         }
         catch (OperationCanceledException) when (installTask.IsCancellationRequested)
@@ -138,10 +140,11 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
                 InstallProgressPercent = 0;
             }
             logger.LogInformation(
-                "Instance installation canceled. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName}",
+                "Instance installation canceled. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName} DurationMs={DurationMs}",
                 request.MinecraftVersion,
                 request.Loader,
-                request.InstanceName);
+                request.InstanceName,
+                System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
             downloadTasksPage.CancelTask(installTask);
         }
         catch (DuplicateGameInstanceNameException exception)
@@ -150,24 +153,26 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
             SetLatestInstallFailure(installSequence, Strings.Status_DuplicateInstanceName);
             installTask.Fail(Strings.Status_DuplicateInstanceName);
             logger.LogWarning(
-                exception,
-                "Instance installation rejected because the name is unavailable. InstanceName={InstanceName}",
-                request.InstanceName);
+                "Instance installation rejected because the name is unavailable. InstanceName={InstanceName} DurationMs={DurationMs}",
+                request.InstanceName,
+                System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            logger.LogDebug(exception, "Instance installation name conflict details. InstanceName={InstanceName}", request.InstanceName);
         }
         catch (JavaRuntimeSelectionException exception)
         {
             instanceNameTracker.RemovePending(request.InstanceName);
             SetLatestInstallFailure(installSequence, Strings.Status_JavaSelectionFailed);
             installTask.Fail(Strings.Status_JavaSelectionFailed);
-            logger.LogWarning(
+            logger.LogError(
                 exception,
-                "Instance installation could not select a compatible Java runtime. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName} FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion}",
+                "Instance installation could not select a compatible Java runtime. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName} FailureReason={FailureReason} RequiredMajorVersion={RequiredMajorVersion} CurrentMajorVersion={CurrentMajorVersion} DurationMs={DurationMs}",
                 request.MinecraftVersion,
                 request.Loader,
                 request.InstanceName,
                 exception.Reason,
                 exception.RequiredMajorVersion,
-                exception.CurrentMajorVersion);
+                exception.CurrentMajorVersion,
+                System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
         }
         catch (Exception exception)
         {
@@ -176,10 +181,11 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
             installTask.Fail(Strings.Status_InstallFailed);
             logger.LogError(
                 exception,
-                "Instance installation failed. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName}",
+                "Instance installation failed. MinecraftVersion={MinecraftVersion} Loader={Loader} InstanceName={InstanceName} DurationMs={DurationMs}",
                 request.MinecraftVersion,
                 request.Loader,
-                request.InstanceName);
+                request.InstanceName,
+                System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
         }
         finally
         {

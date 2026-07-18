@@ -15,6 +15,7 @@ using CmlLib.Core.Tasks;
 using CmlLib.Core.Version;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -24,17 +25,20 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftDownloadOperationContext? operationContext;
     private readonly SpeedMeter? speedMeter;
+    private readonly ILogger? logger;
 
     public SafeAssetFileExtractor(
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
         MinecraftDownloadOperationContext? operationContext,
-        SpeedMeter? speedMeter = null)
+        SpeedMeter? speedMeter = null,
+        ILogger? logger = null)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
         this.operationContext = operationContext;
         this.speedMeter = speedMeter;
+        this.logger = logger;
     }
 
     public async ValueTask<IEnumerable<GameFile>> Extract(
@@ -73,7 +77,16 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
             if (string.IsNullOrWhiteSpace(metadata.Url))
                 throw new InvalidDataException($"Asset index URL is missing: {metadata.Id}");
 
-            await downloadExecutor.DownloadFileAsync(
+            var logScope = new ForegroundDownloadLogScope(
+                logger,
+                "MinecraftInstall",
+                Path.GetFileName(indexPath),
+                indexPath,
+                metadata.Url,
+                metadata.Size > 0 ? metadata.Size : null);
+            try
+            {
+                var resolution = await downloadExecutor.DownloadFileAsync(
                 metadata.Url,
                 downloadSourcePreference,
                 categoryHint: "Mojang",
@@ -81,10 +94,23 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 metadata.GetSha1(),
                 metadata.Size > 0 ? metadata.Size : null,
                 cancellationToken,
+                reportAttemptProgress: logScope.BeginSource(),
                 options: operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1())
                     ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext, path.Assets)
                     : new DownloadFileOptions(ManagedRoot: path.Assets),
                 speedMeter: speedMeter).ConfigureAwait(false);
+                logScope.Complete(resolution);
+            }
+            catch (OperationCanceledException)
+            {
+                logScope.CompleteWithoutDownload("Canceled", metadata.Url);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logScope.Fail(exception, metadata.Url);
+                throw;
+            }
         }
 
         await using var stream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read);

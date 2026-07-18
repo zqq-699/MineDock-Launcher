@@ -64,7 +64,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
                 var resourcePacksDirectory = GetResourcePacksDirectory(instance);
                 if (!Directory.Exists(resourcePacksDirectory))
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "No local resource packs directory found. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
                         instance.Id,
                         resourcePacksDirectory);
@@ -80,7 +80,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
                     .ThenBy(resourcePack => resourcePack.Name, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-                logger.LogInformation(
+                logger.LogDebug(
                     "Local resource packs loaded. InstanceId={InstanceId} Count={ResourcePackCount}",
                     instance.Id,
                     resourcePacks.Length);
@@ -113,14 +113,15 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
 
                 if (!File.Exists(resourcePack.FullPath))
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "Skipping local resource pack delete because file does not exist. Path={Path}",
                         resourcePack.FullPath);
                     return;
                 }
 
                 File.Delete(resourcePack.FullPath);
-                logger.LogInformation("Local resource pack deleted. Path={Path}", resourcePack.FullPath);
+                logger.LogInformation("Local resource pack deleted. Name={Name}", resourcePack.Name);
+                logger.LogDebug("Deleted local resource pack path. Path={Path}", resourcePack.FullPath);
             },
             cancellationToken);
     }
@@ -152,7 +153,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
         var normalizedArchivePath = Path.GetFullPath(archivePath);
         if (!File.Exists(normalizedArchivePath))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local resource pack import because archive does not exist. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instance.Id,
                 normalizedArchivePath);
@@ -161,14 +162,14 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
 
         if (!normalizedArchivePath.EndsWith(SupportedArchiveExtension, StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local resource pack import because archive type is unsupported. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instance.Id,
                 normalizedArchivePath);
             return LocalResourcePackImportResult.Failure(LocalResourcePackImportFailureReason.UnsupportedArchive);
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Importing local resource pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
             instance.Id,
             normalizedArchivePath);
@@ -182,7 +183,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
             File.Copy(normalizedArchivePath, targetPath, overwrite: false);
 
             var importedResourcePack = ToLocalResourcePack(targetPath);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Local resource pack archive imported. InstanceId={InstanceId} ArchivePath={ArchivePath} ResourcePackPath={ResourcePackPath}",
                 instance.Id,
                 normalizedArchivePath,

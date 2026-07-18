@@ -48,7 +48,7 @@ internal sealed partial class VersionRenameTransaction
             {
                 await MoveWithRetryAsync(sourceDirectory, stagedDirectory, marker.InstanceId, cancellationToken)
                     .ConfigureAwait(false);
-                logger.LogInformation(
+                logger.LogDebug(
                     "Instance rename entered committed staging. OldName={OldName} NewName={NewName} StagedDirectory={StagedDirectory}",
                     marker.OldName,
                     marker.NewName,

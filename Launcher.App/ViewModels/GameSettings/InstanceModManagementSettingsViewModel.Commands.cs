@@ -137,7 +137,7 @@ public sealed partial class InstanceModManagementSettingsViewModel
             lastSingleSelectedModPath = nextPath;
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Toggling local mod enabled state. InstanceId={InstanceId} Path={Path} Enabled={Enabled}",
             selectedInstance?.Id ?? "<none>",
             localMod.FullPath,

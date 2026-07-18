@@ -106,7 +106,7 @@ internal sealed class ModpackSandboxCleanupService : IModpackSandboxCleanupServi
 
         if (deferCleanup)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Deferring modpack loader sandbox cleanup after cancellation. Directory={Directory}",
                 session.DirectoryPath);
             _ = Track(Task.Run(

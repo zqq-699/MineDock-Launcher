@@ -114,14 +114,14 @@ public sealed partial class LaunchService
             if (result.FailureReport is null)
             {
                 logger.LogInformation(
-                    "Minecraft process exited normally. InstanceId={InstanceId} VersionName={VersionName} ExitCode={ExitCode} Runtime={Runtime} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                    "Minecraft process exited normally. InstanceId={InstanceId} VersionName={VersionName} ExitCode={ExitCode} Runtime={Runtime} JavaVersion={JavaVersion} JavaSource={JavaSource}",
                     context.InstanceId,
                     context.VersionName,
                     result.ExitCode,
                     FormatRuntime(result.Runtime),
-                    context.JavaPath,
                     context.JavaVersion,
                     context.JavaSource);
+                logger.LogDebug("Minecraft process Java path. InstanceId={InstanceId} JavaPath={JavaPath}", context.InstanceId, context.JavaPath);
                 return result;
             }
 

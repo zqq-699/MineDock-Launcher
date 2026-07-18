@@ -30,13 +30,13 @@ public sealed class InstanceDeletionCleanupService : IInstanceDeletionCleanupSer
     public async Task CleanupPendingAsync(CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        logger.LogInformation(
+        logger.LogDebug(
             "Pending instance deletion cleanup started. MinecraftDirectory={MinecraftDirectory}",
             settings.MinecraftDirectory);
         await repository
             .CleanupStagedVersionDirectoriesAsync(settings.MinecraftDirectory, cancellationToken)
             .ConfigureAwait(false);
-        logger.LogInformation(
+        logger.LogDebug(
             "Pending instance deletion cleanup completed. MinecraftDirectory={MinecraftDirectory}",
             settings.MinecraftDirectory);
     }

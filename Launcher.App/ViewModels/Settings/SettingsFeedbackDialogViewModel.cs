@@ -68,10 +68,11 @@ public sealed partial class SettingsFeedbackDialogViewModel : ObservableObject
     {
         try
         {
-            logger.LogInformation("Opening feedback link. Target={Target}", target);
+            logger.LogDebug("Opening feedback link. Target={Target}", target);
             if (externalLinkService.TryOpen(url))
             {
-                logger.LogInformation("Opened feedback link. Target={Target}", target);
+                logger.LogInformation("Feedback link opened.");
+                logger.LogDebug("Opened feedback link target. Target={Target}", target);
                 return;
             }
 

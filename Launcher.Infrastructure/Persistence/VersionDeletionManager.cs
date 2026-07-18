@@ -102,7 +102,7 @@ internal sealed class VersionDeletionManager
             await WritePreparationMarkerAsync(context, transactionId, cancellationToken).ConfigureAwait(false);
             MoveToStagedDirectory(context, stagedDirectory);
             EnsureStagedIdentity(context, stagedDirectory);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Version directory staged for deletion. VersionName={VersionName} StagedDirectory={StagedDirectory}",
                 context.VersionName,
                 stagedDirectory);
@@ -240,7 +240,7 @@ internal sealed class VersionDeletionManager
         try
         {
             recycleDirectory(normalizedStagedDirectory);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Staged version directory moved to recycle bin. StagedDirectory={StagedDirectory}",
                 normalizedStagedDirectory);
             return true;
@@ -259,7 +259,7 @@ internal sealed class VersionDeletionManager
         try
         {
             deleteDirectory(normalizedStagedDirectory, true);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Staged version directory permanently deleted. StagedDirectory={StagedDirectory}",
                 normalizedStagedDirectory);
             return true;

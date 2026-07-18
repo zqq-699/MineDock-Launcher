@@ -34,6 +34,7 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
     private readonly IFilePickerService filePickerService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly DownloadTasksPageViewModel? downloadTasksPage;
+    private readonly ILauncherLogLevelController? logLevelController;
     private readonly ILogger logger;
 
     internal GeneralSettingsViewModel(
@@ -42,6 +43,7 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         IFilePickerService filePickerService,
         IInstanceFolderService instanceFolderService,
         DownloadTasksPageViewModel? downloadTasksPage,
+        ILauncherLogLevelController? logLevelController,
         ILogger logger)
         : base(persistence)
     {
@@ -49,6 +51,7 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         this.filePickerService = filePickerService;
         this.instanceFolderService = instanceFolderService;
         this.downloadTasksPage = downloadTasksPage;
+        this.logLevelController = logLevelController;
         this.logger = logger;
         if (downloadTasksPage is not null)
             downloadTasksPage.ActivityChanged += DownloadTasksPage_ActivityChanged;
@@ -66,13 +69,29 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
     [ObservableProperty]
     private string launcherLogDirectory = string.Empty;
 
+    [ObservableProperty]
+    private bool diagnosticLoggingEnabled;
+
     public void Load(LauncherSettings settings)
     {
         LoadState(() =>
         {
             MinecraftDirectory = settings.MinecraftDirectory;
             LauncherLogDirectory = LauncherLogConfiguration.ResolveLogDirectory();
+            DiagnosticLoggingEnabled = settings.EnableDiagnosticLogging;
         });
+    }
+
+    partial void OnDiagnosticLoggingEnabledChanged(bool value)
+    {
+        if (!CanPersist)
+            return;
+
+        logLevelController?.SetDiagnosticLoggingEnabled(value);
+        Persist(settings => settings.EnableDiagnosticLogging = value);
+        logger.LogInformation(
+            "Diagnostic logging changed. Enabled={Enabled}",
+            value);
     }
 
     [RelayCommand]

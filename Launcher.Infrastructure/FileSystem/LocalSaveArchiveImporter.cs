@@ -68,7 +68,7 @@ internal sealed class LocalSaveArchiveImporter
         var normalizedArchivePath = Path.GetFullPath(archivePath);
         if (!File.Exists(normalizedArchivePath))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local save import because archive does not exist. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instanceId,
                 normalizedArchivePath);
@@ -77,14 +77,14 @@ internal sealed class LocalSaveArchiveImporter
 
         if (!IsSupportedArchivePath(normalizedArchivePath))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local save import because archive type is unsupported. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instanceId,
                 normalizedArchivePath);
             return LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnsupportedArchive);
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Importing local save archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
             instanceId,
             normalizedArchivePath);
@@ -147,7 +147,7 @@ internal sealed class LocalSaveArchiveImporter
         var entries = ReadArchiveEntries(archivePath);
         if (entries.Length == 0)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Local save archive did not contain any usable entries. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instanceId,
                 archivePath);
@@ -158,7 +158,7 @@ internal sealed class LocalSaveArchiveImporter
         var archiveRoot = ResolveSaveArchiveRoot(entries);
         if (archiveRoot is null)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Local save archive is not a valid Minecraft save. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instanceId,
                 archivePath);
@@ -171,7 +171,7 @@ internal sealed class LocalSaveArchiveImporter
             savesDirectory,
             SanitizeDirectoryName(preferredDirectoryName));
         var targetSaveDirectory = Path.Combine(savesDirectory, resolvedDirectoryName);
-        logger.LogInformation(
+        logger.LogDebug(
             "Resolved local save archive target. InstanceId={InstanceId} ArchivePath={ArchivePath} SaveDirectory={SaveDirectory}",
             instanceId,
             archivePath,
@@ -190,7 +190,7 @@ internal sealed class LocalSaveArchiveImporter
         }
 
         var importedSave = createSave(targetSaveDirectory);
-        logger.LogInformation(
+        logger.LogDebug(
             "Local save archive imported. InstanceId={InstanceId} ArchivePath={ArchivePath} SaveDirectory={SaveDirectory}",
             instanceId,
             archivePath,

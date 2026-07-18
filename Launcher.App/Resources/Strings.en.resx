@@ -2756,6 +2756,12 @@ The current game folder will be backed up first.</value>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>Launcher runtime logs and diagnostic logs are stored here.</value>
   </data>
+  <data name="Settings_DiagnosticLoggingLabel" xml:space="preserve">
+    <value>Diagnostic logging</value>
+  </data>
+  <data name="Settings_DiagnosticLoggingDescription" xml:space="preserve">
+    <value>Records per-file, per-request, and performance details. Enable only while troubleshooting.</value>
+  </data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve">
     <value>Open Folder</value>
   </data>

@@ -25,6 +25,7 @@ using CmlLib.Core.Installers;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -38,6 +39,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftPath? minecraftPath;
     private readonly MinecraftDownloadOperationContext? operationContext;
+    private readonly ILogger? logger;
 
     internal int ConfiguredMaxChecker { get; }
     internal int ConfiguredMaxDownloader { get; }
@@ -52,7 +54,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath,
         MinecraftDownloadOperationContext? operationContext,
-        SpeedMeter? sharedSpeedMeter)
+        SpeedMeter? sharedSpeedMeter,
+        ILogger? logger)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
         ConfiguredMaxChecker = maxChecker;
@@ -61,6 +64,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         this.downloadSourcePreference = downloadSourcePreference;
         this.minecraftPath = minecraftPath;
         this.operationContext = operationContext;
+        this.logger = logger;
         speedMeter = sharedSpeedMeter ?? SpeedMeterProgress.TryGet(progress);
     }
 
@@ -71,7 +75,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SpeedMeter? sharedSpeedMeter = null)
+        SpeedMeter? sharedSpeedMeter = null,
+        ILogger? logger = null)
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
@@ -87,7 +92,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             progress,
             minecraftPath,
             operationContext,
-            sharedSpeedMeter);
+            sharedSpeedMeter,
+            logger);
     }
 
     protected override Task Download(
@@ -117,7 +123,28 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 : null;
         NetworkDownloadProgress? attemptProgress = null;
         var currentAttempt = 0;
-        await downloadExecutor.DownloadFileAsync(
+        var logScope = new ForegroundDownloadLogScope(
+            logger,
+            "MinecraftInstall",
+            file.Name,
+            filePath,
+            fileUrl,
+            expectedSize);
+        var reportProgress = logScope.BeginSource((attempt, progressedBytes, totalBytes) =>
+        {
+            if (attempt != currentAttempt)
+            {
+                currentAttempt = attempt;
+                attemptProgress = new NetworkDownloadProgress(progress);
+            }
+
+            attemptProgress!.Report(new ByteProgress(
+                progressedBytes,
+                totalBytes.GetValueOrDefault(file.Size)));
+        });
+        try
+        {
+            var resolution = await downloadExecutor.DownloadFileAsync(
                 fileUrl,
                 downloadSourcePreference,
                 categoryHint: null,
@@ -125,20 +152,21 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 file.Hash,
                 expectedSize,
                 cancellationToken,
-                (attempt, progressedBytes, totalBytes) =>
-                {
-                    if (attempt != currentAttempt)
-                    {
-                        currentAttempt = attempt;
-                        attemptProgress = new NetworkDownloadProgress(progress);
-                    }
-
-                    attemptProgress!.Report(new ByteProgress(
-                        progressedBytes,
-                        totalBytes.GetValueOrDefault(file.Size)));
-                },
+                reportProgress,
             options: options,
             speedMeter: speedMeter).ConfigureAwait(false);
+            logScope.Complete(resolution);
+        }
+        catch (OperationCanceledException)
+        {
+            logScope.CompleteWithoutDownload("Canceled", fileUrl);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logScope.Fail(exception, fileUrl);
+            throw;
+        }
     }
 
     private sealed class NetworkDownloadProgress : IProgress<ByteProgress>

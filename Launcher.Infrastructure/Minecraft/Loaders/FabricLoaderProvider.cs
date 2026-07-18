@@ -220,19 +220,19 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
                     progress,
                     cancellationToken).ConfigureAwait(false);
             validationStopwatch.Stop();
-            logger.LogInformation(
+            logger.LogDebug(
                 "Fabric post-install validation completed. VersionName={VersionName} DurationMs={DurationMs}",
                 finalVersionName,
                 validationStopwatch.ElapsedMilliseconds);
             if (!validation.LaunchAllowed)
                 throw new InstanceRepairException($"Installed Fabric version {finalVersionName} failed required-file validation.");
 
-            logger.LogInformation("Fabric installation cleanup started. VersionName={VersionName}", finalVersionName);
+            logger.LogDebug("Fabric installation cleanup started. VersionName={VersionName}", finalVersionName);
             var cleanupStopwatch = Stopwatch.StartNew();
             downloadOperation.Dispose();
             cleanupStopwatch.Stop();
             operationResourcesDisposed = true;
-            logger.LogInformation(
+            logger.LogDebug(
                 "Fabric installation cleanup completed. VersionName={VersionName} TotalDurationMs={TotalDurationMs}",
                 finalVersionName,
                 cleanupStopwatch.ElapsedMilliseconds);

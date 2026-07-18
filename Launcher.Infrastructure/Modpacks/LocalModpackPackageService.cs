@@ -106,7 +106,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 ModpackImportFailureReason.FileNotFound,
                 $"Modpack archive does not exist: {normalizedPath}");
         }
-        logger.LogInformation("Preparing local modpack archive. ArchivePath={ArchivePath}", normalizedPath);
+        logger.LogDebug("Preparing local modpack archive. ArchivePath={ArchivePath}", normalizedPath);
         return Path.GetExtension(normalizedPath).ToLowerInvariant() switch
         {
             ".mrpack" => await PrepareModrinthAsync(normalizedPath, cancellationToken).ConfigureAwait(false),
@@ -269,7 +269,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         var embedded = FindEmbeddedModrinthEntries(archive);
         if (embedded.Count == 1)
         {
-            logger.LogInformation(
+            logger.LogWarning(
                 "Falling back to embedded Modrinth archive inside zip wrapper. ArchivePath={ArchivePath} EmbeddedEntry={EmbeddedEntry}",
                 archivePath,
                 embedded[0].FullName);
@@ -344,10 +344,13 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             writer.WriteLine();
         }
         logger.LogInformation(
-            "Wrote modpack manual downloads file. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} ManualDownloadCount={ManualDownloadCount} FilePath={FilePath}",
+            "Wrote modpack manual downloads file. InstanceId={InstanceId} ManualDownloadCount={ManualDownloadCount}",
+            instance.Id,
+            manualDownloads.Count);
+        logger.LogDebug(
+            "Modpack manual downloads file path resolved. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} FilePath={FilePath}",
             instance.Id,
             instance.InstanceDirectory,
-            manualDownloads.Count,
             filePath);
         return filePath;
     }

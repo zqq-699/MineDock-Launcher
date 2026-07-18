@@ -107,7 +107,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Searching resource projects. Kind={Kind} Query={Query} Source={Source} Offset={Offset} PageSize={PageSize}",
             request.Kind,
             request.Query,
@@ -168,7 +168,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         try
         {
             var result = await provider.SearchAsync(request, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Resource provider search completed. Kind={Kind} Source={Source} ResultCount={ResultCount} ElapsedMilliseconds={ElapsedMilliseconds}",
                 request.Kind,
                 provider.Source,
@@ -182,7 +182,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         }
         catch (Exception exception)
         {
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Resource provider search failed. Kind={Kind} Source={Source} ElapsedMilliseconds={ElapsedMilliseconds}",
                 request.Kind,
@@ -225,7 +225,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         CancellationToken cancellationToken = default)
     {
         var target = await storage.InstallAsync(version, instance, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation("Resource project version installed. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        logger.LogInformation("Resource project version installed. VersionId={VersionId}", version.VersionId);
+        logger.LogDebug("Resource project installation target resolved. VersionId={VersionId} Target={Target}", version.VersionId, target);
         return target;
     }
 
@@ -235,7 +236,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         CancellationToken cancellationToken = default)
     {
         var target = await storage.DownloadAsync(version, targetDirectory, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation("Resource project version downloaded. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        logger.LogInformation("Resource project version downloaded. VersionId={VersionId}", version.VersionId);
+        logger.LogDebug("Resource project download target resolved. VersionId={VersionId} Target={Target}", version.VersionId, target);
         return target;
     }
 
@@ -260,7 +262,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         CancellationToken cancellationToken)
     {
         var target = await storage.InstallAsync(version, instance, progress, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation("Resource project version installed. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        logger.LogInformation("Resource project version installed. VersionId={VersionId}", version.VersionId);
+        logger.LogDebug("Resource project installation target resolved. VersionId={VersionId} Target={Target}", version.VersionId, target);
         return target;
     }
 
@@ -271,7 +274,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         CancellationToken cancellationToken)
     {
         var target = await storage.DownloadAsync(version, targetDirectory, progress, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation("Resource project version downloaded. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        logger.LogInformation("Resource project version downloaded. VersionId={VersionId}", version.VersionId);
+        logger.LogDebug("Resource project download target resolved. VersionId={VersionId} Target={Target}", version.VersionId, target);
         return target;
     }
 

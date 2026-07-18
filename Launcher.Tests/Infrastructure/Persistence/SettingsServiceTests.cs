@@ -12,6 +12,21 @@ namespace Launcher.Tests.Infrastructure.Persistence;
 
 public sealed class SettingsServiceTests : TestTempDirectory
 {
+    [Fact]
+    public async Task BootstrapPreferencesReadLanguageAndDiagnosticLoggingWithoutRewritingSettings()
+    {
+        Directory.CreateDirectory(TempRoot);
+        var settingsPath = Path.Combine(TempRoot, "settings.json");
+        var originalJson = """{"LauncherLanguage":"ja-JP","EnableDiagnosticLogging":true,"FutureSetting":true}""";
+        await File.WriteAllTextAsync(settingsPath, originalJson);
+
+        var preferences = new JsonSettingsService(TempRoot).LoadLauncherBootstrapPreferences();
+
+        Assert.Equal("ja-JP", preferences.LauncherLanguage);
+        Assert.True(preferences.EnableDiagnosticLogging);
+        Assert.Equal(originalJson, await File.ReadAllTextAsync(settingsPath));
+    }
+
     [Theory]
     [InlineData("zh-Hans", "zh-Hans")]
     [InlineData("ja-JP", "ja-JP")]
@@ -37,9 +52,12 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Directory.CreateDirectory(TempRoot);
         await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"), "{invalid");
 
-        var language = new JsonSettingsService(TempRoot).LoadLauncherLanguageForBootstrap();
+        var service = new JsonSettingsService(TempRoot);
+        var preferences = service.LoadLauncherBootstrapPreferences();
 
-        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, language);
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, preferences.LauncherLanguage);
+        Assert.False(preferences.EnableDiagnosticLogging);
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, service.LoadLauncherLanguageForBootstrap());
     }
 
     [Fact]
@@ -80,11 +98,12 @@ public sealed class SettingsServiceTests : TestTempDirectory
                 TimeSpan.FromSeconds(5),
                 "The independent settings lock holder did not become ready.");
             var readTask = Task.Run(() =>
-                new JsonSettingsService(TempRoot).LoadLauncherLanguageForBootstrap());
+                new JsonSettingsService(TempRoot).LoadLauncherBootstrapPreferences());
 
-            var language = await readTask.WaitAsync(TimeSpan.FromSeconds(2));
+            var preferences = await readTask.WaitAsync(TimeSpan.FromSeconds(2));
 
-            Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, language);
+            Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, preferences.LauncherLanguage);
+            Assert.False(preferences.EnableDiagnosticLogging);
         }
         finally
         {
@@ -110,10 +129,12 @@ public sealed class SettingsServiceTests : TestTempDirectory
     {
         var service = new JsonSettingsService(TempRoot);
         var settings = await service.LoadAsync();
+        Assert.False(settings.EnableDiagnosticLogging);
         settings.Theme = "Light";
         settings.ThemeFollowSystem = false;
         settings.AccentColor = "Purple";
         settings.LauncherLanguage = "ja-JP";
+        settings.EnableDiagnosticLogging = true;
         settings.UpdateChannel = LauncherUpdateChannel.Beta;
         settings.DefaultMemorySettingsMode = MemorySettingsMode.Manual;
         settings.DefaultMemoryMb = 6144;
@@ -129,6 +150,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.False(loaded.ThemeFollowSystem);
         Assert.Equal("Purple", loaded.AccentColor);
         Assert.Equal("ja-JP", loaded.LauncherLanguage);
+        Assert.True(loaded.EnableDiagnosticLogging);
         Assert.Equal(LauncherUpdateChannel.Beta, loaded.UpdateChannel);
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(DownloadSourcePreference.BmclApi, loaded.DownloadSourcePreference);

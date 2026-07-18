@@ -50,7 +50,7 @@ private async Task<string> InstallCoreAsync(
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var speedMeter = SpeedMeterProgress.TryGet(progress);
         var catalogStopwatch = Stopwatch.StartNew();
-        logger.LogInformation(
+        logger.LogDebug(
             "Forge installation catalog resolution started. MinecraftVersion={MinecraftVersion} RequestedLoaderVersion={RequestedLoaderVersion}",
             minecraftVersion,
             loaderVersion);
@@ -83,7 +83,7 @@ private async Task<string> InstallCoreAsync(
 
             progress?.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty));
             var installerDownloadStopwatch = Stopwatch.StartNew();
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge installer download started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
                 minecraftVersion,
                 selectedLoaderVersion);
@@ -94,7 +94,7 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond,
                 speedMeter);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge installer download completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -110,15 +110,18 @@ private async Task<string> InstallCoreAsync(
             var planReadStopwatch = Stopwatch.StartNew();
             var installerPlan = await installerArtifactService.ReadPlanAsync(installerJarPath, cancellationToken)
                 .ConfigureAwait(false);
-            logger.LogInformation(
-                "Forge installer plan read completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
+        logger.LogInformation(
+                "Forge installer plan read completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} PrerequisiteLibraries={PrerequisiteLibraries} RuntimeLibraries={RuntimeLibraries} ProcessorOutputs={ProcessorOutputs} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
+                installerPlan.PrerequisiteLibraries.Count,
+                installerPlan.RuntimeLibraries.Count,
+                installerPlan.ProcessorOutputs.Count,
                 planReadStopwatch.ElapsedMilliseconds);
 
             var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var prerequisitesStopwatch = Stopwatch.StartNew();
-            logger.LogInformation(
+        logger.LogDebug(
                 "Forge installer prerequisites preparation started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
                 minecraftVersion,
                 selectedLoaderVersion);
@@ -137,14 +140,15 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 downloadOperation,
                 speedMeter).ConfigureAwait(false);
-            logger.LogInformation(
-                "Forge installer prerequisites preparation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
+        logger.LogInformation(
+                "Forge installer prerequisites preparation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} LibraryCount={LibraryCount} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
+                installerPlan.PrerequisiteLibraries.Count,
                 prerequisitesStopwatch.ElapsedMilliseconds);
 
             var installerRunStopwatch = Stopwatch.StartNew();
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge Java installer process started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
                 minecraftVersion,
                 selectedLoaderVersion);
@@ -159,7 +163,7 @@ private async Task<string> InstallCoreAsync(
                 progress,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge Java installer process completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -180,7 +184,7 @@ private async Task<string> InstallCoreAsync(
                 installerMinecraftDirectory,
                 installerPlan,
                 cancellationToken).ConfigureAwait(false);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge installer sandbox artifact validation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -194,7 +198,7 @@ private async Task<string> InstallCoreAsync(
 
             progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
             var finalizationStopwatch = Stopwatch.StartNew();
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge final version preparation started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
                 minecraftVersion,
                 selectedLoaderVersion);
@@ -224,12 +228,12 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 LoaderInstallerArtifactService.CreateTrustedSharedLibraryExpectations(installerPlan),
                 downloadOperation).ConfigureAwait(false);
-            logger.LogInformation(
+        logger.LogDebug(
                 "Forge Java sandbox shared output publication completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
                 sharedPublicationStopwatch.ElapsedMilliseconds);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge final version preparation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} VersionName={VersionName} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -238,7 +242,7 @@ private async Task<string> InstallCoreAsync(
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             var finalContentStopwatch = Stopwatch.StartNew();
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge final version content installation started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} VersionName={VersionName}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -273,7 +277,7 @@ private async Task<string> InstallCoreAsync(
                 installerJarPath,
                 installerPlan,
                 cancellationToken).ConfigureAwait(false);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge final version content installation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} VersionName={VersionName} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -287,7 +291,7 @@ private async Task<string> InstallCoreAsync(
                 gameDirectory,
                 finalVersionName,
                 cancellationToken);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge final version directory publication completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} VersionName={VersionName} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -299,7 +303,7 @@ private async Task<string> InstallCoreAsync(
                 installerPlan,
                 cancellationToken,
                 downloadOperation).ConfigureAwait(false);
-            logger.LogInformation(
+        logger.LogInformation(
                 "Forge published artifact validation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
                 selectedLoaderVersion,
@@ -397,8 +401,12 @@ private async Task<string> InstallCoreAsync(
         }
         catch (InvalidOperationException exception) when (IsLegacyForgeInstallClientFailure(exception))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 exception,
+                "Legacy Forge installer fallback diagnostic. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
+                minecraftVersion,
+                selectedLoaderVersion);
+            logger.LogWarning(
                 "Legacy Forge installer detected because --installClient is unsupported. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
                 minecraftVersion,
                 selectedLoaderVersion);

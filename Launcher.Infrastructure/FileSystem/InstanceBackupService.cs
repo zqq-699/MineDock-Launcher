@@ -71,7 +71,7 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
 
                 var normalizedDirectory = Path.GetFullPath(backupDirectory);
                 Directory.CreateDirectory(normalizedDirectory);
-                logger.LogInformation("Instance backup directory ensured. BackupDirectory={BackupDirectory}", normalizedDirectory);
+                logger.LogDebug("Instance backup directory ensured. BackupDirectory={BackupDirectory}", normalizedDirectory);
                 return normalizedDirectory;
             },
             cancellationToken);
@@ -123,7 +123,7 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
                         directoryLock.Release();
                     }
 
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "Instance backups loaded. BackupDirectory={BackupDirectory} Count={BackupCount}",
                         normalizedDirectory,
                         filteredRecords.Count);
@@ -167,8 +167,9 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
                 var normalizedInstanceDirectory = Path.GetFullPath(instance.InstanceDirectory);
                 var minecraftDirectory = GetMinecraftDirectory(normalizedInstanceDirectory);
 
-                logger.LogInformation(
-                    "Creating instance backup. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupDirectory={BackupDirectory}",
+                logger.LogInformation("Creating instance backup. InstanceId={InstanceId}", instance.Id);
+                logger.LogDebug(
+                    "Instance backup paths resolved. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupDirectory={BackupDirectory}",
                     instance.Id,
                     normalizedInstanceDirectory,
                     normalizedBackupDirectory);
@@ -244,8 +245,9 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
                         await WriteManifestAsync(manifestPath, records, cancellationToken).ConfigureAwait(false);
                         shouldRollbackFinalPath = false;
 
-                        logger.LogInformation(
-                            "Instance backup created. InstanceId={InstanceId} BackupFile={BackupFile}",
+                        logger.LogInformation("Instance backup created. InstanceId={InstanceId}", instance.Id);
+                        logger.LogDebug(
+                            "Instance backup file created. InstanceId={InstanceId} BackupFile={BackupFile}",
                             instance.Id,
                             finalPath);
                         return record;
@@ -296,8 +298,9 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
                 if (!IsSameOrChildPath(normalizedBackupDirectory, normalizedBackupFullPath))
                     throw new ArgumentException("Backup file must be inside the backup directory.", nameof(backupFullPath));
 
-                logger.LogInformation(
-                    "Deleting instance backup. BackupDirectory={BackupDirectory} BackupFile={BackupFile}",
+                logger.LogInformation("Deleting instance backup.");
+                logger.LogDebug(
+                    "Instance backup deletion paths resolved. BackupDirectory={BackupDirectory} BackupFile={BackupFile}",
                     normalizedBackupDirectory,
                     normalizedBackupFullPath);
 
@@ -326,10 +329,7 @@ public sealed partial class InstanceBackupService : IInstanceBackupService
                         directoryLock.Release();
                     }
 
-                    logger.LogInformation(
-                        "Instance backup deleted. BackupDirectory={BackupDirectory} BackupFile={BackupFile}",
-                        normalizedBackupDirectory,
-                        normalizedBackupFullPath);
+                    logger.LogInformation("Instance backup deleted.");
                 }
                 catch (Exception exception) when (exception is IOException
                                                  or UnauthorizedAccessException

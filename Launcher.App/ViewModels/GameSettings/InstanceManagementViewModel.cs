@@ -77,7 +77,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         Instances.ReplaceWith(loadedInstances);
         lastRefreshedMinecraftDirectory = launcherSettings.MinecraftDirectory;
         SelectedInstance = ResolveSelectedInstance(launcherSettings.DefaultInstanceId, previousSelectedId);
-        logger.LogInformation(
+        logger.LogDebug(
             "Game management instances primed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);
@@ -132,7 +132,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
                     if (generation != refreshRequestGeneration
                         || !PathsEqual(requestedMinecraftDirectory, settings.MinecraftDirectory))
                     {
-                        logger.LogInformation(
+                        logger.LogDebug(
                             "Discarded stale instance refresh. RefreshGeneration={RefreshGeneration} CurrentGeneration={CurrentGeneration} RequestedDirectory={RequestedDirectory} CurrentDirectory={CurrentDirectory}",
                             generation,
                             refreshRequestGeneration,
@@ -281,7 +281,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             SelectedInstance = instance;
 
         hasLoadedInstances = true;
-        logger.LogInformation(
+        logger.LogDebug(
             "Game management instance updated locally. InstanceId={InstanceId} Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             instance.Id,
             Instances.Count,
@@ -309,7 +309,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
         SelectedInstance = ResolveSelectedInstance(settings.DefaultInstanceId, previousSelectedId);
         hasLoadedInstances = true;
-        logger.LogInformation(
+        logger.LogDebug(
             "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);

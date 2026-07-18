@@ -72,7 +72,7 @@ internal sealed class RemoteModIconProviderClient
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning(
+                logger.LogDebug(
                     "Modrinth local mod icon lookup was rejected. StatusCode={StatusCode}",
                     response.StatusCode);
                 return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
@@ -119,7 +119,7 @@ internal sealed class RemoteModIconProviderClient
                     ResourceProjectCategoryMapping.MapModrinth(candidate.Kind, project.Categories));
             }
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Modrinth resolved remote local mod icons. RequestedCount={RequestedCount} ResolvedCount={ResolvedCount}",
                 hashes.Length,
                 result.Count);
@@ -131,7 +131,7 @@ internal sealed class RemoteModIconProviderClient
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Failed to resolve remote local mod icons from Modrinth.");
+            logger.LogDebug(exception, "Failed to resolve remote local mod icons from Modrinth.");
             return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
         }
     }
@@ -144,7 +144,7 @@ internal sealed class RemoteModIconProviderClient
         var apiKey = await curseForgeApiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogInformation("Skipping CurseForge local mod icon lookup because API key is not configured.");
+            logger.LogDebug("Skipping CurseForge local mod icon lookup because API key is not configured.");
             return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -163,7 +163,7 @@ internal sealed class RemoteModIconProviderClient
                 .ConfigureAwait(false);
             if (!fingerprintResponse.IsSuccessStatusCode)
             {
-                logger.LogWarning(
+                logger.LogDebug(
                     "CurseForge local mod fingerprint lookup was rejected. StatusCode={StatusCode}",
                     fingerprintResponse.StatusCode);
                 return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
@@ -186,7 +186,7 @@ internal sealed class RemoteModIconProviderClient
             using var modsResponse = await httpClient.SendAsync(modsRequest, cancellationToken).ConfigureAwait(false);
             if (!modsResponse.IsSuccessStatusCode)
             {
-                logger.LogWarning(
+                logger.LogDebug(
                     "CurseForge local mod icon metadata lookup was rejected. StatusCode={StatusCode}",
                     modsResponse.StatusCode);
                 return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
@@ -216,7 +216,7 @@ internal sealed class RemoteModIconProviderClient
                         mod.Categories.SelectMany(category => new[] { category.Name, category.Slug })));
             }
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "CurseForge resolved remote local mod icons. RequestedCount={RequestedCount} ResolvedCount={ResolvedCount}",
                 candidates.Count,
                 result.Count);
@@ -228,7 +228,7 @@ internal sealed class RemoteModIconProviderClient
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Failed to resolve remote local mod icons from CurseForge.");
+            logger.LogDebug(exception, "Failed to resolve remote local mod icons from CurseForge.");
             return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
         }
     }

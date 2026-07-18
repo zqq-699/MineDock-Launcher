@@ -2756,6 +2756,12 @@
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>這裡存放啟動器執行日誌和診斷日誌檔案。</value>
   </data>
+  <data name="Settings_DiagnosticLoggingLabel" xml:space="preserve">
+    <value>診斷日誌</value>
+  </data>
+  <data name="Settings_DiagnosticLoggingDescription" xml:space="preserve">
+    <value>記錄逐檔案、逐請求和效能細節。僅在疑難排解時啟用。</value>
+  </data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve">
     <value>開啟目錄</value>
   </data>

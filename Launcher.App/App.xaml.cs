@@ -35,22 +35,27 @@ namespace Launcher.App;
 
 public partial class App : System.Windows.Application
 {
+    private readonly LauncherBootstrapPreferences bootstrapPreferences;
     private ServiceProvider? serviceProvider;
     private bool isUpdateApplyMode;
 
     public App()
     {
+        bootstrapPreferences = new LauncherBootstrapPreferences(
+            LauncherDefaults.DefaultLauncherLanguage,
+            EnableDiagnosticLogging: false);
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
         if (LauncherUpdateApplyOptions.Parse(args) is null
             && LauncherUpdateRecoveryOptions.Parse(args) is null)
         {
-            ApplyLauncherCulture(
-                new JsonSettingsService().LoadLauncherLanguageForBootstrap());
+            bootstrapPreferences = new JsonSettingsService().LoadLauncherBootstrapPreferences();
+            ApplyLauncherCulture(bootstrapPreferences.LauncherLanguage);
         }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        var startupStartedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var updateApplyOptions = LauncherUpdateApplyOptions.Parse(e.Args);
         if (updateApplyOptions is not null)
         {
@@ -69,7 +74,11 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        Log.Logger = LauncherLogConfiguration.CreateLogger();
+        var logLevelController = new LauncherLogLevelController(
+            bootstrapPreferences.EnableDiagnosticLogging);
+        Log.Logger = LauncherLogConfiguration.CreateLogger(
+            logLevelController.LevelSwitch,
+            logLevelController.MicrosoftLevelSwitch);
         RegisterUnhandledExceptionLogging();
 
         try
@@ -91,6 +100,7 @@ public partial class App : System.Windows.Application
                 builder.ClearProviders();
                 builder.AddSerilog(Log.Logger, dispose: false);
             });
+            services.AddSingleton<ILauncherLogLevelController>(logLevelController);
             services.AddLauncherApplication();
             services.AddLauncherInfrastructure();
             services.AddSingleton<IStatusService, StatusService>();
@@ -138,14 +148,15 @@ public partial class App : System.Windows.Application
             services.AddSingleton<MainWindow>();
 
             serviceProvider = services.BuildServiceProvider();
-            Log.Information("Service provider built.");
+            Log.Debug("Service provider built.");
 
             var updateCacheCleaner = serviceProvider.GetRequiredService<LauncherUpdateCacheCleaner>();
             updateCacheCleaner.CleanupStaleCache(Environment.ProcessPath);
 
             var startupSettings = await serviceProvider.GetRequiredService<ISettingsService>().LoadAsync();
+            logLevelController.SetDiagnosticLoggingEnabled(startupSettings.EnableDiagnosticLogging);
             ApplyLauncherCulture(startupSettings.LauncherLanguage);
-            Log.Information("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
+            Log.Debug("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
             base.OnStartup(e);
 
             await CleanupModpackWorkspacesOnStartupAsync();
@@ -167,7 +178,11 @@ public partial class App : System.Windows.Application
             serviceProvider.GetRequiredService<IThemeService>().ApplyAccent(mainViewModel.Settings.AccentColor);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
-            Log.Information("Main window shown.");
+            Log.Information(
+                "Launcher startup completed. DurationMs={DurationMs} Language={Language} DiagnosticLogging={DiagnosticLogging}",
+                System.Diagnostics.Stopwatch.GetElapsedTime(startupStartedAt).TotalMilliseconds,
+                CultureInfo.CurrentUICulture.Name,
+                logLevelController.IsDiagnosticLoggingEnabled);
             _ = CleanupPendingInstanceDeletionsOnStartupAsync(
                 serviceProvider.GetRequiredService<IInstanceDeletionCleanupService>());
             _ = CleanupPendingInstanceInstallsOnStartupAsync(

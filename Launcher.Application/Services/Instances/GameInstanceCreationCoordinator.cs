@@ -79,7 +79,7 @@ internal sealed class GameInstanceCreationCoordinator
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Creating game instance. MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} RequestedName={RequestedName}",
             minecraftVersion,
             loader,
@@ -132,7 +132,7 @@ internal sealed class GameInstanceCreationCoordinator
                 cancellationToken,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
                 versionIdentity,
                 versionName,
@@ -156,7 +156,7 @@ internal sealed class GameInstanceCreationCoordinator
         }
         catch (Exception exception)
         {
-            logger.LogError(
+            logger.LogDebug(
                 exception,
                 "Game instance creation failed. VersionIdentity={VersionIdentity} Loader={Loader}",
                 versionIdentity,
@@ -194,7 +194,7 @@ internal sealed class GameInstanceCreationCoordinator
             }
             else if (defaultInitialized)
             {
-                logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
+                logger.LogDebug("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
             }
         }
         catch (Exception exception)
@@ -207,7 +207,7 @@ internal sealed class GameInstanceCreationCoordinator
 
         cardProgress?.ReportCommitCompleted();
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
             instance.Id,
             instance.VersionName,
@@ -267,7 +267,7 @@ internal sealed class GameInstanceCreationCoordinator
             if (modrinthService is null)
                 throw new InvalidOperationException("Modrinth service is required to install Fabric API.");
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Installing Fabric API for game instance. InstanceId={InstanceId} VersionId={VersionId}",
                 instance.Id,
                 fabricApiVersionId);
@@ -281,7 +281,7 @@ internal sealed class GameInstanceCreationCoordinator
         if (modrinthService is null)
             throw new InvalidOperationException("Modrinth service is required to install QFAPI/QSL.");
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Installing Quilt standard library for game instance. InstanceId={InstanceId} VersionId={VersionId}",
             instance.Id,
             quiltStandardLibraryVersionId);

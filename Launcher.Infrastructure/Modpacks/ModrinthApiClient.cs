@@ -162,7 +162,7 @@ public sealed class ModrinthApiClient
                 file.Size);
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Modrinth version file lookup completed. RequestedCount={RequestedCount} MatchedCount={MatchedCount}",
             hashes.Length,
             result.Count);
@@ -177,7 +177,7 @@ public sealed class ModrinthApiClient
         var adjustment = hostConcurrencyController.RecordResult(origin, failureReason, statusCode);
         if (adjustment is null)
             return;
-        logger.LogInformation(
+        logger.LogDebug(
             "Download host concurrency adjusted. HostOrigin={HostOrigin} PreviousTarget={PreviousTarget} CurrentTarget={CurrentTarget} AdjustmentReason={AdjustmentReason} SuccessCount={SuccessCount} FailureCount={FailureCount}",
             adjustment.Origin,
             adjustment.PreviousTarget,

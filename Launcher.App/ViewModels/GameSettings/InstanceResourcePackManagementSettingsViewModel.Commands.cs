@@ -42,7 +42,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel
         {
             var resourcePacksDirectory = instanceFolderService.EnsureDirectoryExists(
                 Path.Combine(selectedInstance.InstanceDirectory, "resourcepacks"));
-            logger.LogInformation(
+            logger.LogDebug(
                 "Opening resource pack folder. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
                 selectedInstance.Id,
                 resourcePacksDirectory);

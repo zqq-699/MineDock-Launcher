@@ -205,7 +205,7 @@ public sealed class InstanceInstallCleanupService(
                 }
 
                 InstanceInstallTransactionService.TryDeleteTree(directory, logger);
-                logger.LogInformation(
+                logger.LogDebug(
                     "Cleaned interrupted instance install preparation. TransactionId={TransactionId} Directory={Directory}",
                     marker.TransactionId,
                     directory);

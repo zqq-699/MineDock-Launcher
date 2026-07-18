@@ -309,6 +309,8 @@ public static class Strings
     public static string Settings_MinecraftDirectoryChangeBlockedByActiveTasks => Get(nameof(Settings_MinecraftDirectoryChangeBlockedByActiveTasks));
     public static string Settings_LauncherLogDirectoryLabel => Get(nameof(Settings_LauncherLogDirectoryLabel));
     public static string Settings_LauncherLogDirectoryDescription => Get(nameof(Settings_LauncherLogDirectoryDescription));
+    public static string Settings_DiagnosticLoggingLabel => Get(nameof(Settings_DiagnosticLoggingLabel));
+    public static string Settings_DiagnosticLoggingDescription => Get(nameof(Settings_DiagnosticLoggingDescription));
     public static string Settings_OpenMinecraftDirectoryButton => Get(nameof(Settings_OpenMinecraftDirectoryButton));
     public static string Settings_ChangeMinecraftDirectoryButton => Get(nameof(Settings_ChangeMinecraftDirectoryButton));
     public static string Settings_OpenLauncherLogDirectoryButton => Get(nameof(Settings_OpenLauncherLogDirectoryButton));

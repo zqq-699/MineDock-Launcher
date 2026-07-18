@@ -261,7 +261,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         var nextState = (Disabled: disabled, Active: progressiveBlurActive);
         if (lastLoggedProgressiveBlurState != nextState)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Background blur preference applied. Disabled={Disabled} ProgressiveBlurActive={ProgressiveBlurActive}",
                 disabled,
                 progressiveBlurActive);
@@ -291,7 +291,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         }
         else
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Progressive blur capability evaluated. Supported={Supported} RenderTier={RenderTier} PixelShader30Supported={PixelShader30Supported} ShaderModel=3.0 Reason={Reason} HardwareOnly=True",
                 capability.IsAvailable,
                 capability.RenderingTier,
@@ -328,7 +328,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         {
             Source = new Uri(GetAccentThemeSource(accentColor), UriKind.Absolute)
         });
-        logger.LogInformation("Launcher accent applied. AccentColor={AccentColor}", accentColor);
+        logger.LogDebug("Launcher accent applied. AccentColor={AccentColor}", accentColor);
     }
 
     private static string GetThemeSource(EffectiveTheme theme)

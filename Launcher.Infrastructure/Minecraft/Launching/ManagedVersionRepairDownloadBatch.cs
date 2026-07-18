@@ -130,7 +130,16 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 bandwidthLimiter ?? DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Runtime);
             var options = CreateDownloadOptions(download, operationContexts, operationContext);
-            await executor.DownloadFileAsync(
+            var logScope = new ForegroundDownloadLogScope(
+                logger,
+                "MinecraftRepair",
+                Path.GetFileName(download.DestinationPath),
+                download.DestinationPath,
+                download.OriginalUrl,
+                download.ExpectedSize);
+            try
+            {
+                var resolution = await executor.DownloadFileAsync(
                 download.OriginalUrl,
                 sourcePreference,
                 download.ResourceCategory,
@@ -138,8 +147,21 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 download.ExpectedSha1,
                 download.ExpectedSize,
                 cancellationToken,
+                reportAttemptProgress: logScope.BeginSource(),
                 options: options,
                 speedMeter: speedMeter).ConfigureAwait(false);
+                logScope.Complete(resolution);
+            }
+            catch (OperationCanceledException)
+            {
+                logScope.CompleteWithoutDownload("Canceled", download.OriginalUrl);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logScope.Fail(exception, download.OriginalUrl);
+                throw;
+            }
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
         {

@@ -113,7 +113,7 @@ internal sealed class ResourceThumbnailCacheService
                 TryDelete(temporaryPath);
             }
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Resource project thumbnail cached. Kind={Kind} Source={Source} ProjectId={ProjectId}",
                 project.Kind,
                 project.Source,

@@ -363,10 +363,11 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             progress,
             path,
             operationContext,
-            sharedSpeedMeter);
+            sharedSpeedMeter,
+            logger);
         parameters.GameInstaller = gameInstaller;
         var globalDownloadSnapshot = ImportConcurrencyLimiter.Shared.DownloadSnapshot;
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Minecraft game installer concurrency configured. CheckerConcurrency={CheckerConcurrency} DownloaderWorkerCapacity={DownloaderWorkerCapacity} GlobalTarget={GlobalTarget}",
             gameInstaller.ConfiguredMaxChecker,
             gameInstaller.ConfiguredMaxDownloader,
@@ -400,7 +401,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         fileExtractors.RemoveAt(defaultAssetExtractor.index);
         fileExtractors.Insert(
             defaultAssetExtractor.index,
-            new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedMeter));
+            new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedMeter, logger));
 
         var clientExtractor = fileExtractors
             .Select((extractor, index) => (extractor, index))

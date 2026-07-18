@@ -20,6 +20,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Logging;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Download;
@@ -56,7 +57,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ILogger<SettingsFeedbackDialogViewModel>? feedbackDialogLogger = null,
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
         ILogger<SettingsPageViewModel>? logger = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        ILauncherLogLevelController? logLevelController = null)
     {
         var resolvedLogger = logger ?? NullLogger<SettingsPageViewModel>.Instance;
         persistence = new SettingsPersistenceCoordinator(settingsService, statusService, resolvedLogger);
@@ -67,6 +69,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             filePickerService,
             instanceFolderService,
             downloadTasksPage,
+            logLevelController,
             resolvedLogger);
         Download = new DownloadSettingsViewModel(persistence);
         Language = new LanguageSettingsViewModel(persistence);

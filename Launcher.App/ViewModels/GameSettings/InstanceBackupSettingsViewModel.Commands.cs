@@ -43,7 +43,7 @@ public sealed partial class InstanceBackupSettingsViewModel
             BackupDirectory = normalizedDirectory;
             selectedInstance.BackupDirectory = normalizedDirectory;
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Opening instance backup folder. InstanceId={InstanceId} BackupDirectory={BackupDirectory}",
                 selectedInstance.Id,
                 normalizedDirectory);
@@ -109,7 +109,7 @@ public sealed partial class InstanceBackupSettingsViewModel
             Strings.GameSettings_BackupDefaultNameFormat,
             DateTimeOffset.Now.ToString("yyyy-MM-dd HH-mm"));
         IsCreateBackupDialogOpen = true;
-        logger.LogInformation(
+        logger.LogDebug(
             "Instance backup naming dialog opened. InstanceId={InstanceId}",
             selectedInstance?.Id ?? "<none>");
     }

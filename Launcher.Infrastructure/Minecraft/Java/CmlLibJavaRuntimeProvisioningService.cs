@@ -56,7 +56,7 @@ public sealed class CmlLibJavaRuntimeProvisioningService
         if (string.IsNullOrWhiteSpace(settings.MinecraftDirectory))
             throw new InvalidOperationException("Minecraft directory is required to prepare Java runtime.");
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Preparing Java runtime for launch. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} MinecraftDirectory={MinecraftDirectory} DownloadSourcePreference={DownloadSourcePreference} DownloadSpeedLimitMbPerSecond={DownloadSpeedLimitMbPerSecond}",
             instance.Id,
             instance.Name,
@@ -87,10 +87,10 @@ public sealed class CmlLibJavaRuntimeProvisioningService
             progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, ProgressEndPercent));
 
             logger.LogInformation(
-                "Java runtime preparation completed. InstanceId={InstanceId} VersionName={VersionName} MinecraftDirectory={MinecraftDirectory}",
+                "Java runtime preparation completed. InstanceId={InstanceId} VersionName={VersionName}",
                 instance.Id,
-                versionName,
-                settings.MinecraftDirectory);
+                versionName);
+            logger.LogDebug("Java runtime preparation directory. MinecraftDirectory={MinecraftDirectory}", settings.MinecraftDirectory);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -111,7 +111,7 @@ public sealed class CmlLibJavaRuntimeProvisioningService
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MinecraftVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MinecraftDirectory);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Preparing Java runtime for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} MinecraftDirectory={MinecraftDirectory} DownloadSourcePreference={DownloadSourcePreference} DownloadSpeedLimitMbPerSecond={DownloadSpeedLimitMbPerSecond}",
             request.VersionName,
             request.MinecraftVersion,
@@ -140,10 +140,10 @@ public sealed class CmlLibJavaRuntimeProvisioningService
             await launcher.InstallAsync(request.MinecraftVersion, cancellationToken).ConfigureAwait(false);
 
             logger.LogInformation(
-                "Java runtime preparation completed for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} MinecraftDirectory={MinecraftDirectory}",
+                "Java runtime preparation completed for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion}",
                 request.VersionName,
-                request.MinecraftVersion,
-                request.MinecraftDirectory);
+                request.MinecraftVersion);
+            logger.LogDebug("Loader installer Java runtime directory. MinecraftDirectory={MinecraftDirectory}", request.MinecraftDirectory);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

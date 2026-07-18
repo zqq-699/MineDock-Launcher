@@ -18,42 +18,64 @@
  */
 
 using System.IO;
+using System.Text;
 using Launcher.Application;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
+using Serilog.Sinks.File;
 
 namespace Launcher.App.Logging;
 
 internal static class LauncherLogConfiguration
 {
     public const int RetainedDays = 30;
+    public const int MaxRetainedLauncherLogFiles = 20;
     public const long FileSizeLimitBytes = 20 * 1024 * 1024;
     public const bool RollOnFileSizeLimit = true;
-    public const string LogFileNamePattern = "bhl-.log";
+    public const string LogFileNamePrefix = "bhl-";
 
     private const string LogDirectoryName = "log";
     private static readonly string[] LogFileSearchPatterns = ["bhl*.log", "updater-*.log"];
 
-    public static Serilog.ILogger CreateLogger()
+    public static Serilog.ILogger CreateLogger(
+        LoggingLevelSwitch levelSwitch,
+        LoggingLevelSwitch microsoftLevelSwitch)
     {
+        ArgumentNullException.ThrowIfNull(levelSwitch);
+        ArgumentNullException.ThrowIfNull(microsoftLevelSwitch);
         var logDirectory = ResolveLogDirectory();
         Directory.CreateDirectory(logDirectory);
-        PruneOldLogFiles(logDirectory, DateTimeOffset.Now);
+        var startedAt = DateTimeOffset.Now;
+        // Reserve one slot before the new startup file is opened so the directory
+        // contains at most the configured number of launcher logs afterwards.
+        PruneOldLogFiles(logDirectory, startedAt, MaxRetainedLauncherLogFiles - 1);
 
-        var logPath = Path.Combine(logDirectory, LogFileNamePattern);
+        var logPath = Path.Combine(
+            logDirectory,
+            CreateLogFileName(startedAt, Environment.ProcessId));
         return new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.ControlledBy(levelSwitch)
+            .MinimumLevel.Override("Microsoft", microsoftLevelSwitch)
             .Enrich.FromLogContext()
             .WriteTo.File(
                 logPath,
-                rollingInterval: RollingInterval.Day,
+                rollingInterval: RollingInterval.Infinite,
                 retainedFileCountLimit: null,
                 fileSizeLimitBytes: FileSizeLimitBytes,
                 rollOnFileSizeLimit: RollOnFileSizeLimit,
-                shared: true,
+                shared: false,
+                hooks: new LauncherLogFileLifecycleHooks(logDirectory),
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
+    }
+
+    internal static string CreateLogFileName(DateTimeOffset startedAt, int processId)
+    {
+        if (processId < 0)
+            throw new ArgumentOutOfRangeException(nameof(processId));
+
+        return $"{LogFileNamePrefix}{startedAt:yyyyMMdd-HHmmss-fff}-p{processId}.log";
     }
 
     public static string ResolveLogDirectory()
@@ -61,8 +83,13 @@ internal static class LauncherLogConfiguration
         return Path.Combine(AppContext.BaseDirectory, LauncherApplicationIdentity.StorageDirectoryName, LogDirectoryName);
     }
 
-    public static void PruneOldLogFiles(string logDirectory, DateTimeOffset now)
+    public static void PruneOldLogFiles(
+        string logDirectory,
+        DateTimeOffset now,
+        int maxLauncherLogFiles = MaxRetainedLauncherLogFiles)
     {
+        if (maxLauncherLogFiles < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxLauncherLogFiles));
         if (!Directory.Exists(logDirectory))
             return;
 
@@ -72,6 +99,16 @@ internal static class LauncherLogConfiguration
             foreach (var path in Directory.EnumerateFiles(logDirectory, searchPattern, SearchOption.TopDirectoryOnly))
                 DeleteIfExpired(path, cutoff);
         }
+
+        var launcherLogs = Directory
+            .EnumerateFiles(logDirectory, "bhl*.log", SearchOption.TopDirectoryOnly)
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
+            .Skip(maxLauncherLogFiles)
+            .ToArray();
+        foreach (var file in launcherLogs)
+            DeleteIfPresent(file.FullName);
     }
 
     private static void DeleteIfExpired(string path, DateTime cutoff)
@@ -87,6 +124,30 @@ internal static class LauncherLogConfiguration
         }
         catch (UnauthorizedAccessException)
         {
+        }
+    }
+
+    private static void DeleteIfPresent(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private sealed class LauncherLogFileLifecycleHooks(string logDirectory) : FileLifecycleHooks
+    {
+        public override Stream OnFileOpened(string path, Stream underlyingStream, Encoding encoding)
+        {
+            // Re-apply the global cap whenever the active startup log rolls by size.
+            PruneOldLogFiles(logDirectory, DateTimeOffset.Now);
+            return underlyingStream;
         }
     }
 }

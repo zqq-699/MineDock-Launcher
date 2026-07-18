@@ -133,7 +133,7 @@ internal sealed partial class ThirdPartyAccountService
             profile.Skin,
             profile.Cape,
             platformName);
-        logger.LogInformation(
+        logger.LogDebug(
             "Third-party account profile refreshed. AccountId={AccountId} HasSkin={HasSkin} HasCape={HasCape}",
             account.Id,
             profile.Skin is not null,

@@ -57,9 +57,8 @@ internal sealed class ModrinthModpackExporter
     {
         // 先冻结候选与哈希，再创建目标压缩包；任何失败都清理未完成输出。
         logger.LogInformation(
-            "Modrinth modpack export started. InstanceId={InstanceId} OutputArchivePath={OutputArchivePath} IncludeMods={IncludeMods} IncludeDisabledMods={IncludeDisabledMods} IncludeResourcePacks={IncludeResourcePacks} IncludeShaderPacks={IncludeShaderPacks} IncludeConfig={IncludeConfig}",
+            "Modrinth modpack export started. InstanceId={InstanceId} IncludeMods={IncludeMods} IncludeDisabledMods={IncludeDisabledMods} IncludeResourcePacks={IncludeResourcePacks} IncludeShaderPacks={IncludeShaderPacks} IncludeConfig={IncludeConfig}",
             request.Instance.Id,
-            request.OutputArchivePath,
             request.IncludeMods,
             request.IncludeDisabledMods,
             request.IncludeResourcePacks,
@@ -110,11 +109,11 @@ internal sealed class ModrinthModpackExporter
                 .ConfigureAwait(false);
 
             logger.LogInformation(
-                "Modrinth modpack export completed. InstanceId={InstanceId} OutputArchivePath={OutputArchivePath} ManifestFileCount={ManifestFileCount} OverrideFileCount={OverrideFileCount}",
+                "Modrinth modpack export completed. InstanceId={InstanceId} ManifestFileCount={ManifestFileCount} OverrideFileCount={OverrideFileCount}",
                 request.Instance.Id,
-                outputPath,
                 manifestFiles.Count,
                 overrideFiles.Count);
+            logger.LogDebug("Modrinth modpack export path resolved. OutputArchivePath={OutputArchivePath}", outputPath);
 
             return new ModpackExportResult(
                 true,

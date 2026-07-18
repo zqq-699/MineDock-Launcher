@@ -132,7 +132,7 @@ public sealed class LayerDependencyContractTests
         var constructorIndex = appSource.IndexOf("public App()", StringComparison.Ordinal);
         var startupIndex = appSource.IndexOf("protected override async void OnStartup", StringComparison.Ordinal);
         var bootstrapLanguageIndex = appSource.IndexOf(
-            "LoadLauncherLanguageForBootstrap()",
+            "LoadLauncherBootstrapPreferences()",
             StringComparison.Ordinal);
 
         Assert.True(constructorIndex >= 0);

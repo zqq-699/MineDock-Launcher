@@ -7,10 +7,12 @@
 using System.IO.Compression;
 using System.Net;
 using System.Text;
+using System.Collections.Concurrent;
 using Launcher.Application.Services;
 using Launcher.Infrastructure;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.Modpacks;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Tests.Infrastructure.Modpacks;
 
@@ -302,6 +304,40 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForegroundBatchWritesStartAndResultForEveryFilePlusOneSummary()
+    {
+        var logger = new CollectingLogger<LocalModpackPackageService>();
+        var service = CreateService(new HttpClient(new FixedHandler("downloaded")), logger: logger);
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var files = Enumerable.Range(1, 3)
+            .Select(index => new PreparedModpackDownload
+            {
+                FileName = $"mod-{index}.jar",
+                RelativePath = $"mods/mod-{index}.jar",
+                SourceUrl = $"https://download.test/mod-{index}.jar?token=secret-{index}"
+            })
+            .ToArray();
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.Modrinth,
+            PackageName = "Pack",
+            MinecraftVersion = "1.20.1",
+            Files = files
+        };
+
+        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+        Assert.Empty(manualDownloads);
+        var information = logger.Entries.Where(entry => entry.Level == LogLevel.Information).ToArray();
+        Assert.Equal(files.Length, information.Count(entry => entry.Message.Contains("Foreground file download started", StringComparison.Ordinal)));
+        Assert.Equal(files.Length, information.Count(entry => entry.Message.Contains("Foreground file download completed", StringComparison.Ordinal)));
+        Assert.Single(information.Where(entry => entry.Message.Contains("Modpack file batch completed", StringComparison.Ordinal)));
+        Assert.Equal((files.Length * 2) + 1, information.Length);
+        Assert.DoesNotContain("token=", string.Join('\n', logger.Entries.Select(entry => entry.Message)), StringComparison.OrdinalIgnoreCase);
+        Assert.All(files, file => Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, file.RelativePath))));
+    }
+
+    [Fact]
     public async Task InstallCopiesOverridesIntoInstance()
     {
         var path = Path.Combine(TempRoot, "overrides.mrpack");
@@ -319,10 +355,14 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("demo", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "config", "settings.txt")));
     }
 
-    private LocalModpackPackageService CreateService(HttpClient? client = null, string? apiKey = null)
+    private LocalModpackPackageService CreateService(
+        HttpClient? client = null,
+        string? apiKey = null,
+        ILogger<LocalModpackPackageService>? logger = null)
     {
         var paths = new LauncherPathProvider(TempRoot);
         return new LocalModpackPackageService(paths, httpClient: client,
+            logger: logger,
             curseForgeApiKeyResolver: new CurseForgeApiKeyResolver(
                 paths,
                 embeddedApiKeyProvider: _ => Task.FromResult(apiKey)));
@@ -380,6 +420,25 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
         }
     }
+
+    private sealed class CollectingLogger<T> : ILogger<T>
+    {
+        public ConcurrentQueue<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Enqueue(new LogEntry(logLevel, formatter(state, exception), exception));
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private sealed class CurseForgePipelineHandler(bool duplicateTarget) : HttpMessageHandler
     {

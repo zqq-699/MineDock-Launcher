@@ -132,7 +132,7 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         destinationRoot).ConfigureAwait(false);
                     if (result.Disposition == SharedFilePublishDisposition.Replaced)
                     {
-                        logger.LogInformation(
+                        logger.LogDebug(
                             "Replaced shared Minecraft file after metadata validation. RelativePath={RelativePath} ExpectedSha1={ExpectedSha1}",
                             relativePath,
                             expectation.Sha1);

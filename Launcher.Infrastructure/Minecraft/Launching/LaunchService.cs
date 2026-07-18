@@ -336,13 +336,13 @@ public sealed partial class LaunchService : ILaunchService
             }
 
             logger.LogInformation(
-                "Game launch canceled. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                "Game launch canceled. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} JavaVersion={JavaVersion} JavaSource={JavaSource}",
                 diagnosticContext.InstanceId,
                 diagnosticContext.InstanceName,
                 diagnosticContext.VersionName,
-                diagnosticContext.JavaPath,
                 diagnosticContext.JavaVersion,
                 diagnosticContext.JavaSource);
+            logger.LogDebug("Canceled game launch Java path. InstanceId={InstanceId} JavaPath={JavaPath}", diagnosticContext.InstanceId, diagnosticContext.JavaPath);
             throw;
         }
         catch (LaunchAccountSessionException exception)

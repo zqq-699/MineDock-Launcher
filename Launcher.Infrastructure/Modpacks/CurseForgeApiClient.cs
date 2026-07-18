@@ -95,7 +95,7 @@ public sealed class CurseForgeApiClient
         AddDistinctUrl(fallbackUrls, mediafilezUrl, primaryUrl);
 
         var hashes = ResolveHashes(file.Hashes);
-        logger.LogInformation(
+        logger.LogDebug(
             "Resolved CurseForge file download candidates. ProjectId={ProjectId} FileId={FileId} FileName={FileName} DownloadUrlStatusCode={DownloadUrlStatusCode} HasDirectDownloadUrl={HasDirectDownloadUrl} FallbackUrlCount={FallbackUrlCount}",
             projectId,
             fileId,
@@ -187,7 +187,7 @@ public sealed class CurseForgeApiClient
             {
                 if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "CurseForge download-url endpoint did not provide a direct URL. ProjectId={ProjectId} FileId={FileId} StatusCode={StatusCode}",
                         projectId,
                         fileId,
@@ -276,7 +276,7 @@ public sealed class CurseForgeApiClient
         var adjustment = hostConcurrencyController.RecordResult(origin, failureReason, statusCode);
         if (adjustment is null)
             return;
-        logger.LogInformation(
+        logger.LogDebug(
             "Download host concurrency adjusted. HostOrigin={HostOrigin} PreviousTarget={PreviousTarget} CurrentTarget={CurrentTarget} AdjustmentReason={AdjustmentReason} SuccessCount={SuccessCount} FailureCount={FailureCount}",
             adjustment.Origin,
             adjustment.PreviousTarget,

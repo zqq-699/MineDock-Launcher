@@ -81,7 +81,7 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
         if (CurrentProject is not null)
             backStack.Push(CurrentProject);
         SelectCore(project);
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Resource dependency project selected. Kind={Kind} Source={Source} ProjectId={ProjectId}",
             options.Kind,
             project.Project.Source,

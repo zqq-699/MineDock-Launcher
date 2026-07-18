@@ -62,6 +62,7 @@ internal sealed class VersionDirectoryManager(ILogger logger)
         if (!Directory.Exists(directory))
             return;
         Directory.Delete(directory, recursive: true);
-        logger.LogInformation("Version directory deleted. VersionName={VersionName} VersionDirectory={VersionDirectory}", versionName, directory);
+        logger.LogInformation("Version directory deleted. VersionName={VersionName}", versionName);
+        logger.LogDebug("Deleted version directory path. VersionName={VersionName} VersionDirectory={VersionDirectory}", versionName, directory);
     }
 }

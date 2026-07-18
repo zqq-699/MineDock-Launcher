@@ -119,12 +119,15 @@ public sealed partial class LaunchService
             // token 只作为诊断写入器的敏感值表传入，用于替换日志内容，不会被直接记录。
             [accountSession.AccessToken]);
         logger.LogInformation(
-            "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+            "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaVersion={JavaVersion} JavaSource={JavaSource}",
             instance.Id,
             javaRuntime is not null,
-            javaRuntime?.ExecutablePath,
             javaRuntime?.Version,
             javaRuntime?.Source);
+        logger.LogDebug(
+            "Launch Java executable resolved. InstanceId={InstanceId} JavaPath={JavaPath}",
+            instance.Id,
+            javaRuntime?.ExecutablePath);
         progress?.Report(new LauncherProgress(
             LaunchProgressStages.PreparingProcess,
             "Preparing launch process",

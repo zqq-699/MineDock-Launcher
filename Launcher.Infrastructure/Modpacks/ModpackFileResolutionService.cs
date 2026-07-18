@@ -20,6 +20,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -86,6 +87,15 @@ internal sealed class ModpackFileResolutionService
             await RunDownloadPipelineAsync(context, cancellationToken).ConfigureAwait(false);
             context.ReportProcessing();
             PublishPendingDownloads(context, cancellationToken);
+            logger.LogInformation(
+                "Modpack file batch completed. PackageKind={PackageKind} Total={Total} Downloaded={Downloaded} Reused={Reused} Manual={Manual} TransferredBytes={TransferredBytes} DurationMs={DurationMs}",
+                preparedModpack.PackageKind,
+                context.TotalCount,
+                context.DownloadedCount,
+                context.ReusedCount,
+                context.ManualCount,
+                context.TransferredBytes,
+                context.ElapsedMilliseconds);
             return context.ManualDownloads
                 .Where(download => download is not null)
                 .Cast<ManualModpackDownload>()
@@ -157,20 +167,39 @@ internal sealed class ModpackFileResolutionService
                 async (index, token) =>
                 {
                     var file = context.Package.Files[index];
-                    var resolution = await ResolvePackFileAsync(context, file, token).ConfigureAwait(false);
-                    if (resolution.ManualDownload is not null)
+                    var logScope = CreateDownloadLogScope(context, file, index);
+                    try
                     {
-                        context.ManualDownloads[index] = resolution.ManualDownload;
-                        context.ReportFileCompleted(networkTransferStarted: false);
-                        return;
-                    }
-                    if (resolution.Download is null)
-                        throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
+                        var resolution = await ResolvePackFileAsync(context, file, token).ConfigureAwait(false);
+                        if (resolution.ManualDownload is not null)
+                        {
+                            context.ManualDownloads[index] = resolution.ManualDownload;
+                            logScope.Defer(
+                                resolution.Failure ?? new InvalidOperationException("Automatic download is unavailable."),
+                                "ManualRequired",
+                                file.SourceUrl);
+                            context.RecordManual();
+                            context.ReportFileCompleted(networkTransferStarted: false);
+                            return;
+                        }
+                        if (resolution.Download is null)
+                            throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
 
-                    context.ReserveDownloadTarget(index, resolution.Download.RelativePath);
-                    await writer.WriteAsync(
-                        new ResolvedPackFileWorkItem(index, resolution.Download),
-                        token).ConfigureAwait(false);
+                        context.ReserveDownloadTarget(index, resolution.Download.RelativePath);
+                        await writer.WriteAsync(
+                            new ResolvedPackFileWorkItem(index, resolution.Download, logScope),
+                            token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        logScope.CompleteWithoutDownload("Canceled", file.SourceUrl);
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logScope.Fail(exception, file.SourceUrl);
+                        throw;
+                    }
                 }).ConfigureAwait(false);
         }
         catch
@@ -222,6 +251,7 @@ internal sealed class ModpackFileResolutionService
             var result = await DownloadResolvedPackFileToTemporaryAsync(
                 context,
                 workItem.Download,
+                workItem.LogScope,
                 (_, _, _) =>
                 {
                     if (Interlocked.Exchange(ref networkTransferStarted, 1) == 0)
@@ -230,6 +260,29 @@ internal sealed class ModpackFileResolutionService
                 cancellationToken).ConfigureAwait(false);
             context.ManualDownloads[workItem.FileIndex] = result.ManualDownload;
             context.PendingDownloads[workItem.FileIndex] = result.PendingDownload;
+            if (result.Resolution is not null)
+            {
+                workItem.LogScope.Complete(result.Resolution);
+                context.RecordCompleted(workItem.LogScope.TransferredBytes);
+            }
+            else if (result.ManualDownload is not null)
+            {
+                workItem.LogScope.Defer(
+                    result.Failure ?? new InvalidOperationException("Automatic download is unavailable."),
+                    "ManualRequired",
+                    workItem.Download.PrimaryUrl);
+                context.RecordManual();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            workItem.LogScope.CompleteWithoutDownload("Canceled", workItem.Download.PrimaryUrl);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            workItem.LogScope.Fail(exception, workItem.Download.PrimaryUrl);
+            throw;
         }
         finally
         {
@@ -276,7 +329,7 @@ internal sealed class ModpackFileResolutionService
         try
         {
             if (context.Package.PackageKind is not ModpackPackageKind.CurseForge)
-                return new PackFileResolution(CreateDirectDownload(file), null);
+                return new PackFileResolution(CreateDirectDownload(file), null, null);
             if (string.IsNullOrWhiteSpace(context.CurseForgeApiKey))
             {
                 throw new ModpackImportException(
@@ -294,7 +347,7 @@ internal sealed class ModpackFileResolutionService
             var relativePath = string.IsNullOrWhiteSpace(file.RelativePath)
                 ? Path.Combine(targetDirectory, resolved.FileName)
                 : file.RelativePath;
-            logger.LogInformation(
+            logger.LogDebug(
                 "Resolved CurseForge modpack file. ProjectId={ProjectId} FileId={FileId} FileName={FileName} FallbackUrlCount={FallbackUrlCount}",
                 projectId,
                 fileId,
@@ -311,6 +364,7 @@ internal sealed class ModpackFileResolutionService
                     resolved.FileId,
                     resolved.Sha1,
                     resolved.Sha512),
+                null,
                 null);
         }
         catch (OperationCanceledException)
@@ -320,12 +374,12 @@ internal sealed class ModpackFileResolutionService
         catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
         {
             // CurseForge 可能因授权限制不给下载地址，此类失败降级为手动下载而非终止整个导入。
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Failed to resolve CurseForge modpack file and will add it to the manual download list. ProjectId={ProjectId} FileId={FileId}",
                 file.ProjectId,
                 file.FileId);
-            return new PackFileResolution(null, CreateManualDownload(file, exception));
+            return new PackFileResolution(null, CreateManualDownload(file, exception), exception);
         }
         finally
         {
@@ -339,6 +393,7 @@ internal sealed class ModpackFileResolutionService
     private async Task<PackFileDownloadResult> DownloadResolvedPackFileToTemporaryAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
+        ForegroundDownloadLogScope logScope,
         Action<int, long, long?> reportAttemptProgress,
         CancellationToken cancellationToken)
     {
@@ -364,17 +419,19 @@ internal sealed class ModpackFileResolutionService
                 ModpackFileDownloader.DeleteFileIfExists(tempPath);
                 try
                 {
-                    await DownloadAndVerifyAsync(
+                    var resolution = await DownloadAndVerifyAsync(
                             context,
                             file,
                             sourceUrl,
                             tempPath,
-                            reportAttemptProgress,
+                            logScope.BeginSource(reportAttemptProgress),
                             cancellationToken)
                         .ConfigureAwait(false);
                     retainTemporaryFile = true;
                     return new PackFileDownloadResult(
                         new PendingPackFileDownload(file, sourceUrl, tempPath, targetPath),
+                        null,
+                        resolution,
                         null);
                 }
                 catch (OperationCanceledException)
@@ -385,7 +442,7 @@ internal sealed class ModpackFileResolutionService
                 {
                     lastException = exception;
                     lastFailureSummary = BuildFailureSummary(exception);
-                    logger.LogWarning(
+                    logger.LogDebug(
                         exception,
                         "Failed to download CurseForge modpack file. ProjectId={ProjectId} FileId={FileId} FileName={FileName} SourceUrl={SourceUrl}",
                         file.ProjectId,
@@ -406,7 +463,9 @@ internal sealed class ModpackFileResolutionService
                     DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
                     SuggestedUrl = sourceUrls.FirstOrDefault() ?? string.Empty,
                     FailureSummary = lastFailureSummary ?? "download_failed"
-                });
+                },
+                null,
+                lastException);
         }
         finally
         {
@@ -418,7 +477,7 @@ internal sealed class ModpackFileResolutionService
     /// <summary>
     /// 下载到临时文件并优先使用 SHA-512、其次 SHA-1 验证内容完整性。
     /// </summary>
-    private async Task DownloadAndVerifyAsync(
+    private async Task<ResolvedDownloadRequest> DownloadAndVerifyAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
         string sourceUrl,
@@ -426,7 +485,7 @@ internal sealed class ModpackFileResolutionService
         Action<int, long, long?> reportAttemptProgress,
         CancellationToken cancellationToken)
     {
-        await fileDownloader.DownloadToTemporaryFileAsync(
+        return await fileDownloader.DownloadToTemporaryFileAsync(
             sourceUrl,
             tempPath,
             context.CurseForgeApiKey,
@@ -439,9 +498,33 @@ internal sealed class ModpackFileResolutionService
             cancellationToken).ConfigureAwait(false);
     }
 
+    private ForegroundDownloadLogScope CreateDownloadLogScope(
+        DownloadBatchContext context,
+        PreparedModpackDownload file,
+        int index)
+    {
+        var fileName = string.IsNullOrWhiteSpace(file.FileName)
+            ? $"project-{file.ProjectId}-file-{file.FileId}"
+            : file.FileName;
+        var relativePath = string.IsNullOrWhiteSpace(file.RelativePath)
+            ? Path.Combine(string.IsNullOrWhiteSpace(file.TargetDirectory) ? "mods" : file.TargetDirectory, fileName)
+            : file.RelativePath;
+        var destinationPath = ModpackArchiveUtility.GetValidatedTargetPath(
+            context.Instance.InstanceDirectory,
+            relativePath);
+        return new ForegroundDownloadLogScope(
+            logger,
+            "ModpackImport",
+            fileName,
+            destinationPath,
+            file.SourceUrl,
+            position: index + 1,
+            total: context.TotalCount);
+    }
+
     private void LogDownloaded(ModpackPackageKind packageKind, ResolvedPackDownload file, string sourceUrl)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Downloaded modpack file. PackageKind={PackageKind} FileName={FileName} ProjectId={ProjectId} FileId={FileId} SourceUrl={SourceUrl} UsedFallback={UsedFallback}",
             packageKind,
             file.FileName,
@@ -522,6 +605,11 @@ internal sealed class ModpackFileResolutionService
         private int resolvedCount;
         private int completedFileCount;
         private int activeDownloadCount;
+        private int downloadedCount;
+        private int reusedCount;
+        private int manualCount;
+        private long transferredBytes;
+        private readonly Stopwatch stopwatch = Stopwatch.StartNew();
         private readonly IProgress<LauncherProgress>? progress;
 
         public DownloadBatchContext(
@@ -552,6 +640,22 @@ internal sealed class ModpackFileResolutionService
         public ManualModpackDownload?[] ManualDownloads { get; }
         public PendingPackFileDownload?[] PendingDownloads { get; }
         public SpeedMeter? SpeedMeter { get; }
+        public int DownloadedCount => Volatile.Read(ref downloadedCount);
+        public int ReusedCount => Volatile.Read(ref reusedCount);
+        public int ManualCount => Volatile.Read(ref manualCount);
+        public long TransferredBytes => Interlocked.Read(ref transferredBytes);
+        public long ElapsedMilliseconds => stopwatch.ElapsedMilliseconds;
+
+        public void RecordCompleted(long bytes)
+        {
+            if (bytes == 0)
+                Interlocked.Increment(ref reusedCount);
+            else
+                Interlocked.Increment(ref downloadedCount);
+            Interlocked.Add(ref transferredBytes, bytes);
+        }
+
+        public void RecordManual() => Interlocked.Increment(ref manualCount);
 
         public void ReserveDownloadTarget(int fileIndex, string relativePath)
         {
@@ -664,13 +768,21 @@ internal sealed class ModpackFileResolutionService
         }
     }
 
-    private sealed record PackFileResolution(ResolvedPackDownload? Download, ManualModpackDownload? ManualDownload);
+    private sealed record PackFileResolution(
+        ResolvedPackDownload? Download,
+        ManualModpackDownload? ManualDownload,
+        Exception? Failure);
 
-    private sealed record ResolvedPackFileWorkItem(int FileIndex, ResolvedPackDownload Download);
+    private sealed record ResolvedPackFileWorkItem(
+        int FileIndex,
+        ResolvedPackDownload Download,
+        ForegroundDownloadLogScope LogScope);
 
     private sealed record PackFileDownloadResult(
         PendingPackFileDownload? PendingDownload,
-        ManualModpackDownload? ManualDownload);
+        ManualModpackDownload? ManualDownload,
+        ResolvedDownloadRequest? Resolution,
+        Exception? Failure);
 
     private sealed record PendingPackFileDownload(
         ResolvedPackDownload Download,

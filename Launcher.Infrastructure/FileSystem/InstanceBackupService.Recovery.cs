@@ -191,8 +191,8 @@ public sealed partial class InstanceBackupService
         DeleteRestoreOwnerIfOwned(currentDirectory, marker.TransactionId);
         TryDeleteEmptyDirectory(normalizedStagingDirectory);
         logger.LogInformation(
-            "Completed interrupted instance restore cleanup. InstanceId={InstanceId} Directory={Directory}",
-            marker.InstanceId,
-            currentDirectory);
+            "Completed interrupted instance restore cleanup. InstanceId={InstanceId}",
+            marker.InstanceId);
+        logger.LogDebug("Interrupted instance restore cleanup directory. Directory={Directory}", currentDirectory);
     }
 }

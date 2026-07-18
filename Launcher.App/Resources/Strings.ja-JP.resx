@@ -2756,6 +2756,12 @@
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
     <value>ここにはランチャーの実行ログと診断ログファイルが保存されます。</value>
   </data>
+  <data name="Settings_DiagnosticLoggingLabel" xml:space="preserve">
+    <value>診断ログ</value>
+  </data>
+  <data name="Settings_DiagnosticLoggingDescription" xml:space="preserve">
+    <value>ファイル、要求、パフォーマンスごとの詳細を記録します。問題の調査時のみ有効にしてください。</value>
+  </data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve">
     <value>ディレクトリを開く</value>
   </data>

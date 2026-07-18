@@ -123,7 +123,7 @@ public sealed class InstanceDirectoryMonitor(
             watcher.Renamed += Watcher_Renamed;
             watcher.Error += Watcher_Error;
             watcher.EnableRaisingEvents = true;
-            logger.LogInformation(
+            logger.LogDebug(
                 "Instance directory watcher started. InstanceId={InstanceId} DirectoryKind={DirectoryKind}",
                 instanceId,
                 directoryKind);

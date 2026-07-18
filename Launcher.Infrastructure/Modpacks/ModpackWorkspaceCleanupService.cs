@@ -45,13 +45,13 @@ public sealed class ModpackWorkspaceCleanupService : IModpackWorkspaceCleanupSer
     private void CleanupAll(CancellationToken cancellationToken)
     {
         var modpackCacheDirectory = Path.Combine(pathProvider.DefaultDataDirectory, "cache", "modpacks");
-        logger.LogInformation(
+        logger.LogDebug(
             "Cleaning modpack workspace cache. CacheDirectory={CacheDirectory}",
             modpackCacheDirectory);
 
         if (!Directory.Exists(modpackCacheDirectory))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Modpack workspace cache cleanup completed. CacheDirectory={CacheDirectory} DeletedCount={DeletedCount} FailedCount={FailedCount}",
                 modpackCacheDirectory,
                 0,
@@ -89,10 +89,22 @@ public sealed class ModpackWorkspaceCleanupService : IModpackWorkspaceCleanupSer
             }
         }
 
-        logger.LogInformation(
-            "Modpack workspace cache cleanup completed. CacheDirectory={CacheDirectory} DeletedCount={DeletedCount} FailedCount={FailedCount}",
-            modpackCacheDirectory,
-            deletedCount,
-            failedCount);
+        if (failedCount > 0)
+        {
+            logger.LogWarning(
+                "Modpack workspace cache cleanup completed with failures. DeletedCount={DeletedCount} FailedCount={FailedCount}",
+                deletedCount,
+                failedCount);
+        }
+        else if (deletedCount > 0)
+        {
+            logger.LogInformation(
+                "Modpack workspace cache cleaned. DeletedCount={DeletedCount}",
+                deletedCount);
+        }
+        else
+        {
+            logger.LogDebug("Modpack workspace cache was already clean.");
+        }
     }
 }

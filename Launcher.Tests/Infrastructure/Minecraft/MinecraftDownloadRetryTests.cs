@@ -234,6 +234,55 @@ public sealed class MinecraftDownloadRetryTests
         Assert.Equal([expectedPrimaryHost, expectedFallbackHost], handler.RequestUris.Select(uri => uri.Host));
     }
 
+    [Fact]
+    public async Task SuccessfulFallbackWritesOneRecoveryWarningWithoutException()
+    {
+        var logger = new CollectingLogger();
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.Forbidden : HttpStatusCode.OK,
+                "{}",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, logger: logger);
+
+        await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        var warning = Assert.Single(logger.Entries.Where(entry => entry.Level == LogLevel.Warning));
+        Assert.Contains("Download recovered after retry or source fallback", warning.Message, StringComparison.Ordinal);
+        Assert.Null(warning.Exception);
+        Assert.DoesNotContain(logger.Entries, entry =>
+            entry.Level == LogLevel.Information
+            && entry.Message.Contains("Download transport completed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task FirstAttemptSuccessWritesOnlyDiagnosticDownloadEvents()
+    {
+        var logger = new CollectingLogger();
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "{}", request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, logger: logger);
+
+        await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level >= LogLevel.Information);
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Trace
+            && entry.Message.Contains("Download transport completed", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(DownloadSourcePreference.Official)]
     [InlineData(DownloadSourcePreference.BmclApi)]
@@ -2077,6 +2126,7 @@ public sealed class MinecraftDownloadRetryTests
     private sealed class CollectingLogger : ILogger
     {
         public List<string> Messages { get; } = [];
+        public List<LogEntry> Entries { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -2089,9 +2139,13 @@ public sealed class MinecraftDownloadRetryTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            Messages.Add(formatter(state, exception));
+            var message = formatter(state, exception);
+            Messages.Add(message);
+            Entries.Add(new LogEntry(logLevel, message, exception));
         }
     }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private sealed class FaultingReadStream(byte[] firstChunk) : Stream
     {

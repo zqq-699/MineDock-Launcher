@@ -88,7 +88,7 @@ public sealed class LocalSaveService : ILocalSaveService
         var savesDirectory = GetSavesDirectory(instance);
         if (!Directory.Exists(savesDirectory))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "No local saves directory found. InstanceId={InstanceId} SavesDirectory={SavesDirectory}",
                 instance.Id,
                 savesDirectory);
@@ -100,7 +100,7 @@ public sealed class LocalSaveService : ILocalSaveService
             .OrderByDescending(save => save.CreatedAt)
             .ThenBy(save => save.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        logger.LogInformation("Local saves loaded. InstanceId={InstanceId} Count={SaveCount}", instance.Id, saves.Length);
+        logger.LogDebug("Local saves loaded. InstanceId={InstanceId} Count={SaveCount}", instance.Id, saves.Length);
         return saves;
     }
 
@@ -109,12 +109,13 @@ public sealed class LocalSaveService : ILocalSaveService
         cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(save.FullPath))
         {
-            logger.LogInformation("Skipping local save delete because directory does not exist. Path={Path}", save.FullPath);
+            logger.LogDebug("Skipping local save delete because directory does not exist. Path={Path}", save.FullPath);
             return;
         }
 
         Directory.Delete(save.FullPath, recursive: true);
-        logger.LogInformation("Local save deleted. Path={Path}", save.FullPath);
+        logger.LogInformation("Local save deleted. Name={Name}", save.Name);
+        logger.LogDebug("Deleted local save path. Path={Path}", save.FullPath);
     }
 
     private async Task DeleteManyAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken)

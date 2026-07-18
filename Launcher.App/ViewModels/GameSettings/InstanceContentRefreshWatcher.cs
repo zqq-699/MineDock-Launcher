@@ -177,7 +177,7 @@ internal sealed class InstanceContentRefreshWatcher : IDisposable
             if (!IsCurrent(generation, watchedInstance))
                 return;
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Detected instance content change. InstanceId={InstanceId} DirectoryKind={DirectoryKind} ChangeType={ChangeType} Path={Path}",
                 watchedInstance.Id,
                 directoryKind,

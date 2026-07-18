@@ -224,7 +224,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         // 从实例设置跳转时先选 Mod 分区，再应用实例版本与 Loader 筛选，避免短暂展示不兼容结果。
         var modsSection = Sections.FirstOrDefault(section => section.Id == "mods") ?? Sections[0];
         SelectSection(modsSection, logSelection: false);
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Opening resources mod section from instance. InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, Loader={Loader}",
             instance.Id,
             instance.MinecraftVersion,
@@ -270,7 +270,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             ModpacksPage.ResetToProjectList();
 
         if (logSelection)
-            logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);
+            logger?.LogDebug("Resources section selected. SectionId={SectionId}", section.Id);
 
         if (logSelection)
             CurrentOnlineProjectPage?.BeginEnsureProjectsLoaded();

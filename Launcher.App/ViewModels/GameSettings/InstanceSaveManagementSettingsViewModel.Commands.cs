@@ -42,7 +42,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel
         {
             var savesDirectory = instanceFolderService.EnsureDirectoryExists(
                 Path.Combine(selectedInstance.InstanceDirectory, "saves"));
-            logger.LogInformation(
+            logger.LogDebug(
                 "Opening save folder. InstanceId={InstanceId} SavesDirectory={SavesDirectory}",
                 selectedInstance.Id,
                 savesDirectory);

@@ -64,7 +64,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
         var embeddedApiKey = await embeddedApiKeyProvider(cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(embeddedApiKey))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Resolved CurseForge API key from embedded resource. ResourceName={ResourceName}",
                 EmbeddedCurseForgeApiKeyResourceName);
             return embeddedApiKey.Trim();
@@ -81,27 +81,27 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
                 var value = (await File.ReadAllTextAsync(keyPath, cancellationToken).ConfigureAwait(false)).Trim();
                 if (string.IsNullOrWhiteSpace(value))
                 {
-                    logger.LogWarning("Ignored empty CurseForge API key file. KeyPath={KeyPath}", keyPath);
+                    logger.LogDebug("Ignored empty CurseForge API key file. KeyPath={KeyPath}", keyPath);
                     continue;
                 }
 
-                logger.LogInformation("Resolved CurseForge API key from local secret file. KeyPath={KeyPath}", keyPath);
+                logger.LogDebug("Resolved CurseForge API key from local secret file. KeyPath={KeyPath}", keyPath);
                 return value;
             }
             catch (IOException exception)
             {
-                logger.LogWarning(exception, "Failed to read local CurseForge API key file. KeyPath={KeyPath}", keyPath);
+                logger.LogDebug(exception, "Failed to read local CurseForge API key file. KeyPath={KeyPath}", keyPath);
             }
             catch (UnauthorizedAccessException exception)
             {
-                logger.LogWarning(exception, "Failed to access local CurseForge API key file. KeyPath={KeyPath}", keyPath);
+                logger.LogDebug(exception, "Failed to access local CurseForge API key file. KeyPath={KeyPath}", keyPath);
             }
         }
 
         var apiKey = environmentApiKeyProvider();
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Resolved CurseForge API key from environment variable. VariableName={VariableName}",
                 CurseForgeApiKeyEnvironmentVariable);
             return apiKey.Trim();
@@ -125,7 +125,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
             var value = (await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false)).Trim();
             if (string.IsNullOrWhiteSpace(value))
             {
-                logger.LogWarning(
+                logger.LogDebug(
                     "Ignored empty embedded CurseForge API key resource. ResourceName={ResourceName}",
                     EmbeddedCurseForgeApiKeyResourceName);
                 return null;
@@ -135,14 +135,14 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
         }
         catch (IOException exception)
         {
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Failed to read embedded CurseForge API key resource. ResourceName={ResourceName}",
                 EmbeddedCurseForgeApiKeyResourceName);
         }
         catch (UnauthorizedAccessException exception)
         {
-            logger.LogWarning(
+            logger.LogDebug(
                 exception,
                 "Failed to access embedded CurseForge API key resource. ResourceName={ResourceName}",
                 EmbeddedCurseForgeApiKeyResourceName);
@@ -172,7 +172,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                logger.LogWarning(exception, "Failed to load settings while resolving local CurseForge API key path.");
+                logger.LogDebug(exception, "Failed to load settings while resolving local CurseForge API key path.");
             }
         }
 

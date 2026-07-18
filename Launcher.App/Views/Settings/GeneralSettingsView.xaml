@@ -84,6 +84,28 @@
                                Style="{StaticResource ReadOnlyFieldTextStyle}" />
                 </Border>
 
+                <Border Margin="0,16,0,0"
+                        Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{x:Static res:Strings.Settings_DiagnosticLoggingLabel}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{x:Static res:Strings.Settings_DiagnosticLoggingDescription}"
+                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1"
+                                  Margin="16,0,0,0"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding DiagnosticLoggingEnabled, Mode=TwoWay}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+                </Border>
+
                 <WrapPanel Margin="0,16,0,0">
                     <Button Margin="0,0,10,10"
                             Content="{x:Static res:Strings.Settings_OpenLauncherLogDirectoryButton}"

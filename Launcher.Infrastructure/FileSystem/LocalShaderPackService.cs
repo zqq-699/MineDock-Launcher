@@ -49,7 +49,7 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
                 var shaderPacksDirectory = GetShaderPacksDirectory(instance);
                 if (!Directory.Exists(shaderPacksDirectory))
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "No local shader packs directory found. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
                         instance.Id,
                         shaderPacksDirectory);
@@ -65,7 +65,7 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
                     .ThenBy(shaderPack => shaderPack.Name, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-                logger.LogInformation(
+                logger.LogDebug(
                     "Local shader packs loaded. InstanceId={InstanceId} Count={ShaderPackCount}",
                     instance.Id,
                     shaderPacks.Length);
@@ -98,14 +98,15 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
 
                 if (!File.Exists(shaderPack.FullPath))
                 {
-                    logger.LogInformation(
+                    logger.LogDebug(
                         "Skipping local shader pack delete because file does not exist. Path={Path}",
                         shaderPack.FullPath);
                     return;
                 }
 
                 File.Delete(shaderPack.FullPath);
-                logger.LogInformation("Local shader pack deleted. Path={Path}", shaderPack.FullPath);
+                logger.LogInformation("Local shader pack deleted. Name={Name}", shaderPack.Name);
+                logger.LogDebug("Deleted local shader pack path. Path={Path}", shaderPack.FullPath);
             },
             cancellationToken);
     }
@@ -136,7 +137,7 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
         var normalizedArchivePath = Path.GetFullPath(archivePath);
         if (!File.Exists(normalizedArchivePath))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local shader pack import because archive does not exist. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instance.Id,
                 normalizedArchivePath);
@@ -145,14 +146,14 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
 
         if (!normalizedArchivePath.EndsWith(SupportedArchiveExtension, StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping local shader pack import because archive type is unsupported. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                 instance.Id,
                 normalizedArchivePath);
             return LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.UnsupportedArchive);
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Importing local shader pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
             instance.Id,
             normalizedArchivePath);
@@ -166,7 +167,7 @@ public sealed class LocalShaderPackService : ILocalShaderPackService
             File.Copy(normalizedArchivePath, targetPath, overwrite: false);
 
             var importedShaderPack = ToLocalShaderPack(targetPath);
-            logger.LogInformation(
+            logger.LogDebug(
                 "Local shader pack archive imported. InstanceId={InstanceId} ArchivePath={ArchivePath} ShaderPackPath={ShaderPackPath}",
                 instance.Id,
                 normalizedArchivePath,

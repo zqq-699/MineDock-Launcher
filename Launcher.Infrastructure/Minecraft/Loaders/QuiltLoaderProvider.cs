@@ -55,7 +55,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Loading Quilt versions. MinecraftVersion={MinecraftVersion}",
             minecraftVersion);
 
@@ -104,7 +104,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
             cancellationToken);
 
         var resolvedVersions = result.Found ? result.Value! : [];
-        logger.LogInformation(
+        logger.LogDebug(
             "Loaded Quilt versions. MinecraftVersion={MinecraftVersion} Count={Count}",
             minecraftVersion,
             resolvedVersions.Count);

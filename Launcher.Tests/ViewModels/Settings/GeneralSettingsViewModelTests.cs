@@ -6,6 +6,7 @@
  */
 
 using Launcher.App.Resources;
+using Launcher.App.Logging;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,6 +15,30 @@ namespace Launcher.Tests.ViewModels.Settings;
 
 public sealed class GeneralSettingsViewModelTests
 {
+    [Fact]
+    public void DiagnosticLoggingToggleAppliesImmediatelyAndUpdatesSettings()
+    {
+        var settings = new LauncherSettings();
+        var status = new RecordingStatusService();
+        using var persistence = CreatePersistence(settings, status);
+        var controller = new RecordingLogLevelController();
+        using var viewModel = new GeneralSettingsViewModel(
+            persistence,
+            status,
+            new CallbackFilePickerService(() => null),
+            new PassthroughInstanceFolderService(),
+            null,
+            controller,
+            NullLogger.Instance);
+        viewModel.Load(settings);
+
+        viewModel.DiagnosticLoggingEnabled = true;
+
+        Assert.True(settings.EnableDiagnosticLogging);
+        Assert.True(controller.IsDiagnosticLoggingEnabled);
+        Assert.Equal(1, controller.ChangeCount);
+    }
+
     [Fact]
     public void RunningDownloadDisablesDirectoryChangeAndShowsWarningState()
     {
@@ -57,6 +82,7 @@ public sealed class GeneralSettingsViewModelTests
             picker,
             new PassthroughInstanceFolderService(),
             downloads,
+            null,
             NullLogger.Instance);
         viewModel.Load(settings);
 
@@ -89,6 +115,7 @@ public sealed class GeneralSettingsViewModelTests
             new CallbackFilePickerService(() => null),
             new PassthroughInstanceFolderService(),
             downloads,
+            null,
             NullLogger.Instance);
 
     private sealed class RecordingStatusService : IStatusService
@@ -125,5 +152,17 @@ public sealed class GeneralSettingsViewModelTests
         public bool TryOpen(string folderPath) => true;
         public bool TryOpenFile(string filePath) => true;
         public bool TryRevealFile(string filePath) => true;
+    }
+
+    private sealed class RecordingLogLevelController : ILauncherLogLevelController
+    {
+        public bool IsDiagnosticLoggingEnabled { get; private set; }
+        public int ChangeCount { get; private set; }
+
+        public void SetDiagnosticLoggingEnabled(bool enabled)
+        {
+            IsDiagnosticLoggingEnabled = enabled;
+            ChangeCount++;
+        }
     }
 }

@@ -256,7 +256,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         if (changed)
         {
             NavigationResetRequested?.Invoke();
-            logger?.LogInformation("Resource project filters confirmed. Kind={Kind}", options.Kind);
+            logger?.LogDebug("Resource project filters confirmed. Kind={Kind}", options.Kind);
             ScheduleRefresh(debounce: false);
         }
     }
@@ -277,7 +277,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         }
 
         NavigationResetRequested?.Invoke();
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Applied resource project filters from instance. Kind={Kind} InstanceId={InstanceId} VersionFilter={VersionFilter} LoaderFilter={LoaderFilter}",
             options.Kind,
             instance.Id,
@@ -328,7 +328,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             return;
 
         NavigationResetRequested?.Invoke();
-        logger?.LogInformation(
+        logger?.LogDebug(
             "Resource project filter selected. Kind={Kind} FilterId={FilterId} OptionId={OptionId}",
             options.Kind,
             filter,
@@ -439,7 +439,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             catch (Exception exception)
             {
                 item.SetManagedIconSource(null);
-                logger?.LogWarning(
+                logger?.LogDebug(
                     exception,
                     "Failed to resolve cached resource project thumbnail. Kind={Kind} Source={Source} ProjectId={ProjectId}",
                     item.Project.Kind,
@@ -514,7 +514,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         IsLoadingMore = false;
         UpdateFooter();
         RaiseStateChanged();
-        logger?.LogInformation(
+        logger?.LogDebug(
             append ? "Resource projects appended. Kind={Kind} ResultCount={ResultCount}" : "Resource projects loaded. Kind={Kind} ResultCount={ResultCount}",
             options.Kind,
             items.Count);

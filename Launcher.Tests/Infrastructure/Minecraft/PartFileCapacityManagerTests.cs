@@ -9,6 +9,13 @@ using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Tests.Infrastructure.Minecraft;
 
+[CollectionDefinition(PartFileCapacityManagerTestCollection.CollectionName, DisableParallelization = true)]
+public sealed class PartFileCapacityManagerTestCollection
+{
+    public const string CollectionName = "Part file capacity manager";
+}
+
+[Collection(PartFileCapacityManagerTestCollection.CollectionName)]
 public sealed class PartFileCapacityManagerTests
 {
     [Fact]

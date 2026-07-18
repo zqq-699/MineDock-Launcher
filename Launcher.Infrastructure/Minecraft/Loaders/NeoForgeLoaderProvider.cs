@@ -99,13 +99,13 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
     {
         if (!TryGetNeoForgeVersionPrefix(minecraftVersion, out var versionPrefix))
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Skipping NeoForge version lookup because the Minecraft version is unsupported. MinecraftVersion={MinecraftVersion}",
                 minecraftVersion);
             return [];
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Loading NeoForge versions. MinecraftVersion={MinecraftVersion} Prefix={VersionPrefix}",
             minecraftVersion,
             versionPrefix);
@@ -149,7 +149,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             cancellationToken);
 
         var resolvedVersions = result.Found ? result.Value! : [];
-        logger.LogInformation(
+        logger.LogDebug(
             "Loaded NeoForge versions. MinecraftVersion={MinecraftVersion} Count={Count}",
             minecraftVersion,
             resolvedVersions.Count);
@@ -434,15 +434,37 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        await executor.DownloadFileAsync(
-            $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar",
+        var sourceUrl = $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar";
+        var logScope = new ForegroundDownloadLogScope(
+            logger,
+            "NeoForgeInstall",
+            Path.GetFileName(destinationPath),
+            destinationPath,
+            sourceUrl);
+        try
+        {
+            var resolution = await executor.DownloadFileAsync(
+            sourceUrl,
             downloadSourcePreference,
             categoryHint: "NeoForge",
             destinationPath,
             expectedSha1: null,
             expectedSize: null,
             cancellationToken,
+            reportAttemptProgress: logScope.BeginSource(),
             speedMeter: speedMeter);
+            logScope.Complete(resolution);
+        }
+        catch (OperationCanceledException)
+        {
+            logScope.CompleteWithoutDownload("Canceled", sourceUrl);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logScope.Fail(exception, sourceUrl);
+            throw;
+        }
     }
 
     private async Task EnsureFinalVersionIsSelfContainedAsync(

@@ -49,7 +49,7 @@ public sealed partial class ForgeLoaderProvider
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Legacy Forge fallback started. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
             minecraftVersion,
             forgeVersion);
@@ -67,7 +67,7 @@ public sealed partial class ForgeLoaderProvider
         WriteLegacyForgeVersionMetadata(gameDirectory, profile);
         ExtractLegacyForgeLibrary(installerJarPath, gameDirectory, profile);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Legacy Forge fallback completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} SourceVersionName={SourceVersionName}",
             minecraftVersion,
             forgeVersion,
@@ -137,7 +137,7 @@ public sealed partial class ForgeLoaderProvider
         Directory.CreateDirectory(versionDirectory);
         File.WriteAllText(versionJsonPath, profile.VersionInfo.ToJsonString(JsonOptions));
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Legacy Forge version metadata written. SourceVersionName={SourceVersionName} VersionJsonPath={VersionJsonPath}",
             profile.SourceVersionName,
             versionJsonPath);
@@ -162,7 +162,7 @@ public sealed partial class ForgeLoaderProvider
         using var destination = File.Create(libraryPath);
         source.CopyTo(destination);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Legacy Forge library extracted. Coordinate={Coordinate} LibraryPath={LibraryPath}",
             profile.ForgeLibraryCoordinate,
             libraryPath);

@@ -54,7 +54,7 @@ public sealed partial class LocalModIconEnrichmentService
         if (candidates.Count == 0)
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Remote local mod icon enrichment started. CandidateCount={CandidateCount}",
             candidates.Count);
 
@@ -108,7 +108,7 @@ public sealed partial class LocalModIconEnrichmentService
                 await cacheIndexStore.SaveAsync(index, cancellationToken).ConfigureAwait(false);
                 ReportProgress(progress, result);
                 ReportProgress(progress, staleResults);
-                logger.LogInformation(
+                logger.LogDebug(
                     "Remote local mod icon cache resolved icons. FreshCount={FreshCount} StaleCount={StaleCount}",
                     result.Count,
                     staleResults.Count);
@@ -142,7 +142,7 @@ public sealed partial class LocalModIconEnrichmentService
 
         await CleanupCacheOnceAsync(cancellationToken).ConfigureAwait(false);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Remote local mod icon enrichment completed. CandidateCount={CandidateCount} ResolvedCount={ResolvedCount}",
             candidates.Count,
             result.Count);
@@ -199,7 +199,7 @@ public sealed partial class LocalModIconEnrichmentService
             cacheLock.Release();
         }
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Remote local mod icon cache checked. CandidateCount={CandidateCount} HitCount={HitCount}",
             candidates.Count,
             result.Count);

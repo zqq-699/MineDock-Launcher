@@ -97,7 +97,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
             accounts.Add(cachedAccount);
         }
 
-        logger.LogInformation("Saved Microsoft accounts loaded. Count={AccountCount}", accounts.Count);
+        logger.LogDebug("Saved Microsoft accounts loaded. Count={AccountCount}", accounts.Count);
         return accounts;
     }
 
@@ -249,7 +249,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         try
         {
             var capes = await capeService.GetCapesAsync(account, cancellationToken);
-            logger.LogInformation("Microsoft account capes loaded. AccountId={AccountId} CapeCount={CapeCount}", account.Id, capes.Count);
+            logger.LogDebug("Microsoft account capes loaded. AccountId={AccountId} CapeCount={CapeCount}", account.Id, capes.Count);
             return capes;
         }
         catch (MinecraftProfileRequestException ex)
@@ -267,7 +267,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         try
         {
             var refreshed = await RefreshSavedAccountAsync(account, cancellationToken);
-            logger.LogInformation("Microsoft account profile refreshed. AccountId={AccountId}", refreshed.Id);
+            logger.LogDebug("Microsoft account profile refreshed. AccountId={AccountId}", refreshed.Id);
             return refreshed;
         }
         catch (MinecraftProfileRequestException ex)
@@ -304,7 +304,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     {
         try
         {
-            logger.LogInformation("Microsoft account active cape update requested. AccountId={AccountId} HasCape={HasCape}", account.Id, !string.IsNullOrWhiteSpace(capeId));
+            logger.LogDebug("Microsoft account active cape update requested. AccountId={AccountId} HasCape={HasCape}", account.Id, !string.IsNullOrWhiteSpace(capeId));
             await capeService.SetActiveCapeAsync(account, capeId, cancellationToken);
             logger.LogInformation("Microsoft account active cape updated. AccountId={AccountId} HasCape={HasCape}", account.Id, !string.IsNullOrWhiteSpace(capeId));
         }

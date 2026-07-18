@@ -194,17 +194,24 @@ internal sealed class LoaderInstallerJavaRuntimeResolver : ILoaderInstallerJavaR
             if (requirement.IsCompatible(runtime))
                 return runtime;
 
-            logger.LogInformation(
-                "Configured Java runtime is incompatible with loader installer requirement. JavaPath={JavaPath} JavaVersion={JavaVersion} JavaRequirement={JavaRequirement}",
+            logger.LogDebug(
+                "Configured Java runtime incompatibility details. JavaPath={JavaPath} JavaVersion={JavaVersion} JavaRequirement={JavaRequirement}",
                 runtime.ExecutablePath,
+                runtime.Version,
+                requirement);
+            logger.LogWarning(
+                "Configured Java runtime is incompatible with the loader installer. JavaVersion={JavaVersion} JavaRequirement={JavaRequirement}",
                 runtime.Version,
                 requirement);
         }
         catch (JavaRuntimeSelectionException exception)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 exception,
-                "Configured Java runtime could not be used for loader installer; checking other discovered runtimes. JavaRequirement={JavaRequirement}",
+                "Configured Java runtime selection failed for loader installer. JavaRequirement={JavaRequirement}",
+                requirement);
+            logger.LogWarning(
+                "Configured Java runtime could not be used for the loader installer; another compatible runtime will be selected. JavaRequirement={JavaRequirement}",
                 requirement);
         }
 
@@ -229,7 +236,7 @@ internal sealed class LoaderInstallerJavaRuntimeResolver : ILoaderInstallerJavaR
         JavaRuntimeCompatibilityRequirement requirement,
         bool provisioned)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Resolved Java runtime for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} UsedStoredInstance={UsedStoredInstance} JavaRequirement={JavaRequirement} Provisioned={Provisioned} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaArchitecture={JavaArchitecture} JavaSource={JavaSource}",
             request.VersionName,
             request.MinecraftVersion,

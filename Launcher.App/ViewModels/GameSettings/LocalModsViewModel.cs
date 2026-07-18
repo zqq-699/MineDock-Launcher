@@ -107,7 +107,7 @@ public sealed class LocalModsViewModel : IDisposable
         categoryEnrichmentCoordinator.Cancel();
         contentWatcher.SetInstance(instance);
         ClearMods();
-        logger.LogInformation(
+        logger.LogDebug(
             "Selected instance changed for local mods view. InstanceId={InstanceId}",
             instance?.Id ?? "<none>");
     }
@@ -149,7 +149,7 @@ public sealed class LocalModsViewModel : IDisposable
         if (instance is null)
         {
             ClearMods();
-            logger.LogInformation("Local mods view cleared because no instance is selected.");
+            logger.LogDebug("Local mods view cleared because no instance is selected.");
             return true;
         }
 
@@ -198,7 +198,7 @@ public sealed class LocalModsViewModel : IDisposable
         });
         if (!published)
             return false;
-        logger.LogInformation(
+        logger.LogDebug(
             "Local mods view refreshed. InstanceId={InstanceId} Count={ModCount}",
             instance.Id,
             Mods.Count);
@@ -260,7 +260,7 @@ public sealed class LocalModsViewModel : IDisposable
 
         if (appliedCount > 0)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Applied cached local mod icons before publishing mods. InstanceId={InstanceId} Count={Count}",
                 instance.Id,
                 appliedCount);

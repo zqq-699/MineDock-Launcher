@@ -95,7 +95,7 @@ public sealed class ModrinthService : IModrinthService
         if (loader is not LoaderKind.Vanilla)
             facets.Add(new List<string> { $"categories:{loader.ToString().ToLowerInvariant()}" });
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Searching Modrinth mods. Query={Query} MinecraftVersion={MinecraftVersion} Loader={Loader}",
             query,
             minecraftVersion,
@@ -111,7 +111,7 @@ public sealed class ModrinthService : IModrinthService
             IconUrl = hit.IconUrl,
             Downloads = hit.Downloads
         }).ToList() ?? [];
-        logger.LogInformation("Modrinth search completed. ResultCount={ResultCount}", projects.Count);
+        logger.LogDebug("Modrinth search completed. ResultCount={ResultCount}", projects.Count);
         return projects;
     }
 
@@ -119,7 +119,7 @@ public sealed class ModrinthService : IModrinthService
         string minecraftVersion,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Loading Fabric API versions. MinecraftVersion={MinecraftVersion}",
             minecraftVersion);
 
@@ -130,7 +130,7 @@ public sealed class ModrinthService : IModrinthService
             cancellationToken);
         var result = MapVersionInfos(versions);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Loaded Fabric API versions. MinecraftVersion={MinecraftVersion} Count={Count}",
             minecraftVersion,
             result.Count);
@@ -141,7 +141,7 @@ public sealed class ModrinthService : IModrinthService
         string minecraftVersion,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Loading Quilt standard library versions. MinecraftVersion={MinecraftVersion}",
             minecraftVersion);
 
@@ -152,7 +152,7 @@ public sealed class ModrinthService : IModrinthService
             cancellationToken);
         var result = MapVersionInfos(versions);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Loaded Quilt standard library versions. MinecraftVersion={MinecraftVersion} Count={Count}",
             minecraftVersion,
             result.Count);
@@ -163,7 +163,7 @@ public sealed class ModrinthService : IModrinthService
     {
         // “最新”只在实例兼容版本集合内选择，没有匹配时明确失败而不安装错误 Loader 文件。
         var loader = instance.Loader is LoaderKind.Vanilla ? "fabric" : instance.Loader.ToString().ToLowerInvariant();
-        logger.LogInformation(
+        logger.LogDebug(
             "Installing compatible Modrinth project. ProjectId={ProjectId} MinecraftVersion={MinecraftVersion} Loader={Loader}",
             project.ProjectId,
             instance.MinecraftVersion,
@@ -200,7 +200,7 @@ public sealed class ModrinthService : IModrinthService
         if (string.IsNullOrWhiteSpace(versionId))
             throw new InvalidOperationException("Fabric API version id is required.");
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Installing Fabric API. VersionId={VersionId} MinecraftVersion={MinecraftVersion} InstanceId={InstanceId}",
             versionId,
             instance.MinecraftVersion,
@@ -234,7 +234,7 @@ public sealed class ModrinthService : IModrinthService
         if (string.IsNullOrWhiteSpace(versionId))
             throw new InvalidOperationException("Quilt standard library version id is required.");
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Installing Quilt standard library. VersionId={VersionId} MinecraftVersion={MinecraftVersion} InstanceId={InstanceId}",
             versionId,
             instance.MinecraftVersion,
@@ -327,20 +327,42 @@ public sealed class ModrinthService : IModrinthService
             retryOptions: retryOptions);
 
         progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{projectTitle} {version.VersionNumber}"));
-        await executor.DownloadFileAsync(
+        var logScope = new ForegroundDownloadLogScope(
+            logger,
+            "ResourceInstall",
+            fileName,
+            target,
+            file.Url,
+            integrity.ExpectedSize);
+        try
+        {
+            var resolution = await executor.DownloadFileAsync(
                 file.Url,
                 settings?.DownloadSourcePreference ?? LauncherDefaults.DefaultDownloadSourcePreference,
                 "ThirdParty",
                 target,
                 integrity,
                 cancellationToken,
+                reportAttemptProgress: logScope.BeginSource(),
                 options: new DownloadFileOptions(
                     DownloadPersistenceMode.TaskScopedResumable,
                     OperationContext: null,
                     ManagedRoot: modsDirectory),
                 speedMeter: SpeedMeterProgress.TryGet(progress))
             .ConfigureAwait(false);
-        logger.LogInformation(
+            logScope.Complete(resolution);
+        }
+        catch (OperationCanceledException)
+        {
+            logScope.CompleteWithoutDownload("Canceled", file.Url);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logScope.Fail(exception, file.Url);
+            throw;
+        }
+        logger.LogDebug(
             "Modrinth project installed. ProjectId={ProjectId} VersionId={VersionId} VersionNumber={VersionNumber} FileName={FileName} Target={Target}",
             projectId,
             version.Id,
