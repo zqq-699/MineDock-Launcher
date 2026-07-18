@@ -81,6 +81,43 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task SplitNativeLayoutIsPreparedBeforeFinalValidation()
+    {
+        var nativeRoot = Path.Combine(TempRoot, "path with spaces", "natives");
+        var javaDirectory = Path.Combine(nativeRoot, "java");
+        var integrity = new RecordingIntegrityService
+        {
+            OnFinalValidate = _ =>
+            {
+                Assert.True(Directory.Exists(javaDirectory));
+                return Task.FromResult(GameFileRepairResult.Empty);
+            }
+        };
+        var launcher = new FakeLauncherFactory
+        {
+            BuildProcess = (_, option) =>
+            {
+                option.NativesDirectory = nativeRoot;
+                var process = CreateCommandProcess($"/c rem \"-Djava.library.path={javaDirectory}\"");
+                process.StartInfo.WorkingDirectory = TempRoot;
+                return process;
+            }
+        };
+        var service = CreateService(launcher: launcher, integrity: integrity);
+        var settings = CreateSettings();
+        settings.DefaultCheckFilesBeforeLaunch = false;
+
+        await service.LaunchAsync(
+            CreateInstance(settings.MinecraftDirectory, "26.2"),
+            CreateAccount(),
+            settings,
+            progress: null);
+
+        Assert.Equal(1, integrity.FinalValidationCallCount);
+        Assert.True(Directory.Exists(javaDirectory));
+    }
+
+    [Fact]
     public async Task LaunchRemainsAtNinetyNineUntilVisibleWindowIsReported()
     {
         var waiter = new ControlledWindowReadinessWaiter();
@@ -623,6 +660,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
     private sealed class RecordingIntegrityService : IGameFileIntegrityService
     {
         public Func<CancellationToken, Task<GameFileRepairResult>>? OnValidate { get; init; }
+        public Func<ProcessStartInfo, Task<GameFileRepairResult>>? OnFinalValidate { get; init; }
         public GameFileIntegrityRequest? FinalRequest { get; private set; }
         public int ValidateCallCount { get; private set; }
         public int FinalValidationCallCount { get; private set; }
@@ -644,7 +682,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         {
             FinalValidationCallCount++;
             FinalRequest = request;
-            return Task.FromResult(GameFileRepairResult.Empty);
+            return OnFinalValidate?.Invoke(startInfo) ?? Task.FromResult(GameFileRepairResult.Empty);
         }
     }
 

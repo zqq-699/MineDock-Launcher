@@ -188,6 +188,14 @@ public sealed partial class LaunchService
                 launchOption,
                 cancellationToken)
             .ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(launchOption.NativesDirectory))
+        {
+            FinalLaunchNativeDirectoryPreparer.Prepare(
+                process.StartInfo,
+                launchOption.NativesDirectory,
+                resolvedSettings.VersionName,
+                logger);
+        }
         var allowedAdditionalCommandFiles = FinalLaunchCommandPathReader
             .ReadAllowedUserFilePaths(resolvedSettings.JvmArguments, process.StartInfo.WorkingDirectory)
             .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
