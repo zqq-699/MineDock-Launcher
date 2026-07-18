@@ -32,6 +32,9 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private string? strongETag;
     private string? lastModified;
     private long? knownTotalLength;
+    private FileStream? segmentedDestination;
+    private long segmentedBytes;
+    private readonly object segmentedProgressLock = new();
     private bool disposed;
 
     private ResumableDownloadFileSession(
@@ -180,6 +183,131 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         IsResumeRequested = true;
     }
 
+    public void PrepareSegmentedDownload(long totalLength)
+    {
+        if (persistenceMode is not DownloadPersistenceMode.TaskScopedResumable)
+            throw new InvalidOperationException("Segmented downloads require task-scoped resumable storage.");
+        if (totalLength <= 0 || integrity.ExpectedSize != totalLength)
+            throw new InvalidDataException("Segmented downloads require a trusted positive total length.");
+
+        ResetSegmentedDownload();
+        try
+        {
+            EnsureManagedDestinationIsSafe();
+            segmentedDestination = new FileStream(
+                temporaryPath,
+                FileMode.Create,
+                FileAccess.ReadWrite,
+                FileShare.Read,
+                BufferSize,
+                FileOptions.Asynchronous | FileOptions.RandomAccess);
+            segmentedDestination.SetLength(totalLength);
+            TryMarkTemporaryHidden(temporaryPath);
+            capacityLease?.SetExpectedSize(totalLength);
+            knownTotalLength = totalLength;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            segmentedDestination?.Dispose();
+            segmentedDestination = null;
+            DeleteTemporary();
+            throw new DownloadLocalFileException("Failed to prepare the segmented download temporary file.", exception);
+        }
+    }
+
+    public async Task WriteSegmentAsync(
+        HttpContent content,
+        long start,
+        long end,
+        int attemptNumber,
+        Action<int, long, long?>? reportAttemptProgress,
+        CancellationToken cancellationToken)
+    {
+        var destination = segmentedDestination
+            ?? throw new InvalidOperationException("The segmented download temporary file was not prepared.");
+        if (start < 0 || end < start || knownTotalLength is null || end >= knownTotalLength.Value)
+            throw new InvalidDataException("The segmented download range was invalid.");
+
+        await using var source = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+        var offset = start;
+        try
+        {
+            while (offset <= end)
+            {
+                var requested = (int)Math.Min(buffer.Length, end - offset + 1);
+                var read = await ReadNetworkAsync(source, buffer.AsMemory(0, requested), cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                    throw new DownloadBodyInterruptedException("A segmented response ended before its requested range was complete.");
+
+                capacityLease?.BeforeWrite(read);
+                try
+                {
+                    await RandomAccess.WriteAsync(
+                        destination.SafeFileHandle,
+                        buffer.AsMemory(0, read),
+                        offset,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    throw new DownloadLocalFileException("Failed to write a segmented download range.", exception);
+                }
+                offset += read;
+
+                lock (segmentedProgressLock)
+                {
+                    segmentedBytes += read;
+                    reportAttemptProgress?.Invoke(attemptNumber, segmentedBytes, knownTotalLength);
+                }
+            }
+
+            if (await ReadNetworkAsync(source, buffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false) != 0)
+                throw new DownloadContentValidationException("A segmented response exceeded its requested range.");
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    public async Task CompleteSegmentedDownloadAsync(CancellationToken cancellationToken)
+    {
+        var destination = segmentedDestination
+            ?? throw new InvalidOperationException("The segmented download temporary file was not prepared.");
+        try
+        {
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            destination.Flush(flushToDisk: true);
+            await destination.DisposeAsync().ConfigureAwait(false);
+            segmentedDestination = null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DownloadLocalFileException("Failed to flush the segmented download temporary file.", exception);
+        }
+
+        if (knownTotalLength is null || Interlocked.Read(ref segmentedBytes) != knownTotalLength.Value)
+            throw new DownloadBodyInterruptedException("The segmented download did not write the expected number of bytes.");
+        if (!await VerifyTemporaryAsync(cancellationToken).ConfigureAwait(false))
+            throw new DownloadHashMismatchException("The segmented download did not match its expected hash.");
+
+        Publish(cancellationToken);
+    }
+
+    public void ResetSegmentedDownload()
+    {
+        segmentedDestination?.Dispose();
+        segmentedDestination = null;
+        segmentedBytes = 0;
+        knownTotalLength = null;
+        sourceCandidateKey = null;
+        strongETag = null;
+        lastModified = null;
+        IsResumeRequested = false;
+        DeleteTemporary();
+    }
+
     public async Task WriteAsync(
         HttpResponseMessage response,
         ResolvedDownloadRequest resolution,
@@ -273,6 +401,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         if (disposed)
             return;
         disposed = true;
+        segmentedDestination?.Dispose();
+        segmentedDestination = null;
         DeleteTemporary();
         capacityLease?.Dispose();
         assetLock?.Dispose();
@@ -512,9 +642,12 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private static string? GetStrongETag(HttpResponseMessage response) { var tag = response.Headers.ETag?.Tag; return tag is not null && !response.Headers.ETag!.IsWeak ? tag : null; }
     private static string? GetLastModified(HttpResponseMessage response) => response.Content.Headers.LastModified?.ToString("R");
 
-    private static async Task<int> ReadNetworkAsync(Stream source, byte[] buffer, CancellationToken cancellationToken)
+    private static Task<int> ReadNetworkAsync(Stream source, byte[] buffer, CancellationToken cancellationToken) =>
+        ReadNetworkAsync(source, buffer.AsMemory(0, buffer.Length), cancellationToken);
+
+    private static async Task<int> ReadNetworkAsync(Stream source, Memory<byte> buffer, CancellationToken cancellationToken)
     {
-        try { return await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false); }
+        try { return await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception) when (exception is IOException or HttpRequestException or OperationCanceledException)
         { throw new DownloadBodyInterruptedException("The response body was interrupted while downloading a file.", exception); }

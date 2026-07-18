@@ -1,0 +1,521 @@
+/*
+ * BlockHelm Launcher
+ * Copyright (C) 2026 Quan Zhou
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
+
+namespace Launcher.Tests.Infrastructure.Minecraft;
+
+public sealed class SegmentedDownloadTests : TestTempDirectory
+{
+    private const string DownloadUrl = "https://downloads.example.test/client.jar";
+    private static readonly byte[] LargePayload = CreatePayload(
+        checked((int)MinecraftDownloadRequestExecutor.MinimumSegmentedDownloadSize));
+
+    [Fact]
+    public async Task TrustedLargeFileDownloadsInFourRangesAndPublishesVerifiedPayload()
+    {
+        var handler = new RecordingRequestHandler((_, request, _) =>
+        {
+            Assert.Equal("identity", request.Headers.AcceptEncoding.Single().Value);
+            return Task.FromResult(CreatePartialResponse(request, LargePayload));
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "client.jar");
+        var progress = new List<(int Attempt, long Bytes, long? Total)>();
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            new DownloadIntegrityExpectation(
+                LargePayload.Length,
+                [(HashAlgorithmName.SHA512, Sha512(LargePayload))]),
+            CancellationToken.None,
+            reportAttemptProgress: (attempt, bytes, total) => progress.Add((attempt, bytes, total)));
+
+        Assert.Equal(MinecraftDownloadRequestExecutor.SegmentedDownloadPartCount, handler.RequestCount);
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+        AssertRangesCoverPayload(handler.RangeHeaders, LargePayload.Length);
+        Assert.NotEmpty(progress);
+        Assert.All(progress, item =>
+        {
+            Assert.Equal(1, item.Attempt);
+            Assert.Equal(LargePayload.Length, item.Total);
+        });
+        Assert.Equal(progress.Select(item => item.Bytes).Order().ToArray(), progress.Select(item => item.Bytes).ToArray());
+        Assert.Equal(LargePayload.Length, progress[^1].Bytes);
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task ServerIgnoringRangeFallsBackOnceToSingleStream()
+    {
+        var handler = new RecordingRequestHandler((_, request, _) =>
+            Task.FromResult(CreateFullResponse(request, LargePayload)));
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "client.jar");
+        var attempts = new List<int>();
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None,
+            (attempt, _, _) => attempts.Add(attempt));
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.NotNull(handler.RangeHeaders.ElementAt(0));
+        Assert.Null(handler.RangeHeaders.ElementAt(1));
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+        Assert.All(attempts, attempt => Assert.Equal(2, attempt));
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task InvalidContentRangeFallsBackOnceToSingleStream()
+    {
+        var handler = new RecordingRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber > 1)
+                return Task.FromResult(CreateFullResponse(request, LargePayload));
+
+            var response = CreatePartialResponse(request, LargePayload);
+            response.Content.Headers.ContentRange = new ContentRangeHeaderValue(1, 2, LargePayload.Length);
+            return Task.FromResult(response);
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "invalid-range.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None);
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.NotNull(handler.RangeHeaders.ElementAt(0));
+        Assert.Null(handler.RangeHeaders.ElementAt(1));
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task CorruptSegmentFallsBackToVerifiedSingleStream()
+    {
+        var corrupted = 0;
+        var handler = new RecordingRequestHandler((_, request, _) =>
+        {
+            if (request.Headers.Range is null)
+                return Task.FromResult(CreateFullResponse(request, LargePayload));
+
+            var shouldCorrupt = Interlocked.CompareExchange(ref corrupted, 1, 0) == 0;
+            return Task.FromResult(CreatePartialResponse(request, LargePayload, shouldCorrupt));
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "client.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None);
+
+        Assert.Equal(MinecraftDownloadRequestExecutor.SegmentedDownloadPartCount + 1, handler.RequestCount);
+        Assert.Null(handler.RangeHeaders.Last());
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task UnknownSizeTrustedFileKeepsSingleStreamPath()
+    {
+        var handler = FullResponseHandler(LargePayload);
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "unknown-size.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            new DownloadIntegrityExpectation(
+                expectedSize: null,
+                [(HashAlgorithmName.SHA1, Sha1(LargePayload))]),
+            CancellationToken.None);
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task FileBelowThresholdKeepsSingleStreamPath()
+    {
+        var payload = LargePayload.AsSpan(0, 1024).ToArray();
+        var handler = FullResponseHandler(payload);
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "small.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(payload),
+            payload.Length,
+            CancellationToken.None);
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task UnverifiedLargeFileKeepsSingleStreamPath()
+    {
+        var handler = FullResponseHandler(LargePayload);
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "unverified.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            expectedSha1: null,
+            expectedSize: LargePayload.Length,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task LightweightAtomicLargeFileKeepsSingleStreamPath()
+    {
+        var handler = FullResponseHandler(LargePayload);
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "lightweight.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None,
+            options: new DownloadFileOptions(
+                DownloadPersistenceMode.LightweightAtomic,
+                ManagedRoot: TempRoot));
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task BmclApiLargeFileKeepsSingleStreamPath()
+    {
+        var handler = FullResponseHandler(LargePayload);
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "bmcl.jar");
+
+        await executor.DownloadFileAsync(
+            "https://bmclapi2.bangbang93.com/maven/example/client.jar",
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None);
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task LowGlobalConcurrencyKeepsSingleStreamPath()
+    {
+        var handler = FullResponseHandler(LargePayload);
+        using var client = CreateClient(handler);
+        var limiter = new ImportConcurrencyLimiter();
+        limiter.SetMaximumDownloadConcurrency(3);
+        var executor = CreateExecutor(client, limiter);
+        var destination = Path.Combine(TempRoot, "low-concurrency.jar");
+
+        await executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None);
+
+        Assert.Equal([null], handler.RangeHeaders);
+    }
+
+    [Fact]
+    public async Task CancellationCleansTemporaryFileAndReleasesAllDownloadSlots()
+    {
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new RecordingRequestHandler((_, request, _) =>
+        {
+            started.TrySetResult(true);
+            return Task.FromResult(CreateBlockingPartialResponse(request, LargePayload.Length));
+        });
+        using var client = CreateClient(handler);
+        var limiter = new ImportConcurrencyLimiter();
+        limiter.SetMaximumDownloadConcurrency(4);
+        var executor = CreateExecutor(client, limiter);
+        var destination = Path.Combine(TempRoot, "cancelled.jar");
+        using var cancellation = new CancellationTokenSource();
+
+        var download = executor.DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
+        Assert.Equal(0, limiter.DownloadSnapshot.ActiveCount);
+        Assert.Equal(0, limiter.DownloadSnapshot.WaitingCount);
+        Assert.False(File.Exists(destination));
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task SegmentedRedirectKeepsRangeAndDoesNotForwardSensitiveHeader()
+    {
+        const string originalUrl = "https://api.curseforge.com/v1/files/client.jar";
+        const string redirectedUrl = "https://edge.forgecdn.net/files/client.jar";
+        var handler = new RecordingRequestHandler((_, request, _) =>
+        {
+            if (request.RequestUri!.Host.Equals("api.curseforge.com", StringComparison.OrdinalIgnoreCase))
+            {
+                var redirect = new HttpResponseMessage(HttpStatusCode.Found)
+                {
+                    RequestMessage = request,
+                    Content = new ByteArrayContent([])
+                };
+                redirect.Headers.Location = new Uri(redirectedUrl);
+                return Task.FromResult(redirect);
+            }
+
+            return Task.FromResult(CreatePartialResponse(request, LargePayload));
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var destination = Path.Combine(TempRoot, "redirected.jar");
+
+        await executor.DownloadFileAsync(
+            originalUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None,
+            sensitiveHeaders: DownloadRequestHeaders.CurseForgeApiKey("secret"));
+
+        Assert.Equal(MinecraftDownloadRequestExecutor.SegmentedDownloadPartCount * 2, handler.RequestCount);
+        Assert.All(handler.Requests.Where(request => request.Host == "api.curseforge.com"), request =>
+        {
+            Assert.NotNull(request.Range);
+            Assert.True(request.HasSensitiveHeader);
+        });
+        Assert.All(handler.Requests.Where(request => request.Host == "edge.forgecdn.net"), request =>
+        {
+            Assert.NotNull(request.Range);
+            Assert.False(request.HasSensitiveHeader);
+        });
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+    }
+
+    private static MinecraftDownloadRequestExecutor CreateExecutor(
+        HttpClient client,
+        ImportConcurrencyLimiter? limiter = null)
+    {
+        return new MinecraftDownloadRequestExecutor(
+            client,
+            limiter: limiter ?? new ImportConcurrencyLimiter(),
+            category: DownloadConcurrencyCategory.Runtime,
+            retryOptions: new DownloadRetryOptions
+            {
+                MaxAttemptsPerSource = 1,
+                MaxFileSourceRounds = 1,
+                RetryDelay = TimeSpan.Zero,
+                ResponseHeadersTimeout = TimeSpan.FromSeconds(5),
+                FirstByteTimeout = TimeSpan.FromSeconds(5),
+                BodyIdleTimeout = TimeSpan.FromSeconds(5),
+                MaxRedirects = 10
+            },
+            hostConcurrencyController: new DownloadHostConcurrencyController(
+                maximumJitter: TimeSpan.Zero,
+                nextJitter: () => 0,
+                delayAsync: static (_, _) => ValueTask.CompletedTask),
+            bmclApiRequestRateLimiter: new BmclApiRequestRateLimiter(TimeSpan.Zero),
+            nextRetryJitter: () => 0);
+    }
+
+    private static RecordingRequestHandler FullResponseHandler(byte[] payload) =>
+        new((_, request, _) => Task.FromResult(CreateFullResponse(request, payload)));
+
+    private static HttpClient CreateClient(HttpMessageHandler handler) =>
+        new(handler) { Timeout = Timeout.InfiniteTimeSpan };
+
+    private static HttpResponseMessage CreateFullResponse(HttpRequestMessage request, byte[] payload) =>
+        new(HttpStatusCode.OK)
+        {
+            RequestMessage = request,
+            Content = new ByteArrayContent(payload)
+        };
+
+    private static HttpResponseMessage CreatePartialResponse(
+        HttpRequestMessage request,
+        byte[] payload,
+        bool corrupt = false)
+    {
+        var range = Assert.Single(request.Headers.Range!.Ranges);
+        var start = range.From!.Value;
+        var end = range.To!.Value;
+        var bytes = payload.AsSpan(
+            checked((int)start),
+            checked((int)(end - start + 1))).ToArray();
+        if (corrupt)
+            bytes[0] ^= 0xFF;
+        var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+        {
+            RequestMessage = request,
+            Content = new ByteArrayContent(bytes)
+        };
+        response.Content.Headers.ContentLength = bytes.Length;
+        response.Content.Headers.ContentRange = new ContentRangeHeaderValue(start, end, payload.Length);
+        return response;
+    }
+
+    private static HttpResponseMessage CreateBlockingPartialResponse(HttpRequestMessage request, long totalLength)
+    {
+        var range = Assert.Single(request.Headers.Range!.Ranges);
+        var start = range.From!.Value;
+        var end = range.To!.Value;
+        var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+        {
+            RequestMessage = request,
+            Content = new StreamContent(new BlockingReadStream())
+        };
+        response.Content.Headers.ContentLength = end - start + 1;
+        response.Content.Headers.ContentRange = new ContentRangeHeaderValue(start, end, totalLength);
+        return response;
+    }
+
+    private static void AssertRangesCoverPayload(IEnumerable<string?> values, long totalLength)
+    {
+        var ranges = values
+            .Select(value => RangeHeaderValue.Parse(value!).Ranges.Single())
+            .OrderBy(range => range.From)
+            .ToArray();
+        Assert.Equal(MinecraftDownloadRequestExecutor.SegmentedDownloadPartCount, ranges.Length);
+        long next = 0;
+        foreach (var range in ranges)
+        {
+            Assert.Equal(next, range.From);
+            next = range.To!.Value + 1;
+        }
+        Assert.Equal(totalLength, next);
+    }
+
+    private static void AssertNoPendingFiles(string destination)
+    {
+        var directory = Path.GetDirectoryName(destination)!;
+        Assert.Empty(Directory.Exists(directory)
+            ? Directory.EnumerateFiles(
+                directory,
+                $".{Path.GetFileName(destination)}.bhl-pending-*.tmp",
+                SearchOption.TopDirectoryOnly)
+            : []);
+    }
+
+    private static string Sha1(byte[] payload) =>
+        Convert.ToHexString(SHA1.HashData(payload));
+
+    private static string Sha512(byte[] payload) =>
+        Convert.ToHexString(SHA512.HashData(payload));
+
+    private static byte[] CreatePayload(int length)
+    {
+        var payload = new byte[length];
+        for (var index = 0; index < payload.Length; index++)
+            payload[index] = (byte)(index % 251);
+        return payload;
+    }
+
+    private sealed class RecordingRequestHandler(
+        Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> callback)
+        : HttpMessageHandler
+    {
+        private int requestCount;
+        public int RequestCount => Volatile.Read(ref requestCount);
+        public ConcurrentQueue<string?> RangeHeaders { get; } = new();
+        public ConcurrentQueue<RequestSnapshot> Requests { get; } = new();
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RangeHeaders.Enqueue(request.Headers.Range?.ToString());
+            Requests.Enqueue(new RequestSnapshot(
+                request.RequestUri!.Host,
+                request.Headers.Range?.ToString(),
+                request.Headers.Contains("x-api-key")));
+            return callback(Interlocked.Increment(ref requestCount), request, cancellationToken);
+        }
+    }
+
+    private sealed record RequestSnapshot(string Host, string? Range, bool HasSensitiveHeader);
+
+    private sealed class BlockingReadStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}

@@ -36,6 +36,9 @@ namespace Launcher.Infrastructure.Minecraft;
 /// </summary>
 internal sealed class MinecraftDownloadRequestExecutor
 {
+    internal const long MinimumSegmentedDownloadSize = 8L * 1024 * 1024;
+    internal const int SegmentedDownloadPartCount = 4;
+
     private readonly MinecraftDownloadTransport transport;
     private readonly ILogger logger;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
@@ -212,14 +215,28 @@ internal sealed class MinecraftDownloadRequestExecutor
 
         async Task<ResolvedDownloadRequest> DownloadFileCoreAsync()
         {
+            var integrity = DownloadIntegrityExpectation.Sha1(expectedSha1, expectedSize);
             await using var session = await ResumableDownloadFileSession.AcquireAsync(
                 destinationPath,
-                expectedSha1,
-                expectedSize,
+                integrity,
                 cancellationToken,
                 options).ConfigureAwait(false);
             if (session.IsComplete)
                 return fileCandidates[0];
+
+            var segmented = await TryDownloadSegmentedAsync(
+                fileCandidates,
+                integrity,
+                options,
+                session,
+                reportAttemptProgress,
+                sensitiveHeaders,
+                speedMeter,
+                cancellationToken).ConfigureAwait(false);
+            if (segmented.Resolution is not null)
+                return segmented.Resolution;
+
+            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.Attempted ? 1 : 0);
 
             var result = await ExecuteCoreAsync(
                 originalUrl,
@@ -231,7 +248,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                         context.Response,
                         context.Resolution,
                         context.AttemptNumber,
-                        reportAttemptProgress,
+                        sequentialProgress,
                         token).ConfigureAwait(false);
                     return context.Resolution;
                 },
@@ -297,13 +314,27 @@ internal sealed class MinecraftDownloadRequestExecutor
             if (session.IsComplete)
                 return fileCandidates[0];
 
+            var segmented = await TryDownloadSegmentedAsync(
+                fileCandidates,
+                integrity,
+                options,
+                session,
+                reportAttemptProgress,
+                sensitiveHeaders,
+                speedMeter,
+                cancellationToken).ConfigureAwait(false);
+            if (segmented.Resolution is not null)
+                return segmented.Resolution;
+
+            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.Attempted ? 1 : 0);
+
             var result = await ExecuteCoreAsync(
                 originalUrl,
                 preference,
                 categoryHint,
                 async (context, token) =>
                 {
-                    await session.WriteAsync(context.Response, context.Resolution, context.AttemptNumber, reportAttemptProgress, token).ConfigureAwait(false);
+                    await session.WriteAsync(context.Response, context.Resolution, context.AttemptNumber, sequentialProgress, token).ConfigureAwait(false);
                     return context.Resolution;
                 },
                 noResultStatus: null,
@@ -318,6 +349,210 @@ internal sealed class MinecraftDownloadRequestExecutor
             return result.Value!;
         }
     }
+
+    private async Task<SegmentedDownloadAttemptResult> TryDownloadSegmentedAsync(
+        IReadOnlyList<ResolvedDownloadRequest> candidates,
+        DownloadIntegrityExpectation integrity,
+        DownloadFileOptions? options,
+        ResumableDownloadFileSession session,
+        Action<int, long, long?>? reportAttemptProgress,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        CancellationToken cancellationToken)
+    {
+        if (!ShouldUseSegmentedDownload(candidates, integrity, options))
+            return default;
+
+        var resolution = candidates[0];
+        var totalLength = integrity.ExpectedSize!.Value;
+        var ranges = CreateSegmentRanges(totalLength);
+        var tasks = new List<Task>(SegmentedDownloadPartCount);
+        using var segmentCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
+        {
+            session.PrepareSegmentedDownload(totalLength);
+            logger.LogInformation(
+                "Segmented download started. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
+                resolution.ResolvedSourceKind,
+                totalLength,
+                ranges.Count);
+
+            var firstAccepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var firstTask = DownloadSegmentAsync(
+                resolution,
+                ranges[0],
+                session,
+                reportAttemptProgress,
+                sensitiveHeaders,
+                speedMeter,
+                () => firstAccepted.TrySetResult(true),
+                segmentCancellation.Token);
+            tasks.Add(firstTask);
+
+            await Task.WhenAny(firstAccepted.Task, firstTask).ConfigureAwait(false);
+            if (!firstAccepted.Task.IsCompletedSuccessfully)
+                await firstTask.ConfigureAwait(false);
+
+            for (var index = 1; index < ranges.Count; index++)
+            {
+                tasks.Add(DownloadSegmentAsync(
+                    resolution,
+                    ranges[index],
+                    session,
+                    reportAttemptProgress,
+                    sensitiveHeaders,
+                    speedMeter,
+                    segmentAccepted: null,
+                    segmentCancellation.Token));
+            }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+            await session.CompleteSegmentedDownloadAsync(cancellationToken).ConfigureAwait(false);
+            logger.LogInformation(
+                "Segmented download completed. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
+                resolution.ResolvedSourceKind,
+                totalLength,
+                ranges.Count);
+            return new SegmentedDownloadAttemptResult(true, resolution);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            segmentCancellation.Cancel();
+            await ObserveSegmentTasksAsync(tasks).ConfigureAwait(false);
+            session.ResetSegmentedDownload();
+            throw;
+        }
+        catch (Exception exception)
+        {
+            segmentCancellation.Cancel();
+            await ObserveSegmentTasksAsync(tasks).ConfigureAwait(false);
+            session.ResetSegmentedDownload();
+            logger.LogInformation(
+                "Segmented download fell back to the existing single-stream path. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount} Reason={Reason}",
+                resolution.ResolvedSourceKind,
+                totalLength,
+                ranges.Count,
+                exception.GetType().Name);
+            return new SegmentedDownloadAttemptResult(true, null);
+        }
+    }
+
+    private Task DownloadSegmentAsync(
+        ResolvedDownloadRequest resolution,
+        DownloadSegmentRange range,
+        ResumableDownloadFileSession session,
+        Action<int, long, long?>? reportAttemptProgress,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        Action? segmentAccepted,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAttemptAsync(
+            resolution,
+            attempt: 1,
+            async (context, token) =>
+            {
+                ValidateSegmentResponse(context.Response, range);
+                segmentAccepted?.Invoke();
+                await session.WriteSegmentAsync(
+                    context.Response.Content,
+                    range.Start,
+                    range.End,
+                    attemptNumber: 1,
+                    reportAttemptProgress,
+                    token).ConfigureAwait(false);
+                return true;
+            },
+            noResultStatus: null,
+            cancellationToken,
+            configureRequest: (request, _) => ConfigureSegmentRequest(request, range),
+            allowResponseStatus: null,
+            sensitiveHeaders,
+            speedMeter,
+            enableSlowBodyWatchdog: true);
+    }
+
+    private bool ShouldUseSegmentedDownload(
+        IReadOnlyList<ResolvedDownloadRequest> candidates,
+        DownloadIntegrityExpectation integrity,
+        DownloadFileOptions? options)
+    {
+        if (integrity.ExpectedSize is not >= MinimumSegmentedDownloadSize || !integrity.HasStrongHash)
+            return false;
+        if ((options?.PersistenceMode ?? DownloadPersistenceMode.TaskScopedResumable)
+            is not DownloadPersistenceMode.TaskScopedResumable)
+            return false;
+        if (GetGlobalConcurrencySnapshot().CurrentTarget < SegmentedDownloadPartCount)
+            return false;
+
+        var uri = new Uri(candidates[0].ActualUrl, UriKind.Absolute);
+        return !uri.Host.Equals("bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<DownloadSegmentRange> CreateSegmentRanges(long totalLength)
+    {
+        var ranges = new List<DownloadSegmentRange>(SegmentedDownloadPartCount);
+        var baseLength = totalLength / SegmentedDownloadPartCount;
+        var remainder = totalLength % SegmentedDownloadPartCount;
+        long start = 0;
+        for (var index = 0; index < SegmentedDownloadPartCount; index++)
+        {
+            var length = baseLength + (index < remainder ? 1 : 0);
+            var end = start + length - 1;
+            ranges.Add(new DownloadSegmentRange(start, end, totalLength));
+            start = end + 1;
+        }
+        return ranges;
+    }
+
+    private static void ConfigureSegmentRequest(HttpRequestMessage request, DownloadSegmentRange range)
+    {
+        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(range.Start, range.End);
+        request.Headers.AcceptEncoding.Clear();
+        request.Headers.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("identity"));
+    }
+
+    private static void ValidateSegmentResponse(HttpResponseMessage response, DownloadSegmentRange expected)
+    {
+        var contentRange = response.Content.Headers.ContentRange;
+        var expectedLength = expected.End - expected.Start + 1;
+        if (response.StatusCode != HttpStatusCode.PartialContent
+            || response.Content.Headers.ContentEncoding.Count != 0
+            || contentRange is null
+            || !string.Equals(contentRange.Unit, "bytes", StringComparison.OrdinalIgnoreCase)
+            || contentRange.From != expected.Start
+            || contentRange.To != expected.End
+            || contentRange.Length != expected.TotalLength
+            || response.Content.Headers.ContentLength != expectedLength)
+        {
+            throw new SegmentedDownloadNotSupportedException();
+        }
+    }
+
+    private static async Task ObserveSegmentTasksAsync(IEnumerable<Task> tasks)
+    {
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+    }
+
+    private static Action<int, long, long?>? OffsetAttemptProgress(
+        Action<int, long, long?>? progress,
+        int offset)
+    {
+        if (progress is null || offset == 0)
+            return progress;
+        return (attempt, progressedBytes, totalBytes) =>
+            progress(attempt + offset, progressedBytes, totalBytes);
+    }
+
+    private readonly record struct DownloadSegmentRange(long Start, long End, long TotalLength);
+    private readonly record struct SegmentedDownloadAttemptResult(bool Attempted, ResolvedDownloadRequest? Resolution);
+    private sealed class SegmentedDownloadNotSupportedException : Exception;
 
     /// <summary>
     /// 按解析后的候选源和每源重试次数执行操作，并汇总所有可恢复失败用于最终诊断。
