@@ -53,6 +53,128 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Theory]
+    [InlineData("Mojang", ManifestUrl, BmclManifestUrl)]
+    [InlineData(
+        "Mojang",
+        "https://piston-meta.mojang.com/v1/packages/abc/version.json",
+        "https://bmclapi2.bangbang93.com/v1/packages/abc/version.json")]
+    [InlineData(
+        "Mojang",
+        "https://piston-data.mojang.com/v1/objects/abc/client.jar",
+        "https://bmclapi2.bangbang93.com/v1/objects/abc/client.jar")]
+    [InlineData(
+        "Mojang",
+        "https://libraries.minecraft.net/com/example/library/1.0/library-1.0.jar",
+        "https://bmclapi2.bangbang93.com/maven/com/example/library/1.0/library-1.0.jar")]
+    [InlineData(
+        "Mojang",
+        "https://resources.download.minecraft.net/ab/abcdef",
+        "https://bmclapi2.bangbang93.com/assets/ab/abcdef")]
+    [InlineData(
+        "Forge",
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.20/forge-1.20.1-47.4.20-installer.jar",
+        "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/1.20.1-47.4.20/forge-1.20.1-47.4.20-installer.jar")]
+    [InlineData(
+        "Forge",
+        "https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html",
+        "https://bmclapi2.bangbang93.com/forge/minecraft/1.20.1")]
+    [InlineData(
+        "Fabric",
+        "https://meta.fabricmc.net/v2/versions/loader/1.20.1",
+        "https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/1.20.1")]
+    [InlineData(
+        "Fabric",
+        "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar",
+        "https://bmclapi2.bangbang93.com/maven/net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar")]
+    [InlineData(
+        "NeoForge",
+        "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.234/neoforge-21.1.234-installer.jar",
+        "https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/21.1.234/neoforge-21.1.234-installer.jar")]
+    public void CanonicalSourceMappingsRoundTrip(
+        string categoryHint,
+        string officialUrl,
+        string bmclUrl)
+    {
+        var resolvedBmcl = MinecraftDownloadSourceResolver.ResolveRequest(
+            officialUrl,
+            DownloadSourcePreference.BmclApi,
+            useBmclApi: true,
+            categoryHint: categoryHint);
+        var resolvedOfficial = MinecraftDownloadSourceResolver.ResolveRequest(
+            bmclUrl,
+            DownloadSourcePreference.Official,
+            useBmclApi: false,
+            categoryHint);
+
+        Assert.Equal(bmclUrl, resolvedBmcl.ActualUrl);
+        Assert.Equal(officialUrl, resolvedOfficial.ActualUrl);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://files.minecraftforge.net/maven/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar",
+        "Forge",
+        "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar")]
+    [InlineData(
+        "http://files.minecraftforge.net/maven/net/minecraftforge/forge/1.7.10-10.13.4.1614/forge-1.7.10-10.13.4.1614-installer.jar",
+        "Forge",
+        "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/1.7.10-10.13.4.1614/forge-1.7.10-10.13.4.1614-installer.jar")]
+    [InlineData(
+        "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge",
+        "NeoForge",
+        "https://bmclapi2.bangbang93.com/neoforge/meta/api/maven/details/releases/net/neoforged/neoforge")]
+    public void LegacyAndMetadataMappingsUseCanonicalBmclPrefixes(
+        string originalUrl,
+        string categoryHint,
+        string expectedBmclUrl)
+    {
+        var resolved = MinecraftDownloadSourceResolver.ResolveRequest(
+            originalUrl,
+            DownloadSourcePreference.BmclApi,
+            useBmclApi: true,
+            categoryHint: categoryHint);
+
+        Assert.Equal(expectedBmclUrl, resolved.ActualUrl);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://launcher.mojang.com/v1/objects/abc/client.jar",
+        true,
+        "Mojang",
+        "https://bmclapi2.bangbang93.com/v1/objects/abc/client.jar")]
+    [InlineData(
+        "https://bmclapi2.bangbang93.com/v1/objects/abc/client.jar",
+        false,
+        "Mojang",
+        "https://piston-data.mojang.com/v1/objects/abc/client.jar")]
+    [InlineData(
+        "https://bmclapi2.bangbang93.com/forge/minecraft/1.20.1",
+        false,
+        "Forge",
+        "https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html")]
+    [InlineData(
+        "https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/21.1.234/neoforge-21.1.234-installer.jar",
+        false,
+        "NeoForge",
+        "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.234/neoforge-21.1.234-installer.jar")]
+    public void KnownOfficialAndMirrorUrlsAreClassifiedWithoutHints(
+        string originalUrl,
+        bool useBmclApi,
+        string expectedCategory,
+        string expectedUrl)
+    {
+        var resolved = MinecraftDownloadSourceResolver.ResolveRequest(
+            originalUrl,
+            DownloadSourcePreference.Official,
+            useBmclApi,
+            categoryHint: null);
+
+        Assert.Equal(expectedCategory, resolved.ResourceCategory);
+        Assert.Equal(expectedUrl, resolved.ActualUrl);
+    }
+
+    [Theory]
     [InlineData("https://libraries.minecraft.net/com/example/library/1.0/library-1.0.jar", "Mojang")]
     [InlineData("https://meta.fabricmc.net/v2/versions/loader", "Fabric")]
     [InlineData("https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1/forge-1.20.1.jar", "Forge")]

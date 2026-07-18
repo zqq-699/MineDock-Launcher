@@ -516,7 +516,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         {
             RequestUris.Add(request.RequestUri!);
             var uri = request.RequestUri!.AbsoluteUri
-                .Replace("https://bmclapi2.bangbang93.com/maven/releases/", "https://maven.neoforged.net/releases/", StringComparison.OrdinalIgnoreCase);
+                .Replace("https://bmclapi2.bangbang93.com/maven/", "https://maven.neoforged.net/releases/", StringComparison.OrdinalIgnoreCase);
             if (uri == "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml")
             {
                 return Task.FromResult(CreateTextResponse(request, """

@@ -30,6 +30,9 @@ internal static class MinecraftDownloadSourceResolver
     private static readonly Regex ForgeIndexPathRegex = new(
         @"^/net/minecraftforge/forge/index_(?<version>[^/]+)\.html$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BmclForgeIndexPathRegex = new(
+        @"^/forge/minecraft/(?<version>[^/]+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public static IEnumerable<ResolvedDownloadRequest> EnumerateRequests(
         string originalUrl,
@@ -41,11 +44,8 @@ internal static class MinecraftDownloadSourceResolver
         yield return primary;
 
         var fallback = ResolveRequest(originalUrl, preference, useBmclApi: !useBmclApiFirst, categoryHint);
-        if (string.Equals(primary.ActualUrl, fallback.ActualUrl, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(primary.ResolvedSourceKind, fallback.ResolvedSourceKind, StringComparison.Ordinal))
-        {
+        if (string.Equals(primary.ActualUrl, fallback.ActualUrl, StringComparison.OrdinalIgnoreCase))
             yield break;
-        }
 
         yield return fallback;
     }
@@ -110,8 +110,8 @@ internal static class MinecraftDownloadSourceResolver
         }
 
         if (host.Equals("maven.neoforged.net", StringComparison.OrdinalIgnoreCase)
-            || host.Equals("maven.neoforged.net", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/releases/net/neoforged/", StringComparison.OrdinalIgnoreCase))
+            || path.StartsWith("/maven/net/neoforged/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/neoforge/", StringComparison.OrdinalIgnoreCase))
         {
             return MinecraftDownloadResourceCategory.NeoForge;
         }
@@ -119,8 +119,11 @@ internal static class MinecraftDownloadSourceResolver
         if (host.Equals("piston-meta.mojang.com", StringComparison.OrdinalIgnoreCase)
             || host.Equals("piston-data.mojang.com", StringComparison.OrdinalIgnoreCase)
             || host.Equals("launchermeta.mojang.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("launcher.mojang.com", StringComparison.OrdinalIgnoreCase)
             || host.Equals("libraries.minecraft.net", StringComparison.OrdinalIgnoreCase)
-            || host.Equals("resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase))
+            || host.Equals("resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase)
+            || (host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase)
+                && IsBmclMojangPath(path)))
         {
             return MinecraftDownloadResourceCategory.Mojang;
         }
@@ -155,8 +158,14 @@ internal static class MinecraftDownloadSourceResolver
             if (uri.AbsolutePath.StartsWith("/maven/", StringComparison.OrdinalIgnoreCase))
                 return $"https://libraries.minecraft.net{uri.AbsolutePath["/maven".Length..]}{uri.Query}";
 
+            if (uri.AbsolutePath.StartsWith("/libraries/", StringComparison.OrdinalIgnoreCase))
+                return $"https://libraries.minecraft.net{uri.AbsolutePath["/libraries".Length..]}{uri.Query}";
+
             if (uri.AbsolutePath.StartsWith("/assets/", StringComparison.OrdinalIgnoreCase))
                 return $"https://resources.download.minecraft.net{uri.AbsolutePath["/assets".Length..]}{uri.Query}";
+
+            if (uri.AbsolutePath.StartsWith("/v1/objects/", StringComparison.OrdinalIgnoreCase))
+                return $"https://piston-data.mojang.com{uri.PathAndQuery}";
 
             return $"https://piston-meta.mojang.com{uri.PathAndQuery}";
         }
@@ -185,6 +194,9 @@ internal static class MinecraftDownloadSourceResolver
     {
         if (uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase))
         {
+            if (TryExtractBmclForgeMinecraftVersion(uri.AbsolutePath, out var bmclMinecraftVersion))
+                return $"https://files.minecraftforge.net/net/minecraftforge/forge/index_{bmclMinecraftVersion}.html{uri.Query}";
+
             if (TryExtractForgeMinecraftVersion(uri.AbsolutePath, out var minecraftVersion))
                 return $"https://files.minecraftforge.net/net/minecraftforge/forge/index_{minecraftVersion}.html";
 
@@ -203,8 +215,11 @@ internal static class MinecraftDownloadSourceResolver
         if (uri.Host.Equals("files.minecraftforge.net", StringComparison.OrdinalIgnoreCase)
             && TryExtractForgeMinecraftVersion(uri.AbsolutePath, out var minecraftVersion))
         {
-            return $"https://{BmclApiHost}/forge/minecraft/{minecraftVersion}";
+            return $"https://{BmclApiHost}/forge/minecraft/{minecraftVersion}{uri.Query}";
         }
+
+        if (uri.AbsolutePath.StartsWith("/maven/", StringComparison.OrdinalIgnoreCase))
+            return $"https://{BmclApiHost}{uri.PathAndQuery}";
 
         return $"https://{BmclApiHost}/maven{uri.AbsolutePath}{uri.Query}";
     }
@@ -236,11 +251,21 @@ internal static class MinecraftDownloadSourceResolver
 
     private static string BuildOfficialNeoForgeUrl(Uri uri)
     {
-        if (uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase)
-            && uri.AbsolutePath.StartsWith("/maven/", StringComparison.OrdinalIgnoreCase))
-        {
+        if (!uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase))
+            return uri.AbsoluteUri;
+
+        if (uri.AbsolutePath.StartsWith("/maven/releases/", StringComparison.OrdinalIgnoreCase))
             return $"https://maven.neoforged.net{uri.AbsolutePath["/maven".Length..]}{uri.Query}";
+
+        if (uri.AbsolutePath.StartsWith("/maven/", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"https://maven.neoforged.net/releases{uri.AbsolutePath["/maven".Length..]}{uri.Query}";
         }
+
+        const string bmclMetaPrefix = "/neoforge/meta";
+        if (uri.AbsolutePath.StartsWith($"{bmclMetaPrefix}/", StringComparison.OrdinalIgnoreCase))
+            return $"https://maven.neoforged.net{uri.AbsolutePath[bmclMetaPrefix.Length..]}{uri.Query}";
+
         return uri.AbsoluteUri;
     }
 
@@ -248,7 +273,21 @@ internal static class MinecraftDownloadSourceResolver
     {
         if (uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase))
             return uri.AbsoluteUri;
-        return $"https://{BmclApiHost}/maven{uri.AbsolutePath}{uri.Query}";
+
+        if (uri.AbsolutePath.StartsWith("/releases/", StringComparison.OrdinalIgnoreCase))
+            return $"https://{BmclApiHost}/maven{uri.AbsolutePath["/releases".Length..]}{uri.Query}";
+
+        const string versionsPrefix = "/api/maven/versions/";
+        if (uri.AbsolutePath.StartsWith(versionsPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"https://{BmclApiHost}/neoforge/meta/api/maven/details/{uri.AbsolutePath[versionsPrefix.Length..]}{uri.Query}";
+        }
+
+        const string detailsPrefix = "/api/maven/details/";
+        if (uri.AbsolutePath.StartsWith(detailsPrefix, StringComparison.OrdinalIgnoreCase))
+            return $"https://{BmclApiHost}/neoforge/meta{uri.PathAndQuery}";
+
+        return uri.AbsoluteUri;
     }
 
     private static bool TryExtractForgeMinecraftVersion(string absolutePath, out string minecraftVersion)
@@ -262,6 +301,29 @@ internal static class MinecraftDownloadSourceResolver
 
         minecraftVersion = string.Empty;
         return false;
+    }
+
+    private static bool TryExtractBmclForgeMinecraftVersion(string absolutePath, out string minecraftVersion)
+    {
+        var match = BmclForgeIndexPathRegex.Match(absolutePath);
+        if (match.Success)
+        {
+            minecraftVersion = match.Groups["version"].Value;
+            return true;
+        }
+
+        minecraftVersion = string.Empty;
+        return false;
+    }
+
+    private static bool IsBmclMojangPath(string absolutePath)
+    {
+        return absolutePath.StartsWith("/assets/", StringComparison.OrdinalIgnoreCase)
+            || absolutePath.StartsWith("/libraries/", StringComparison.OrdinalIgnoreCase)
+            || absolutePath.StartsWith("/mc/game/", StringComparison.OrdinalIgnoreCase)
+            || absolutePath.StartsWith("/v1/objects/", StringComparison.OrdinalIgnoreCase)
+            || absolutePath.StartsWith("/v1/packages/", StringComparison.OrdinalIgnoreCase)
+            || absolutePath.StartsWith("/v1/products/", StringComparison.OrdinalIgnoreCase);
     }
 
     private enum MinecraftDownloadResourceCategory
