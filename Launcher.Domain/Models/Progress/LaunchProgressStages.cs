@@ -33,6 +33,7 @@ public static class LaunchProgressStages
     public const string RepairingAssets = "Launch.RepairingAssets";
     public const string RepairingLogging = "Launch.RepairingLogging";
     public const string CheckingJava = "Launch.CheckingJava";
+    public const string DownloadingJava = "Launch.DownloadingJava";
     public const string RunningPreLaunchCommand = "Launch.RunningPreLaunchCommand";
     public const string PreparingProcess = "Launch.PreparingProcess";
     public const string StartingProcess = "Launch.StartingProcess";

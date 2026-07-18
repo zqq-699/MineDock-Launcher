@@ -339,6 +339,16 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public void DownloadingInstallerJavaUsesDedicatedLocalizedStatusText()
+    {
+        var status = LauncherProgressTextFormatter.Format(new LauncherProgress(
+            InstallProgressStages.DownloadingJava,
+            string.Empty));
+
+        Assert.Equal(Strings.Status_InstallDownloadingJava, status);
+    }
+
+    [Fact]
     public void CompletionClearsPendingSpeedTelemetry()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));

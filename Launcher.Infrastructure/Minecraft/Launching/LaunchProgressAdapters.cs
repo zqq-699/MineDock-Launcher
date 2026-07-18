@@ -26,6 +26,7 @@ internal sealed class LaunchRepairProgressAdapter
     private const double LoaderDownloadStart = 12;
     private const double LoaderDownloadReported = 16;
     private const double LoaderJavaCheck = 20;
+    private const double LoaderJavaDownload = 21;
     private const double LoaderProcessorStart = 22;
     private const double LoaderProcessorEnd = 50;
     private const double LoaderFinalizationStart = 50;
@@ -51,7 +52,9 @@ internal sealed class LaunchRepairProgressAdapter
     {
         if (value.DownloadSpeedTelemetry is not null)
         {
-            inner.Report(value);
+            inner.Report(value.Stage == InstallProgressStages.DownloadingJava
+                ? value with { Stage = LaunchProgressStages.DownloadingJava }
+                : value);
             return;
         }
 
@@ -71,6 +74,11 @@ internal sealed class LaunchRepairProgressAdapter
                 loaderRepairObserved = true;
                 loaderPhase = LoaderPhase.Preparing;
                 Emit(value, LaunchProgressStages.CheckingJava, LoaderJavaCheck);
+                return;
+            case InstallProgressStages.DownloadingJava:
+                loaderRepairObserved = true;
+                loaderPhase = LoaderPhase.Preparing;
+                Emit(value, LaunchProgressStages.DownloadingJava, LoaderJavaDownload);
                 return;
             case InstallProgressStages.RunningLoaderInstaller:
                 loaderRepairObserved = true;

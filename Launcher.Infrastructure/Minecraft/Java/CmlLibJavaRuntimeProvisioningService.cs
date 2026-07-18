@@ -25,7 +25,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
-public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvisioningService
+public sealed class CmlLibJavaRuntimeProvisioningService
+    : IJavaRuntimeProvisioningService, ILoaderInstallerJavaRuntimeProvisioner
 {
     private const double ProgressStartPercent = 90;
     private const double ProgressEndPercent = 94;
@@ -79,7 +80,8 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
                 logger,
                 settings.DownloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
-                downloadOperation);
+                downloadOperation,
+                javaFileMode: CmlLibJavaFileMode.Only);
             VanillaLoaderProvider.AttachProgress(launcher, provisioningProgress);
             await launcher.InstallAsync(versionName, cancellationToken).ConfigureAwait(false);
             progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, ProgressEndPercent));
@@ -98,6 +100,59 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
                 instance.Id,
                 versionName,
                 settings.MinecraftDirectory);
+            throw;
+        }
+    }
+
+    async Task ILoaderInstallerJavaRuntimeProvisioner.ProvisionAsync(
+        LoaderInstallerJavaRuntimeRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.MinecraftVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.MinecraftDirectory);
+
+        logger.LogInformation(
+            "Preparing Java runtime for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} MinecraftDirectory={MinecraftDirectory} DownloadSourcePreference={DownloadSourcePreference} DownloadSpeedLimitMbPerSecond={DownloadSpeedLimitMbPerSecond}",
+            request.VersionName,
+            request.MinecraftVersion,
+            request.MinecraftDirectory,
+            request.DownloadSourcePreference,
+            request.DownloadSpeedLimitMbPerSecond);
+        request.Progress?.Report(new LauncherProgress(InstallProgressStages.DownloadingJava, string.Empty));
+        var provisioningProgress = request.Progress is null
+            ? null
+            : new InstallerJavaRuntimeProvisioningProgress(request.Progress);
+
+        try
+        {
+            using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(
+                new MinecraftPath(request.MinecraftDirectory));
+            var launcher = VanillaLoaderProvider.CreateLauncher(
+                request.MinecraftDirectory,
+                provisioningProgress,
+                request.DownloadSourcePreference,
+                logger,
+                request.DownloadSpeedLimitMbPerSecond,
+                downloadSpeedLimitState,
+                downloadOperation,
+                javaFileMode: CmlLibJavaFileMode.Only);
+            VanillaLoaderProvider.AttachProgress(launcher, provisioningProgress);
+            await launcher.InstallAsync(request.MinecraftVersion, cancellationToken).ConfigureAwait(false);
+
+            logger.LogInformation(
+                "Java runtime preparation completed for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} MinecraftDirectory={MinecraftDirectory}",
+                request.VersionName,
+                request.MinecraftVersion,
+                request.MinecraftDirectory);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(
+                exception,
+                "Java runtime preparation failed for loader installer. VersionName={VersionName} MinecraftVersion={MinecraftVersion} MinecraftDirectory={MinecraftDirectory}",
+                request.VersionName,
+                request.MinecraftVersion,
+                request.MinecraftDirectory);
             throw;
         }
     }
@@ -129,6 +184,29 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
                 Stage = LaunchProgressStages.CheckingJava,
                 Percent = percent
             });
+        }
+    }
+
+    internal sealed class InstallerJavaRuntimeProvisioningProgress : IProgress<LauncherProgress>, ISpeedMeterProgress
+    {
+        private readonly IProgress<LauncherProgress> inner;
+
+        public InstallerJavaRuntimeProvisioningProgress(IProgress<LauncherProgress> inner)
+        {
+            this.inner = inner;
+        }
+
+        public SpeedMeter? SpeedMeter => SpeedMeterProgress.TryGet(inner);
+
+        public void Report(LauncherProgress value)
+        {
+            if (value.DownloadSpeedTelemetry is not null)
+            {
+                inner.Report(value with { Stage = InstallProgressStages.DownloadingJava });
+                return;
+            }
+
+            inner.Report(value with { Stage = InstallProgressStages.DownloadingJava });
         }
     }
 }

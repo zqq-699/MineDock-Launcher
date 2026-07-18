@@ -45,6 +45,8 @@ internal sealed class InstallCardProgressMapper : IProgress<LauncherProgress>, I
             InstallProgressStages.Preparing => 4d,
             InstallProgressStages.DownloadingLoaderInstaller => MapLoaderBoundary(12d),
             InstallProgressStages.CheckingJava => MapLoaderBoundary(26d),
+            InstallProgressStages.DownloadingJava => MapLoaderBoundary(
+                26d + (4d * Math.Clamp(value.Percent ?? 0, 0, 100) / 100d)),
             InstallProgressStages.RunningLoaderInstaller => MapLoaderBoundary(30d),
             InstallProgressStages.FinalizingVersion => MapLoaderBoundary(38d),
             InstallProgressStages.CompletingFiles => MapLoaderBoundary(38d),

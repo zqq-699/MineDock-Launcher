@@ -293,7 +293,17 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             var resolver = javaRuntimeResolver
                 ?? throw new InvalidOperationException("The loader installer Java runtime resolver is not configured.");
             var javaRuntime = await resolver
-                .ResolveAsync(minecraftVersion, isolatedVersionName, cancellationToken)
+                .ResolveAsync(
+                    new LoaderInstallerJavaRuntimeRequest(
+                        minecraftVersion,
+                        isolatedVersionName,
+                        LoaderKind.NeoForge,
+                        selectedLoaderVersion,
+                        sharedMinecraftDirectory,
+                        downloadSourcePreference,
+                        downloadSpeedLimitMbPerSecond,
+                        progress),
+                    cancellationToken)
                 .ConfigureAwait(false);
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync(

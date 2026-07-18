@@ -38,12 +38,16 @@ public sealed class JavaRequirementNotMetEventArgs : EventArgs
         int? requiredMajorVersion,
         JavaRuntimeSelectionFailureReason reason,
         GameInstance instance,
-        int? currentMajorVersion = null)
+        int? currentMajorVersion = null,
+        string? currentVersion = null,
+        int? recommendedMajorVersion = null)
     {
         RequiredMajorVersion = requiredMajorVersion;
         Reason = reason;
         Instance = instance;
         CurrentMajorVersion = currentMajorVersion;
+        CurrentVersion = currentVersion;
+        RecommendedMajorVersion = recommendedMajorVersion ?? requiredMajorVersion;
     }
 
     public int? RequiredMajorVersion { get; }
@@ -53,4 +57,8 @@ public sealed class JavaRequirementNotMetEventArgs : EventArgs
     public GameInstance Instance { get; }
 
     public int? CurrentMajorVersion { get; }
+
+    public string? CurrentVersion { get; }
+
+    public int? RecommendedMajorVersion { get; }
 }

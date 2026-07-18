@@ -30,6 +30,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+internal enum CmlLibJavaFileMode
+{
+    Exclude,
+    Only
+}
+
 /// <summary>
 /// 安装原版 Minecraft，并提供各 Loader 共用的 CmlLib 下载进度与启动器配置。
 /// </summary>
@@ -301,7 +307,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SpeedMeter? sharedSpeedMeter = null)
+        SpeedMeter? sharedSpeedMeter = null,
+        CmlLibJavaFileMode javaFileMode = CmlLibJavaFileMode.Exclude)
     {
         return CreateLauncher(
             new MinecraftPath(gameDirectory),
@@ -311,7 +318,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             operationContext,
-            sharedSpeedMeter);
+            sharedSpeedMeter,
+            javaFileMode);
     }
 
     internal static MinecraftLauncher CreateLauncher(
@@ -322,7 +330,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SpeedMeter? sharedSpeedMeter = null)
+        SpeedMeter? sharedSpeedMeter = null,
+        CmlLibJavaFileMode javaFileMode = CmlLibJavaFileMode.Exclude)
     {
         // 统一注入镜像路由、限速和运行库下载器，保证 Vanilla/Fabric 使用相同下载策略。
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
@@ -362,15 +371,44 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             gameInstaller.ConfiguredMaxChecker,
             gameInstaller.ConfiguredMaxDownloader,
             globalDownloadSnapshot.CurrentTarget);
-        var defaultAssetExtractor = parameters.FileExtractors!
+        var fileExtractors = parameters.FileExtractors
+            ?? throw new InvalidOperationException("CmlLib did not configure its default file extractors.");
+        if (javaFileMode is CmlLibJavaFileMode.Only)
+        {
+            for (var index = fileExtractors.Count() - 1; index >= 0; index--)
+            {
+                if (fileExtractors[index] is not CmlLib.Core.FileExtractors.JavaFileExtractor
+                    and not CmlLib.Core.FileExtractors.LegacyJavaFileExtractor)
+                {
+                    fileExtractors.RemoveAt(index);
+                }
+            }
+            return new MinecraftLauncher(parameters);
+        }
+
+        for (var index = fileExtractors.Count() - 1; index >= 0; index--)
+        {
+            if (fileExtractors[index] is CmlLib.Core.FileExtractors.JavaFileExtractor
+                or CmlLib.Core.FileExtractors.LegacyJavaFileExtractor)
+            {
+                fileExtractors.RemoveAt(index);
+            }
+        }
+        var defaultAssetExtractor = fileExtractors
             .Select((extractor, index) => (extractor, index))
             .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);
-        if (parameters.FileExtractors is not null)
+        fileExtractors.RemoveAt(defaultAssetExtractor.index);
+        fileExtractors.Insert(
+            defaultAssetExtractor.index,
+            new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedMeter));
+
+        var clientExtractor = fileExtractors
+            .Select((extractor, index) => (extractor, index))
+            .First(entry => entry.extractor is CmlLib.Core.FileExtractors.ClientFileExtractor);
+        if (clientExtractor.index > 0)
         {
-            parameters.FileExtractors.RemoveAt(defaultAssetExtractor.index);
-            parameters.FileExtractors.Insert(
-                defaultAssetExtractor.index,
-                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedMeter));
+            fileExtractors.RemoveAt(clientExtractor.index);
+            fileExtractors.Insert(0, clientExtractor.extractor);
         }
         return new MinecraftLauncher(parameters);
     }

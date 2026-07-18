@@ -27,6 +27,8 @@ public sealed class LaunchProgressAdaptersTests
 
             adapter.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
             adapter.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty));
+            adapter.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
+            adapter.Report(new LauncherProgress(InstallProgressStages.DownloadingJava, string.Empty));
             adapter.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             adapter.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, string.Empty, 10));
             adapter.Report(new LauncherProgress(LaunchProgressStages.DownloadingFiles, string.Empty, 80));
@@ -54,6 +56,8 @@ public sealed class LaunchProgressAdaptersTests
             .ToArray();
         Assert.DoesNotContain(stages, stage => stage.StartsWith("Install.", StringComparison.Ordinal));
         Assert.Contains(LaunchProgressStages.RepairingLoaderInstaller, stages);
+        Assert.Contains(LaunchProgressStages.CheckingJava, stages);
+        Assert.Contains(LaunchProgressStages.DownloadingJava, stages);
         Assert.Contains(LaunchProgressStages.RunningLoaderInstaller, stages);
         Assert.Contains(LaunchProgressStages.FinalizingLoaderVersion, stages);
         Assert.Contains(LaunchProgressStages.PublishingLoaderArtifacts, stages);
@@ -110,6 +114,38 @@ public sealed class LaunchProgressAdaptersTests
 
         Assert.All(reports, report => Assert.Equal(LaunchProgressStages.CheckingJava, report.Stage));
         Assert.Equal([90d, 92d, 94d], reports.Select(report => report.Percent!.Value));
+    }
+
+    [Fact]
+    public void InstallerJavaProvisioningProgressUsesDownloadingJavaStage()
+    {
+        var reports = new List<LauncherProgress>();
+        var adapter = new CmlLibJavaRuntimeProvisioningService.InstallerJavaRuntimeProvisioningProgress(
+            new InlineProgress(reports));
+
+        adapter.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, string.Empty, 50));
+
+        var report = Assert.Single(reports);
+        Assert.Equal(InstallProgressStages.DownloadingJava, report.Stage);
+        Assert.Equal(50, report.Percent);
+    }
+
+    [Fact]
+    public void InstallerJavaProvisioningSpeedTelemetryKeepsDownloadingJavaStage()
+    {
+        var reports = new List<LauncherProgress>();
+        var adapter = new CmlLibJavaRuntimeProvisioningService.InstallerJavaRuntimeProvisioningProgress(
+            new InlineProgress(reports));
+        var telemetry = new DownloadSpeedTelemetry(1024);
+
+        adapter.Report(new LauncherProgress(
+            LaunchProgressStages.DownloadingFiles,
+            string.Empty,
+            DownloadSpeedTelemetry: telemetry));
+
+        var report = Assert.Single(reports);
+        Assert.Equal(InstallProgressStages.DownloadingJava, report.Stage);
+        Assert.Same(telemetry, report.DownloadSpeedTelemetry);
     }
 
     private static void AssertMonotonic(IEnumerable<LauncherProgress> reports)

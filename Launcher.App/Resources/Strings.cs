@@ -740,6 +740,9 @@ public static class Strings
     public static string Dialog_JavaRuntimeMissingMessageFormat => Get(nameof(Dialog_JavaRuntimeMissingMessageFormat));
     public static string Dialog_JavaManualVersionTooLowTitle => Get(nameof(Dialog_JavaManualVersionTooLowTitle));
     public static string Dialog_JavaManualVersionTooLowMessageFormat => Get(nameof(Dialog_JavaManualVersionTooLowMessageFormat));
+    public static string Dialog_JavaManualVersionIncompatibleTitle => Get(nameof(Dialog_JavaManualVersionIncompatibleTitle));
+    public static string Dialog_JavaManualVersionIncompatibleMessageFormat => Get(nameof(Dialog_JavaManualVersionIncompatibleMessageFormat));
+    public static string Dialog_JavaCompatibilityNotMetMessageFormat => Get(nameof(Dialog_JavaCompatibilityNotMetMessageFormat));
     public static string Dialog_GoToSettingsButton => Get(nameof(Dialog_GoToSettingsButton));
     public static string Dialog_ForceLaunchButton => Get(nameof(Dialog_ForceLaunchButton));
     public static string Dialog_CancelLaunchButton => Get(nameof(Dialog_CancelLaunchButton));
@@ -828,6 +831,7 @@ public static class Strings
     public static string Status_LaunchRepairingAssets => Get(nameof(Status_LaunchRepairingAssets));
     public static string Status_LaunchRepairingLogging => Get(nameof(Status_LaunchRepairingLogging));
     public static string Status_LaunchCheckingJava => Get(nameof(Status_LaunchCheckingJava));
+    public static string Status_InstallDownloadingJava => Get(nameof(Status_InstallDownloadingJava));
     public static string Status_LaunchRunningPreLaunchCommand => Get(nameof(Status_LaunchRunningPreLaunchCommand));
     public static string Status_LaunchPreparingProcess => Get(nameof(Status_LaunchPreparingProcess));
     public static string Status_LaunchStartingProcess => Get(nameof(Status_LaunchStartingProcess));

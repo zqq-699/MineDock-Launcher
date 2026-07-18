@@ -1558,6 +1558,9 @@ Longer content wraps automatically.</value>
   <data name="Status_LaunchCheckingJava" xml:space="preserve">
     <value>Checking Java runtime...</value>
   </data>
+  <data name="Status_InstallDownloadingJava" xml:space="preserve">
+    <value>Downloading Java runtime...</value>
+  </data>
   <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve">
     <value>Running pre-launch command...</value>
   </data>
@@ -2530,6 +2533,15 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve">
     <value>"{0}" requires at least Java {1}, but the manually selected runtime is Java {2}. Choose a suitable Java runtime in Settings; you can force launch, but the game may still exit abnormally.</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleTitle" xml:space="preserve">
+    <value>Selected Java Is Incompatible</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleMessageFormat" xml:space="preserve">
+    <value>"{0}" recommends Java {1}, but the manually selected Java {2} is incompatible with this game or loader. Choose a suitable Java runtime in Settings; you can force launch, but the game may still exit abnormally.</value>
+  </data>
+  <data name="Dialog_JavaCompatibilityNotMetMessageFormat" xml:space="preserve">
+    <value>Automatic Java selection could not find a runtime compatible with this game and loader (recommended: Java {0}). Refresh or import a suitable Java runtime in Settings before launching.</value>
   </data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve">
     <value>Go to Settings</value>

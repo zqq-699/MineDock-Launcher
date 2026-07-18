@@ -536,6 +536,7 @@
   <data name="Status_LaunchRepairingAssets" xml:space="preserve"><value>正在补齐游戏资源...</value></data>
   <data name="Status_LaunchRepairingLogging" xml:space="preserve"><value>正在补齐日志配置...</value></data>
   <data name="Status_LaunchCheckingJava" xml:space="preserve"><value>正在检查 Java 运行环境...</value></data>
+  <data name="Status_InstallDownloadingJava" xml:space="preserve"><value>正在下载 Java 运行环境...</value></data>
   <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve"><value>正在运行启动前命令...</value></data>
   <data name="Status_LaunchPreparingProcess" xml:space="preserve"><value>正在生成启动参数...</value></data>
   <data name="Status_LaunchStartingProcess" xml:space="preserve"><value>正在启动游戏进程...</value></data>
@@ -863,6 +864,9 @@
   <data name="Dialog_JavaRuntimeMissingMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有在本机找到可用的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_JavaManualVersionTooLowTitle" xml:space="preserve"><value>Java 版本不满足要求</value></data>
   <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve"><value>“{0}” 至少需要 Java {1}，但当前手动选择的是 Java {2}。建议转到设置选择合适的 Java；也可以强制启动，但游戏可能仍会异常退出。</value></data>
+  <data name="Dialog_JavaManualVersionIncompatibleTitle" xml:space="preserve"><value>Java 与当前加载器不兼容</value></data>
+  <data name="Dialog_JavaManualVersionIncompatibleMessageFormat" xml:space="preserve"><value>“{0}” 推荐使用 Java {1}，但当前手动选择的 Java {2} 与该游戏或加载器不兼容。建议转到设置选择合适的 Java；也可以强制启动，但游戏可能仍会异常退出。</value></data>
+  <data name="Dialog_JavaCompatibilityNotMetMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前游戏及加载器兼容要求的 Java（推荐 Java {0}）。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve"><value>转到设置</value></data>
   <data name="Dialog_ForceLaunchButton" xml:space="preserve"><value>强制启动</value></data>
   <data name="Dialog_CancelLaunchButton" xml:space="preserve"><value>取消启动</value></data>

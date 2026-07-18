@@ -94,6 +94,7 @@ private void ObserveGameExit(GameLaunchSession session)
     private static bool ShouldShowJavaRequirementDialog(JavaRuntimeSelectionFailureReason reason)
     {
         return IsAutomaticJavaRuntimeDiscoveryFailure(reason)
-            || reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow;
+            || reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow
+                or JavaRuntimeSelectionFailureReason.ManualRuntimeIncompatible;
     }
 }

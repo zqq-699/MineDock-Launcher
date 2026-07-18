@@ -166,6 +166,7 @@ internal sealed class OverallModpackImportProgress
             case InstallProgressStages.Preparing:
             case InstallProgressStages.DownloadingLoaderInstaller:
             case InstallProgressStages.CheckingJava:
+            case InstallProgressStages.DownloadingJava:
             case InstallProgressStages.RunningLoaderInstaller:
             case InstallProgressStages.FinalizingVersion:
             case InstallProgressStages.CompletingFiles:

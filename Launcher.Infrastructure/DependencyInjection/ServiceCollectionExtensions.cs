@@ -52,6 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceInstallTransactionService, InstanceInstallTransactionService>();
         services.AddSingleton<IInstanceInstallCleanupService, InstanceInstallCleanupService>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
+        services.AddSingleton<ILoaderInstallerJavaRequirementResolver, LoaderInstallerJavaRequirementResolver>();
         services.AddSingleton<LoaderInstallerJavaRuntimeResolver>();
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
         services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();
@@ -93,7 +94,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGameLanguageService, GameLanguageService>();
         services.AddSingleton<IJavaRuntimeDiscoveryService, JavaRuntimeDiscoveryService>();
         services.AddSingleton<IJavaRuntimeSelectionService, JavaRuntimeSelectionService>();
-        services.AddSingleton<IJavaRuntimeProvisioningService, CmlLibJavaRuntimeProvisioningService>();
+        services.AddSingleton<CmlLibJavaRuntimeProvisioningService>();
+        services.AddSingleton<IJavaRuntimeProvisioningService>(serviceProvider =>
+            serviceProvider.GetRequiredService<CmlLibJavaRuntimeProvisioningService>());
+        services.AddSingleton<ILoaderInstallerJavaRuntimeProvisioner>(serviceProvider =>
+            serviceProvider.GetRequiredService<CmlLibJavaRuntimeProvisioningService>());
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalModIconEnrichmentService, LocalModIconEnrichmentService>();

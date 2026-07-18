@@ -37,13 +37,14 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         await CreateVanillaVersionAsync(minecraftDirectory, "1.20.4");
         var expectedJavaPath = Path.Combine(TempRoot, "Selected Java", "bin", "java.exe");
         string? receivedJavaPath = null;
+        var javaRuntimeResolver = new FixedJavaRuntimeResolver(expectedJavaPath);
         var provider = CreateProvider(
             new ScriptedForgeInstallerRunner((gameDirectory, javaPath, _) =>
             {
                 receivedJavaPath = javaPath;
                 return CreateSandboxNeoForgeInstallAsync(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237");
             }),
-            javaRuntimeResolver: new FixedJavaRuntimeResolver(expectedJavaPath));
+            javaRuntimeResolver: javaRuntimeResolver);
 
         await provider.InstallAsync(
             "1.20.4",
@@ -53,6 +54,10 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             progress: null);
 
         Assert.Equal(expectedJavaPath, receivedJavaPath);
+        Assert.Equal(minecraftDirectory, javaRuntimeResolver.LastRequest?.MinecraftDirectory);
+        Assert.Equal(DownloadSourcePreference.Official, javaRuntimeResolver.LastRequest?.DownloadSourcePreference);
+        Assert.Equal(LoaderKind.NeoForge, javaRuntimeResolver.LastRequest?.Loader);
+        Assert.Equal("20.4.237", javaRuntimeResolver.LastRequest?.LoaderVersion);
     }
 
     [Fact]
@@ -469,11 +474,13 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
 
     private sealed class FixedJavaRuntimeResolver(string? executablePath = null) : ILoaderInstallerJavaRuntimeResolver
     {
+        public LoaderInstallerJavaRuntimeRequest? LastRequest { get; private set; }
+
         public Task<JavaRuntimeInfo> ResolveAsync(
-            string minecraftVersion,
-            string versionName,
+            LoaderInstallerJavaRuntimeRequest request,
             CancellationToken cancellationToken = default)
         {
+            LastRequest = request;
             var path = executablePath ?? Path.Combine("C:\\Program Files", "Launcher Java", "bin", "java.exe");
             return Task.FromResult(new JavaRuntimeInfo(
                 "Launcher Java 21",

@@ -81,7 +81,8 @@ public Task SyncCurrentStateAsync()
     private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
     {
         pendingJavaRequirementInstance = e.Instance;
-        IsJavaRequirementForceLaunchAvailable = e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow;
+        IsJavaRequirementForceLaunchAvailable = e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow
+            or JavaRuntimeSelectionFailureReason.ManualRuntimeIncompatible;
 
         if (e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow)
         {
@@ -92,18 +93,27 @@ public Task SyncCurrentStateAsync()
                 e.RequiredMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode,
                 e.CurrentMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode);
         }
+        else if (e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeIncompatible)
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaManualVersionIncompatibleTitle;
+            JavaRequirementDialogMessage = string.Format(
+                Strings.Dialog_JavaManualVersionIncompatibleMessageFormat,
+                string.IsNullOrWhiteSpace(e.Instance.Name) ? e.Instance.VersionName : e.Instance.Name,
+                e.RecommendedMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode,
+                e.CurrentVersion ?? e.CurrentMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode);
+        }
         else if (e.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)
         {
             JavaRequirementDialogTitle = Strings.Dialog_JavaRuntimeMissingTitle;
             JavaRequirementDialogMessage = e.RequiredMajorVersion is int missingRequiredMajorVersion
-                ? string.Format(Strings.Dialog_JavaRuntimeMissingMessageFormat, missingRequiredMajorVersion)
+                ? string.Format(Strings.Dialog_JavaCompatibilityNotMetMessageFormat, missingRequiredMajorVersion)
                 : Strings.Dialog_JavaRuntimeMissingMessage;
         }
         else
         {
             JavaRequirementDialogTitle = Strings.Dialog_JavaRequirementNotMetTitle;
             JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
-                ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
+                ? string.Format(Strings.Dialog_JavaCompatibilityNotMetMessageFormat, requiredMajorVersion)
                 : Strings.Dialog_JavaRequirementNotMetMessage;
         }
 

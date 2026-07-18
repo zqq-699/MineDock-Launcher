@@ -1558,6 +1558,9 @@
   <data name="Status_LaunchCheckingJava" xml:space="preserve">
     <value>Java 実行環境を確認中...</value>
   </data>
+  <data name="Status_InstallDownloadingJava" xml:space="preserve">
+    <value>Java 実行環境をダウンロード中...</value>
+  </data>
   <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve">
     <value>起動前コマンドを実行中...</value>
   </data>
@@ -2530,6 +2533,15 @@
   </data>
   <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve">
     <value>「{0}」には少なくとも Java {1} が必要ですが、現在手動選択されているのは Java {2} です。設定で適切な Java を選択することを推奨します。強制起動もできますが、ゲームが異常終了する可能性があります。</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleTitle" xml:space="preserve">
+    <value>選択した Java は互換性がありません</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleMessageFormat" xml:space="preserve">
+    <value>「{0}」では Java {1} を推奨しますが、手動で選択した Java {2} はこのゲームまたはローダーと互換性がありません。設定で適切な Java を選択してください。強制起動もできますが、ゲームが異常終了する可能性があります。</value>
+  </data>
+  <data name="Dialog_JavaCompatibilityNotMetMessageFormat" xml:space="preserve">
+    <value>このゲームとローダーの互換性要件を満たす Java が自動選択で見つかりませんでした（推奨: Java {0}）。設定で適切な Java を更新またはインポートしてから起動してください。</value>
   </data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve">
     <value>設定へ移動</value>

@@ -47,6 +47,7 @@ internal static class LauncherProgressTextFormatter
             InstallProgressStages.Preparing => Strings.Status_InstallPreparing,
             InstallProgressStages.DownloadingLoaderInstaller => Strings.Status_InstallDownloadingLoaderInstaller,
             InstallProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
+            InstallProgressStages.DownloadingJava => Strings.Status_InstallDownloadingJava,
             InstallProgressStages.RunningLoaderInstaller => Strings.Status_InstallRunningLoaderInstaller,
             InstallProgressStages.FinalizingVersion => Strings.Status_InstallFinalizingVersion,
             InstallProgressStages.CompletingFiles => Strings.Status_InstallCompletingFiles,
@@ -65,6 +66,7 @@ internal static class LauncherProgressTextFormatter
             ImportProgressStages.CopyingOverrides => Strings.Status_ModpackCopyingOverrides,
             ImportProgressStages.CleaningUp => Strings.Status_ModpackCleaningUp,
             LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
+            LaunchProgressStages.DownloadingJava => Strings.Status_InstallDownloadingJava,
             LaunchProgressStages.CheckingFiles => Strings.Status_InstallCheckingFiles,
             LaunchProgressStages.DownloadingFiles => Strings.Status_InstallDownloadingFiles,
             ModProgressStages.DownloadingFile when !string.IsNullOrWhiteSpace(progress.Message)

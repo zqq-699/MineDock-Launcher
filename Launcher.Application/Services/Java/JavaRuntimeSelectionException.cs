@@ -25,12 +25,16 @@ public sealed class JavaRuntimeSelectionException : Exception
         string message,
         JavaRuntimeSelectionFailureReason reason = JavaRuntimeSelectionFailureReason.Unknown,
         int? requiredMajorVersion = null,
-        int? currentMajorVersion = null)
+        int? currentMajorVersion = null,
+        string? currentVersion = null,
+        int? recommendedMajorVersion = null)
         : base(message)
     {
         Reason = reason;
         RequiredMajorVersion = requiredMajorVersion;
         CurrentMajorVersion = currentMajorVersion;
+        CurrentVersion = currentVersion;
+        RecommendedMajorVersion = recommendedMajorVersion ?? requiredMajorVersion;
     }
 
     public JavaRuntimeSelectionException(
@@ -38,12 +42,16 @@ public sealed class JavaRuntimeSelectionException : Exception
         Exception innerException,
         JavaRuntimeSelectionFailureReason reason = JavaRuntimeSelectionFailureReason.Unknown,
         int? requiredMajorVersion = null,
-        int? currentMajorVersion = null)
+        int? currentMajorVersion = null,
+        string? currentVersion = null,
+        int? recommendedMajorVersion = null)
         : base(message, innerException)
     {
         Reason = reason;
         RequiredMajorVersion = requiredMajorVersion;
         CurrentMajorVersion = currentMajorVersion;
+        CurrentVersion = currentVersion;
+        RecommendedMajorVersion = recommendedMajorVersion ?? requiredMajorVersion;
     }
 
     public JavaRuntimeSelectionFailureReason Reason { get; }
@@ -51,6 +59,10 @@ public sealed class JavaRuntimeSelectionException : Exception
     public int? RequiredMajorVersion { get; }
 
     public int? CurrentMajorVersion { get; }
+
+    public string? CurrentVersion { get; }
+
+    public int? RecommendedMajorVersion { get; }
 }
 
 public enum JavaRuntimeSelectionFailureReason
@@ -60,5 +72,6 @@ public enum JavaRuntimeSelectionFailureReason
     AutomaticRuntimeNotFound,
     ManualRuntimeMissing,
     ManualRuntimeUnavailable,
-    ManualRuntimeVersionTooLow
+    ManualRuntimeVersionTooLow,
+    ManualRuntimeIncompatible
 }

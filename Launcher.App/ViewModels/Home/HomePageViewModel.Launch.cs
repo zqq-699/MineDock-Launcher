@@ -93,7 +93,9 @@ public sealed partial class HomePageViewModel
                     javaException.RequiredMajorVersion,
                     javaException.Reason,
                     launchInstance,
-                    javaException.CurrentMajorVersion));
+                    javaException.CurrentMajorVersion,
+                    javaException.CurrentVersion,
+                    javaException.RecommendedMajorVersion));
                 statusService.Report(Strings.Status_JavaSelectionFailed);
                 return;
             }
@@ -115,7 +117,9 @@ public sealed partial class HomePageViewModel
                     exception.RequiredMajorVersion,
                     exception.Reason,
                     launchInstance,
-                    exception.CurrentMajorVersion));
+                    exception.CurrentMajorVersion,
+                    exception.CurrentVersion,
+                    exception.RecommendedMajorVersion));
 
             statusService.Report(Strings.Status_JavaSelectionFailed);
         }

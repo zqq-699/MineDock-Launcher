@@ -95,6 +95,41 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     }
 
     [Fact]
+    public void LauncherQueuesClientJarBeforeOtherCmlLibFiles()
+    {
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            new MinecraftPath(Path.Combine(TempRoot, ".minecraft")),
+            progress: null);
+
+        Assert.IsType<ClientFileExtractor>(launcher.FileExtractors.First());
+    }
+
+    [Fact]
+    public void OrdinaryLauncherDoesNotIncludeJavaExtractors()
+    {
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            new MinecraftPath(Path.Combine(TempRoot, ".minecraft")),
+            progress: null);
+
+        Assert.DoesNotContain(launcher.FileExtractors, extractor => extractor is JavaFileExtractor);
+        Assert.DoesNotContain(launcher.FileExtractors, extractor => extractor is LegacyJavaFileExtractor);
+    }
+
+    [Fact]
+    public void JavaOnlyLauncherContainsOnlyJavaExtractors()
+    {
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            new MinecraftPath(Path.Combine(TempRoot, ".minecraft")),
+            progress: null,
+            javaFileMode: CmlLibJavaFileMode.Only);
+
+        Assert.NotEmpty(launcher.FileExtractors);
+        Assert.All(
+            launcher.FileExtractors,
+            extractor => Assert.True(extractor is JavaFileExtractor or LegacyJavaFileExtractor));
+    }
+
+    [Fact]
     public void GameInstallerUsesGlobalDownloadMaximumWhileKeepingCheckerLimit()
     {
         var sandbox = Path.Combine(TempRoot, "sandbox", ".minecraft");

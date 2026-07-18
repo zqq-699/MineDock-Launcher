@@ -47,6 +47,7 @@ public sealed class OverallModpackImportProgressTests
 
         progress.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty, 100));
         progress.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
+        progress.Report(new LauncherProgress(InstallProgressStages.DownloadingJava, string.Empty, 50));
         progress.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
 
         Assert.Equal(reports.Select(report => report.Percent).Order(), reports.Select(report => report.Percent));

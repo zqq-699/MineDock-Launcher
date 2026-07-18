@@ -44,6 +44,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
         var expectedJavaPath = Path.Combine(TempRoot, "Selected Java", "bin", "java.exe");
         string? receivedJavaPath = null;
+        var javaRuntimeResolver = new FixedJavaRuntimeResolver(expectedJavaPath);
         var provider = CreateProvider(
             new ScriptedForgeInstallerRunner((gameDirectory, javaPath, _) =>
             {
@@ -54,7 +55,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
                     "1.20.1",
                     "1.20.1-47.4.20");
             }),
-            javaRuntimeResolver: new FixedJavaRuntimeResolver(expectedJavaPath));
+            javaRuntimeResolver: javaRuntimeResolver);
 
         await provider.InstallAsync(
             "1.20.1",
@@ -64,6 +65,10 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             progress: null);
 
         Assert.Equal(expectedJavaPath, receivedJavaPath);
+        Assert.Equal(minecraftDirectory, javaRuntimeResolver.LastRequest?.MinecraftDirectory);
+        Assert.Equal(DownloadSourcePreference.Official, javaRuntimeResolver.LastRequest?.DownloadSourcePreference);
+        Assert.Equal(LoaderKind.Forge, javaRuntimeResolver.LastRequest?.Loader);
+        Assert.Equal("47.4.20", javaRuntimeResolver.LastRequest?.LoaderVersion);
     }
 
     [Fact]
@@ -1001,11 +1006,13 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
     private sealed class FixedJavaRuntimeResolver(string? executablePath = null) : ILoaderInstallerJavaRuntimeResolver
     {
+        public LoaderInstallerJavaRuntimeRequest? LastRequest { get; private set; }
+
         public Task<JavaRuntimeInfo> ResolveAsync(
-            string minecraftVersion,
-            string versionName,
+            LoaderInstallerJavaRuntimeRequest request,
             CancellationToken cancellationToken = default)
         {
+            LastRequest = request;
             var path = executablePath ?? Path.Combine("C:\\Program Files", "Launcher Java", "bin", "java.exe");
             return Task.FromResult(new JavaRuntimeInfo(
                 "Launcher Java 21",
@@ -1021,8 +1028,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     private sealed class FailingJavaRuntimeResolver : ILoaderInstallerJavaRuntimeResolver
     {
         public Task<JavaRuntimeInfo> ResolveAsync(
-            string minecraftVersion,
-            string versionName,
+            LoaderInstallerJavaRuntimeRequest request,
             CancellationToken cancellationToken = default)
         {
             throw new JavaRuntimeSelectionException(

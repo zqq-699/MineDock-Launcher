@@ -1558,6 +1558,9 @@
   <data name="Status_LaunchCheckingJava" xml:space="preserve">
     <value>正在檢查 Java 執行環境...</value>
   </data>
+  <data name="Status_InstallDownloadingJava" xml:space="preserve">
+    <value>正在下載 Java 執行環境...</value>
+  </data>
   <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve">
     <value>正在執行啟動前命令...</value>
   </data>
@@ -2530,6 +2533,15 @@
   </data>
   <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve">
     <value>“{0}” 至少需要 Java {1}，但目前手動選擇的是 Java {2}。建議轉到設定選擇合適的 Java；也可以強制啟動，但遊戲可能仍會異常退出。</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleTitle" xml:space="preserve">
+    <value>所選 Java 與目前載入器不相容</value>
+  </data>
+  <data name="Dialog_JavaManualVersionIncompatibleMessageFormat" xml:space="preserve">
+    <value>「{0}」建議使用 Java {1}，但目前手動選擇的 Java {2} 與此遊戲或載入器不相容。建議到設定中選擇合適的 Java；也可以強制啟動，但遊戲仍可能異常結束。</value>
+  </data>
+  <data name="Dialog_JavaCompatibilityNotMetMessageFormat" xml:space="preserve">
+    <value>自動選擇 Java 時找不到符合目前遊戲及載入器相容性要求的 Java（建議 Java {0}）。請到設定中重新整理或匯入合適的 Java 後再啟動遊戲。</value>
   </data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve">
     <value>轉到設定</value>
