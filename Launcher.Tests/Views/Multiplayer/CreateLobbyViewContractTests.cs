@@ -128,6 +128,45 @@ public sealed class CreateLobbyViewContractTests
             sectionHeaders);
     }
 
+    [Fact]
+    public void TerracottaAttributionIsFixedFiftyPixelsAbovePageBottomAndUsesHyperlink()
+    {
+        var view = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "MultiplayerPageView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var pageRoot = Assert.Single(view
+            .Descendants()
+            .Where(element => element.Attribute(xaml + "Name")?.Value == "PageRoot"));
+        var attribution = Assert.Single(pageRoot
+            .Elements()
+            .Where(element => element.Attribute(xaml + "Name")?.Value == "TerracottaAttribution"));
+        var hyperlink = Assert.Single(attribution
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Hyperlink"));
+
+        Assert.Same(pageRoot.Elements().Last(), attribution);
+        Assert.Equal("284,0,24,50", attribution.Attribute("Margin")?.Value);
+        Assert.Equal("Center", attribution.Attribute("HorizontalAlignment")?.Value);
+        Assert.Equal("Bottom", attribution.Attribute("VerticalAlignment")?.Value);
+        Assert.Equal("Center", attribution.Attribute("TextAlignment")?.Value);
+        Assert.Equal("{Binding OpenTerracottaProjectCommand}", hyperlink.Attribute("Command")?.Value);
+        Assert.Equal("{StaticResource MultiplayerProjectHyperlinkStyle}", hyperlink.Attribute("Style")?.Value);
+        var conditions = attribution
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Condition")
+            .Select(element => (element.Attribute("Binding")?.Value, element.Attribute("Value")?.Value))
+            .ToArray();
+        Assert.Contains(("{Binding IsCreateLobbySection}", "True"), conditions);
+        Assert.Contains(("{Binding IsLobbyStep}", "False"), conditions);
+        Assert.Contains(hyperlink.Descendants(), element =>
+            element.Attribute("Text")?.Value
+                == "{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionLinkText}");
+    }
+
     private static DirectoryInfo FindRepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);

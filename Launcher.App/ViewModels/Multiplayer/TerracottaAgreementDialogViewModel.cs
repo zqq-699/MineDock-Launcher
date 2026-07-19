@@ -52,31 +52,20 @@ public sealed partial class TerracottaAgreementDialogViewModel : ObservableObjec
         this.logger = logger ?? NullLogger<TerracottaAgreementDialogViewModel>.Instance;
     }
 
-    public async Task<bool> EnsureReadyAsync()
+    public Task<bool> EnsureReadyAsync()
     {
         if (provisioningService.TryGetAvailable() is not null)
-        {
-            try
-            {
-                await provisioningService.EnsureAvailableAsync().ConfigureAwait(true);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception,
-                    "Terracotta update check failed; the installed module will remain available.");
-            }
-            return true;
-        }
+            return Task.FromResult(true);
 
         if (pendingDecision is not null)
-            return await pendingDecision.Task.ConfigureAwait(true);
+            return pendingDecision.Task;
 
         pendingDecision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         DownloadProgressPercent = 0;
         DownloadStatus = Strings.Dialog_TerracottaDownloadPreparing;
         IsOpen = true;
         logger.LogInformation("Terracotta usage notice requested because the local module is unavailable.");
-        return await pendingDecision.Task.ConfigureAwait(true);
+        return pendingDecision.Task;
     }
 
     [RelayCommand(CanExecute = nameof(CanRespond))]

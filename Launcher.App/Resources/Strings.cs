@@ -89,6 +89,9 @@ public static class Strings
     public static string Multiplayer_Create_StepOpenToLan => Get(nameof(Multiplayer_Create_StepOpenToLan));
     public static string Multiplayer_Create_StepSelectInstance => Get(nameof(Multiplayer_Create_StepSelectInstance));
     public static string Multiplayer_Create_StepCreateLobby => Get(nameof(Multiplayer_Create_StepCreateLobby));
+    public static string Multiplayer_Create_TerracottaAttributionPrefix => Get(nameof(Multiplayer_Create_TerracottaAttributionPrefix));
+    public static string Multiplayer_Create_TerracottaAttributionLinkText => Get(nameof(Multiplayer_Create_TerracottaAttributionLinkText));
+    public static string Multiplayer_Create_TerracottaAttributionSuffix => Get(nameof(Multiplayer_Create_TerracottaAttributionSuffix));
     public static string Multiplayer_LobbyTitleFormat => Get(nameof(Multiplayer_LobbyTitleFormat));
     public static string Multiplayer_LobbyOwnerPlaceholder => Get(nameof(Multiplayer_LobbyOwnerPlaceholder));
     public static string Multiplayer_LobbyGameWorldPlaceholder => Get(nameof(Multiplayer_LobbyGameWorldPlaceholder));

@@ -25,6 +25,7 @@ public sealed partial class MultiplayerPageViewModel : ObservableObject
     private readonly IUiDispatcher uiDispatcher;
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
+    private readonly IExternalLinkService? externalLinkService;
     private readonly ILogger<MultiplayerPageViewModel> logger;
 
     [ObservableProperty]
@@ -68,6 +69,7 @@ public sealed partial class MultiplayerPageViewModel : ObservableObject
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         AccountPageViewModel? accountPage = null,
+        IExternalLinkService? externalLinkService = null,
         ILogger<MultiplayerPageViewModel>? logger = null)
     {
         this.lanWorldDiscoveryService = lanWorldDiscoveryService;
@@ -77,6 +79,7 @@ public sealed partial class MultiplayerPageViewModel : ObservableObject
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
         this.accountPage = accountPage;
+        this.externalLinkService = externalLinkService;
         this.logger = logger ?? NullLogger<MultiplayerPageViewModel>.Instance;
         Sections =
         [
@@ -274,6 +277,25 @@ public sealed partial class MultiplayerPageViewModel : ObservableObject
         floatingMessageService.Show(Strings.Multiplayer_LobbyRoomCodeCopied);
     }
 
+    [RelayCommand]
+    private void OpenTerracottaProject()
+    {
+        try
+        {
+            if (externalLinkService?.TryOpen(TerracottaAgreementDialogViewModel.TerracottaProjectUrl) is true)
+                return;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to open the Terracotta project page from the multiplayer page.");
+            ReportExternalLinkFailure();
+            return;
+        }
+
+        logger.LogWarning("Failed to open the Terracotta project page from the multiplayer page.");
+        ReportExternalLinkFailure();
+    }
+
     private void OnLobbySnapshotChanged(MultiplayerLobbySnapshot snapshot)
     {
         uiDispatcher.Post(() => ApplyLobbySnapshot(snapshot));
@@ -334,6 +356,12 @@ public sealed partial class MultiplayerPageViewModel : ObservableObject
         LanWorldDiscoveryStatus = message;
         statusService.Report(message);
         floatingMessageService.Show(message);
+    }
+
+    private void ReportExternalLinkFailure()
+    {
+        statusService.Report(Strings.Status_OpenTerracottaProjectFailed);
+        floatingMessageService.Show(Strings.Status_OpenTerracottaProjectFailed);
     }
 
     private static string MapCreationFailure(MultiplayerLobbyCreationFailure failure)

@@ -1215,4 +1215,7 @@
   <data name="Multiplayer_LobbyTerracottaServiceFailed" xml:space="preserve"><value>Terracotta 联机服务异常，房间已自动解散。</value></data>
   <data name="Multiplayer_Create_MultipleLanWorldsWarning" xml:space="preserve"><value>检测到多个世界，Terracotta 将自动使用最先探测到的世界。</value></data>
   <data name="Multiplayer_LobbyPoweredByTerracotta" xml:space="preserve"><value>联机服务由 Terracotta | 陶瓦联机提供</value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>联机功能由 </value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value> 驱动。</value></data>
 </root>

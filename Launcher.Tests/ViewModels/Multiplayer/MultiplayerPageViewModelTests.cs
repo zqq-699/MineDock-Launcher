@@ -197,11 +197,25 @@ public sealed class MultiplayerPageViewModelTests
         Assert.Equal(MultiplayerCreateLobbyStep.Setup, viewModel.CreateLobbyStep);
     }
 
+    [Fact]
+    public void TerracottaProjectLinkUsesOfficialRepository()
+    {
+        var externalLinks = new RecordingExternalLinkService();
+        var viewModel = CreateViewModel(
+            new FakeLanWorldDiscoveryService([]),
+            externalLinkService: externalLinks);
+
+        viewModel.OpenTerracottaProjectCommand.Execute(null);
+
+        Assert.Equal(TerracottaAgreementDialogViewModel.TerracottaProjectUrl, externalLinks.LastUrl);
+    }
+
     private static MultiplayerPageViewModel CreateViewModel(
         IMinecraftLanWorldDiscoveryService discoveryService,
         FakeMultiplayerLobbyService? lobbyService = null,
         RecordingClipboardService? clipboardService = null,
-        RecordingMessageService? messageService = null)
+        RecordingMessageService? messageService = null,
+        IExternalLinkService? externalLinkService = null)
     {
         var messages = messageService ?? new RecordingMessageService();
         return new MultiplayerPageViewModel(
@@ -210,7 +224,8 @@ public sealed class MultiplayerPageViewModelTests
             clipboardService ?? new RecordingClipboardService(),
             ImmediateUiDispatcher.Instance,
             messages,
-            messages);
+            messages,
+            externalLinkService: externalLinkService);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)
@@ -288,6 +303,17 @@ public sealed class MultiplayerPageViewModelTests
     {
         public string? Text { get; private set; }
         public void CopyText(string text) => Text = text;
+    }
+
+    private sealed class RecordingExternalLinkService : IExternalLinkService
+    {
+        public string? LastUrl { get; private set; }
+
+        public bool TryOpen(string url)
+        {
+            LastUrl = url;
+            return true;
+        }
     }
 
     private sealed class RecordingMessageService : IStatusService, IFloatingMessageService

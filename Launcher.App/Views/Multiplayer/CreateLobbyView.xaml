@@ -27,6 +27,7 @@
                            FontSize="13"
                            TextTrimming="CharacterEllipsis" />
             </DataTemplate>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -118,6 +119,7 @@
                            Style="{StaticResource SettingsDescriptionTextStyle}" />
             </StackPanel>
         </GroupBox>
+
         </StackPanel>
 
         <Grid x:Name="CreatedLobbyLayer"

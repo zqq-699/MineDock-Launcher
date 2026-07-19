@@ -81,8 +81,9 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
             TerracottaModule module;
             try
             {
-                module = await provisioningService.EnsureAvailableAsync(cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
+                module = provisioningService.TryGetAvailable()
+                    ?? await provisioningService.EnsureAvailableAsync(cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

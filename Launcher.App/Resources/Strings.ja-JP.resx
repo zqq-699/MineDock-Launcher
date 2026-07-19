@@ -3463,4 +3463,7 @@
   <data name="Multiplayer_Create_MultipleLanWorldsWarning" xml:space="preserve"><value>複数のワールドが見つかりました。Terracotta は最初に検出したワールドを自動的に使用します。</value></data>
   <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve"><value>手順2：更新をクリックし、公開中のLANワールドが検出されたことを確認します。</value></data>
   <data name="Multiplayer_LobbyPoweredByTerracotta" xml:space="preserve"><value>マルチプレイ機能は Terracotta によって提供されています</value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>マルチプレイ機能は </value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
+  <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value> によって提供されています。</value></data>
 </root>

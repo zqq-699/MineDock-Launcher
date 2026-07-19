@@ -35,6 +35,15 @@
                                                 Command="{Binding DataContext.SelectSectionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:MultiplayerPageView}}}"
                                                 CommandParameter="{Binding}" />
         </DataTemplate>
+
+        <Style x:Key="MultiplayerProjectHyperlinkStyle" TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Primary}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Hover}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid x:Name="PageRoot"
@@ -71,5 +80,31 @@
                 </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
+
+        <TextBlock x:Name="TerracottaAttribution"
+                   Panel.ZIndex="1"
+                   Margin="284,0,24,50"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"
+                   Foreground="{DynamicResource LauncherTextSecondaryBrush}"
+                   FontSize="12"
+                   TextAlignment="Center">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsCreateLobbySection}" Value="True" />
+                                <Condition Binding="{Binding IsLobbyStep}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+            <Run Text="{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionPrefix}" /><Hyperlink Command="{Binding OpenTerracottaProjectCommand}"
+                                                                                                            Style="{StaticResource MultiplayerProjectHyperlinkStyle}"><Run Text="{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionLinkText}" /></Hyperlink><Run Text="{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionSuffix}" />
+        </TextBlock>
     </Grid>
 </UserControl>

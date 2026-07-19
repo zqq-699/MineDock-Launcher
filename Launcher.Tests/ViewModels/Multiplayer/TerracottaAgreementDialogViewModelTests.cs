@@ -15,7 +15,7 @@ namespace Launcher.Tests.ViewModels.Multiplayer;
 public sealed class TerracottaAgreementDialogViewModelTests
 {
     [Fact]
-    public async Task InstalledModuleChecksForUpdatesWithoutOpeningDialog()
+    public async Task InstalledModuleAllowsEntryWithoutCheckingForUpdates()
     {
         var context = Create(isAvailable: true);
 
@@ -23,7 +23,7 @@ public sealed class TerracottaAgreementDialogViewModelTests
 
         Assert.True(result);
         Assert.False(context.ViewModel.IsOpen);
-        Assert.Equal(1, context.Provisioning.EnsureCount);
+        Assert.Equal(0, context.Provisioning.EnsureCount);
     }
 
     [Fact]
