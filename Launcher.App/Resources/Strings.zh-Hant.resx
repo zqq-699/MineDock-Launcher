@@ -136,16 +136,22 @@
     <value>加入大廳</value>
   </data>
   <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
-    <value>選擇遊戲實例</value>
+    <value>選擇已開放的區域網路世界</value>
   </data>
   <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
-    <value>請選擇遊戲實例</value>
+    <value>請選擇已開放的區域網路世界</value>
   </data>
+  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>點擊「重新整理」以偵測這台電腦上已開放的區域網路世界。</value></data>
+  <data name="Multiplayer_Create_LanWorldDiscovering" xml:space="preserve"><value>正在重新整理</value></data>
+  <data name="Multiplayer_Create_LanWorldNotFound" xml:space="preserve"><value>未偵測到這台電腦上已開放的區域網路世界，請確認已在遊戲中開放至區域網路。</value></data>
+  <data name="Multiplayer_Create_LanWorldDiscoveryFailed" xml:space="preserve"><value>無法偵測區域網路世界，請檢查網路權限後重試。</value></data>
+  <data name="Multiplayer_Create_UnknownLanWorld" xml:space="preserve"><value>未命名的區域網路世界</value></data>
+  <data name="Multiplayer_Create_LanWorldItemFormat" xml:space="preserve"><value>{0} · 連接埠 {1}</value></data>
   <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
     <value>第一步：進入世界，並在遊戲選單中點擊「對區域網路開放」。</value>
   </data>
   <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
-    <value>第二步：在啟動器下拉選單中選擇遊戲實例。</value>
+    <value>第二步：點擊重新整理，並選擇偵測到的本機區域網路世界。</value>
   </data>
   <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
     <value>第三步：點擊「建立大廳」。</value>
@@ -3432,6 +3438,25 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>無法儲存使用者協議接受狀態，請重試。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>無法開啟使用者協議，請檢查系統瀏覽器設定後重試。</value></data>
+  <data name="Dialog_EasyTierAgreementTitle" xml:space="preserve"><value>連線功能使用須知</value></data>
+  <data name="Dialog_EasyTierAgreementMessagePrefix" xml:space="preserve"><value>連線功能由</value></data>
+  <data name="Dialog_EasyTierAgreementMessageProvider" xml:space="preserve"><value>EasyTier驅動。使用連線功能時，您必須遵守中國大陸相關法律法規，不得用於違法用途</value></data>
+  <data name="Dialog_EasyTierAgreementMessageSuffix" xml:space="preserve"><value>，使用連線功能即代表您同意 </value></data>
+  <data name="Dialog_EasyTierAgreementLink" xml:space="preserve"><value>EasyTier 使用者協議</value></data>
+  <data name="Dialog_EasyTierAgreementMessageAnd" xml:space="preserve"><value>和</value></data>
+  <data name="Dialog_EasyTierPrivacyPolicyLink" xml:space="preserve"><value>隱私政策</value></data>
+  <data name="Dialog_EasyTierAgreementMessageEnd" xml:space="preserve"><value>。</value></data>
+  <data name="Dialog_EasyTierDownloadNotice" xml:space="preserve"><value>同意後，啟動器將自動下載並驗證連線模組。</value></data>
+  <data name="Dialog_EasyTierDisagreeButton" xml:space="preserve"><value>不同意</value></data>
+  <data name="Dialog_EasyTierAgreeButton" xml:space="preserve"><value>同意</value></data>
+  <data name="Dialog_EasyTierDownloadPreparing" xml:space="preserve"><value>準備下載連線模組…</value></data>
+  <data name="Dialog_EasyTierDownloading" xml:space="preserve"><value>正在下載連線模組…</value></data>
+  <data name="Dialog_EasyTierExtracting" xml:space="preserve"><value>正在安裝連線模組…</value></data>
+  <data name="Dialog_EasyTierDownloadComplete" xml:space="preserve"><value>連線模組已就緒。</value></data>
+  <data name="Dialog_EasyTierDownloadFailed" xml:space="preserve"><value>下載失敗，您可以重試或暫不啟用連線功能。</value></data>
+  <data name="Status_EasyTierReady" xml:space="preserve"><value>EasyTier 連線模組已就緒。</value></data>
+  <data name="Status_EasyTierDownloadFailed" xml:space="preserve"><value>連線模組下載或驗證失敗，請檢查網路後重試。</value></data>
+  <data name="Status_OpenEasyTierLegalDocumentFailed" xml:space="preserve"><value>無法開啟 EasyTier 協議頁面，請檢查系統瀏覽器設定後重試。</value></data>
   <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
   <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
   <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>

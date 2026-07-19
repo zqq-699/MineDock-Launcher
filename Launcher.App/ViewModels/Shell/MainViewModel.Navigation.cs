@@ -36,8 +36,14 @@ namespace Launcher.App.ViewModels.Shell;
 public sealed partial class MainViewModel
 {
 [RelayCommand]
-    private void Navigate(NavigationItem item)
+    private async Task NavigateAsync(NavigationItem item)
     {
+        if (NavigationCatalog.IsPage(item.Page, NavigationCatalog.MultiplayerPage)
+            && !await EasyTierAgreementDialog.EnsureReadyAsync())
+        {
+            return;
+        }
+
         SelectNavigationItem(item);
     }
 

@@ -1131,6 +1131,55 @@
 
             <controls:DialogHost Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"
+                                 DialogWidth="500"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsOpen}"
+                                 DataContext="{Binding EasyTierAgreementDialog}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_EasyTierAgreementTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <StackPanel Grid.Row="1"
+                                Margin="0,16,0,24">
+                        <TextBlock Style="{StaticResource DialogBodyTextStyle}"
+                                   TextWrapping="Wrap">
+                            <Run Text="{x:Static res:Strings.Dialog_EasyTierAgreementMessagePrefix}" />
+                            <Run Text="{x:Static res:Strings.Dialog_EasyTierAgreementMessageProvider}" />
+                        </TextBlock>
+                        <StackPanel Margin="0,16,0,0"
+                                    Visibility="{Binding IsDownloading, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                            <TextBlock Text="{Binding DownloadStatus}"
+                                       Style="{StaticResource DialogBodyTextStyle}" />
+                            <ProgressBar Height="5"
+                                         Margin="0,8,0,0"
+                                         Minimum="0"
+                                         Maximum="100"
+                                         Value="{Binding DownloadProgressPercent}"
+                                         Style="{StaticResource LauncherProgressBarStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Dialog_EasyTierDisagreeButton}"
+                                Command="{Binding DisagreeCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Dialog_EasyTierAgreeButton}"
+                                Command="{Binding AgreeCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
                                  DialogWidth="460"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsOpen}"

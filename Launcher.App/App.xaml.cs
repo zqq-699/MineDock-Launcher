@@ -120,6 +120,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<LauncherShutdownService>();
             services.AddSingleton<LaunchStatusDialogViewModel>();
             services.AddSingleton<UserAgreementDialogViewModel>();
+            services.AddSingleton<EasyTierAgreementDialogViewModel>();
             services.AddSingleton<AccountListViewModel>();
             services.AddSingleton<AccountDialogViewModel>();
             services.AddSingleton<AccountAppearanceViewModel>();

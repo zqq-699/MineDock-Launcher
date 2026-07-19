@@ -21,6 +21,11 @@
                 <ResourceDictionary Source="/BlockHelm_Launcher_x64;component/Views/Settings/SettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <DataTemplate x:Key="MultiplayerLanWorldItemTemplate">
+                <TextBlock Text="{Binding DisplayText}"
+                           Foreground="{DynamicResource Brush.F4F4F4}"
+                           TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -35,48 +40,64 @@
             </StackPanel.RenderTransform>
         <GroupBox Header="{x:Static res:Strings.Multiplayer_Create_SelectGameInstanceSection}"
                   Style="{StaticResource LauncherContentSectionStyle}">
-            <Grid HorizontalAlignment="Left">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="320" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
+            <StackPanel HorizontalAlignment="Left">
                 <Grid>
-                    <controls:AnimatedComboBox x:Name="GameInstanceSelector"
-                                               HorizontalAlignment="Stretch"
-                                               Style="{StaticResource LauncherComboBoxStyle}" />
-                    <TextBlock Margin="13,0,34,0"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Text="{x:Static res:Strings.Multiplayer_Create_GameInstancePlaceholder}"
-                               TextTrimming="CharacterEllipsis">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{DynamicResource LauncherTextSecondaryBrush}" />
-                                <Setter Property="FontSize" Value="13" />
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=GameInstanceSelector}"
-                                                 Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid>
+                        <controls:AnimatedComboBox x:Name="GameInstanceSelector"
+                                                   HorizontalAlignment="Stretch"
+                                                   ItemsSource="{Binding LanWorlds}"
+                                                   SelectedItem="{Binding SelectedLanWorld, Mode=TwoWay}"
+                                                   IsEnabled="{Binding CanSelectLanWorld}"
+                                                   ItemTemplate="{StaticResource MultiplayerLanWorldItemTemplate}"
+                                                   SelectionItemTemplate="{StaticResource MultiplayerLanWorldItemTemplate}"
+                                                   Style="{StaticResource LauncherComboBoxStyle}">
+                        </controls:AnimatedComboBox>
+                        <TextBlock Margin="13,0,34,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Text="{x:Static res:Strings.Multiplayer_Create_GameInstancePlaceholder}"
+                                   TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource LauncherTextSecondaryBrush}" />
+                                    <Setter Property="FontSize" Value="13" />
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedItem, ElementName=GameInstanceSelector}"
+                                                     Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <Button Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Content="{x:Static res:Strings.Refresh_Button}"
+                            Command="{Binding RefreshLanWorldsCommand}"
+                            Style="{StaticResource LauncherDialogButtonStyle}" />
+                    <Button Grid.Column="2"
+                            Margin="10,0,0,0"
+                            Content="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
+                            Command="{Binding CreateLobbyCommand}"
+                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
                 </Grid>
 
-                <Button Grid.Column="1"
-                        Margin="12,0,0,0"
-                        Content="{x:Static res:Strings.Refresh_Button}"
-                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                <Button Grid.Column="2"
-                        Margin="10,0,0,0"
-                        Content="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
-                        Command="{Binding CreateLobbyCommand}"
-                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
-            </Grid>
+                <TextBlock Margin="0,10,0,0"
+                           MaxWidth="560"
+                           Text="{Binding LanWorldDiscoveryStatus}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding HasLanWorldDiscoveryStatus, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+            </StackPanel>
         </GroupBox>
 
         <GroupBox Margin="0,26,0,0"
@@ -130,7 +151,7 @@
                 </Grid>
                 <TextBlock Margin="0,8,0,0"
                            HorizontalAlignment="Left"
-                           Text="{x:Static res:Strings.Multiplayer_LobbyGameWorldPlaceholder}"
+                           Text="{Binding SelectedLanWorld.DisplayText}"
                            Foreground="{DynamicResource Brush.AFFFFFFF}"
                            FontSize="13" />
 

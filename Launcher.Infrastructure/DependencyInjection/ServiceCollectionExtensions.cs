@@ -28,6 +28,7 @@ using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Modrinth;
+using Launcher.Infrastructure.Multiplayer;
 using Launcher.Infrastructure.Platform;
 using Launcher.Infrastructure.Persistence;
 using Launcher.Infrastructure.Resources;
@@ -144,6 +145,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IThirdPartyAccountService, ThirdPartyAccountService>();
         services.AddSingleton<IThirdPartyLaunchSessionService, ThirdPartyLaunchSessionService>();
         services.AddSingleton<IAuthlibInjectorProvisioningService, AuthlibInjectorProvisioningService>();
+        services.AddSingleton<IEasyTierProvisioningService, EasyTierProvisioningService>();
+        services.AddSingleton<IMinecraftLanWorldDiscoveryService, MinecraftLanWorldDiscoveryService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();

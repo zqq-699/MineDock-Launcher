@@ -136,16 +136,22 @@
     <value>ロビーに参加</value>
   </data>
   <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
-    <value>ゲームインスタンスを選択</value>
+    <value>公開済みのLANワールドを選択</value>
   </data>
   <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
-    <value>ゲームインスタンスを選択してください</value>
+    <value>公開済みのLANワールドを選択してください</value>
   </data>
+  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>「更新」をクリックして、このコンピューターで公開中のLANワールドを検出します。</value></data>
+  <data name="Multiplayer_Create_LanWorldDiscovering" xml:space="preserve"><value>更新中</value></data>
+  <data name="Multiplayer_Create_LanWorldNotFound" xml:space="preserve"><value>このコンピューターで公開中のLANワールドが見つかりません。MinecraftでLANに公開したことを確認してください。</value></data>
+  <data name="Multiplayer_Create_LanWorldDiscoveryFailed" xml:space="preserve"><value>LANワールドを検出できません。ネットワーク権限を確認して再試行してください。</value></data>
+  <data name="Multiplayer_Create_UnknownLanWorld" xml:space="preserve"><value>名前のないLANワールド</value></data>
+  <data name="Multiplayer_Create_LanWorldItemFormat" xml:space="preserve"><value>{0} · ポート {1}</value></data>
   <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
     <value>ステップ1：ワールドに入り、ゲームメニューで「LANに公開」をクリックします。</value>
   </data>
   <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
-    <value>ステップ2：ランチャーのドロップダウンメニューでゲームインスタンスを選択します。</value>
+    <value>ステップ2：「更新」をクリックし、検出されたこのコンピューターのLANワールドを選択します。</value>
   </data>
   <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
     <value>ステップ3：「ロビーを作成」をクリックします。</value>
@@ -3432,6 +3438,25 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意する</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>利用規約への同意状態を保存できませんでした。もう一度お試しください。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>利用規約を開けませんでした。既定のブラウザー設定を確認して、もう一度お試しください。</value></data>
+  <data name="Dialog_EasyTierAgreementTitle" xml:space="preserve"><value>マルチプレイ機能の利用上の注意</value></data>
+  <data name="Dialog_EasyTierAgreementMessagePrefix" xml:space="preserve"><value>マルチプレイ機能は</value></data>
+  <data name="Dialog_EasyTierAgreementMessageProvider" xml:space="preserve"><value>EasyTierによって動作します。マルチプレイ機能を使用する際は、中国本土の関連法令を遵守し、違法な目的に使用してはなりません。</value></data>
+  <data name="Dialog_EasyTierAgreementMessageSuffix" xml:space="preserve"><value>。マルチプレイ機能を使用すると、</value></data>
+  <data name="Dialog_EasyTierAgreementLink" xml:space="preserve"><value>EasyTier 利用規約</value></data>
+  <data name="Dialog_EasyTierAgreementMessageAnd" xml:space="preserve"><value>および</value></data>
+  <data name="Dialog_EasyTierPrivacyPolicyLink" xml:space="preserve"><value>プライバシーポリシー</value></data>
+  <data name="Dialog_EasyTierAgreementMessageEnd" xml:space="preserve"><value>に同意したものとみなされます。</value></data>
+  <data name="Dialog_EasyTierDownloadNotice" xml:space="preserve"><value>同意すると、ランチャーがマルチプレイモジュールを自動的にダウンロードして検証します。</value></data>
+  <data name="Dialog_EasyTierDisagreeButton" xml:space="preserve"><value>同意しない</value></data>
+  <data name="Dialog_EasyTierAgreeButton" xml:space="preserve"><value>同意する</value></data>
+  <data name="Dialog_EasyTierDownloadPreparing" xml:space="preserve"><value>マルチプレイモジュールを準備しています…</value></data>
+  <data name="Dialog_EasyTierDownloading" xml:space="preserve"><value>マルチプレイモジュールをダウンロードしています…</value></data>
+  <data name="Dialog_EasyTierExtracting" xml:space="preserve"><value>マルチプレイモジュールをインストールしています…</value></data>
+  <data name="Dialog_EasyTierDownloadComplete" xml:space="preserve"><value>マルチプレイモジュールの準備ができました。</value></data>
+  <data name="Dialog_EasyTierDownloadFailed" xml:space="preserve"><value>ダウンロードに失敗しました。再試行するか、マルチプレイを有効にせず閉じることができます。</value></data>
+  <data name="Status_EasyTierReady" xml:space="preserve"><value>EasyTier マルチプレイモジュールの準備ができました。</value></data>
+  <data name="Status_EasyTierDownloadFailed" xml:space="preserve"><value>マルチプレイモジュールのダウンロードまたは検証に失敗しました。ネットワークを確認して再試行してください。</value></data>
+  <data name="Status_OpenEasyTierLegalDocumentFailed" xml:space="preserve"><value>EasyTier の規約ページを開けませんでした。既定のブラウザー設定を確認して、もう一度お試しください。</value></data>
   <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
   <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
   <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>
