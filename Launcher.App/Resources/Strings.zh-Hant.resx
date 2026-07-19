@@ -126,6 +126,75 @@
   <data name="Page_Resources" xml:space="preserve">
     <value>資源中心</value>
   </data>
+  <data name="Page_Multiplayer" xml:space="preserve">
+    <value>聯機</value>
+  </data>
+  <data name="Multiplayer_SectionCreateLobby" xml:space="preserve">
+    <value>建立大廳</value>
+  </data>
+  <data name="Multiplayer_SectionJoinLobby" xml:space="preserve">
+    <value>加入大廳</value>
+  </data>
+  <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
+    <value>選擇遊戲實例</value>
+  </data>
+  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
+    <value>請選擇遊戲實例</value>
+  </data>
+  <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
+    <value>第一步：進入世界，並在遊戲選單中點擊「對區域網路開放」。</value>
+  </data>
+  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
+    <value>第二步：在啟動器下拉選單中選擇遊戲實例。</value>
+  </data>
+  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
+    <value>第三步：點擊「建立大廳」。</value>
+  </data>
+  <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve">
+    <value>{0}的遊戲大廳</value>
+  </data>
+  <data name="Multiplayer_LobbyOwnerPlaceholder" xml:space="preserve">
+    <value>玩家</value>
+  </data>
+  <data name="Multiplayer_LobbyGameWorldPlaceholder" xml:space="preserve">
+    <value>實例名稱-世界名稱</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodeHeader" xml:space="preserve">
+    <value>房間代碼</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodePlaceholder" xml:space="preserve">
+    <value>XXXX-XXXX</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerListHeader" xml:space="preserve">
+    <value>玩家列表</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerPlaceholderFormat" xml:space="preserve">
+    <value>玩家 {0}</value>
+  </data>
+  <data name="Multiplayer_LobbyClientIdPlaceholderFormat" xml:space="preserve">
+    <value>client-placeholder-{0}</value>
+  </data>
+  <data name="Multiplayer_LobbyLatencyPlaceholder" xml:space="preserve">
+    <value>xxx ms</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRoleHost" xml:space="preserve">
+    <value>房主</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
+    <value>玩家</value>
+  </data>
+  <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
+    <value>退出並解散</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve">
+    <value>退出並解散大廳？</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve">
+    <value>退出後大廳將被解散，其他玩家也會中斷連線。是否確認退出？</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyConfirmButton" xml:space="preserve">
+    <value>退出</value>
+  </data>
   <data name="Resources_SectionMods" xml:space="preserve">
     <value>模組</value>
   </data>

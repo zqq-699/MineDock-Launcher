@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48">
+
+ <g>
+  <title>Layer 1</title>
+  <path id="svg_4" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m32,6l6,0c2.2091,0 4,1.79086 4,4l0,6"/>
+  <path id="svg_5" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m16,42l-6,0c-2.20914,0 -4,-1.7909 -4,-4l0,-6"/>
+  <path id="svg_6" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m13,16l0,6"/>
+  <path id="svg_7" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m19,22l-6,0l-6,0"/>
+  <path id="svg_8" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" fill="none" d="m22,16l0,-12l-18,0l0,12l18,0z"/>
+  <path id="svg_9" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m35,38l0,6"/>
+  <path id="svg_10" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" d="m41,44l-6,0l-6,0"/>
+  <path id="svg_11" stroke-linejoin="round" stroke-linecap="round" stroke-width="4" stroke="currentColor" fill="none" d="m44,38l0,-12l-18,0l0,12l18,0z"/>
+ </g>
+</svg>

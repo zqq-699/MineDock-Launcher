@@ -245,6 +245,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+
                 </Grid>
                 <ContentPresenter Content="{Binding DataContext, ElementName=Root}"
                                   ContentTemplate="{Binding SearchToolbarContentTemplate, ElementName=Root}"

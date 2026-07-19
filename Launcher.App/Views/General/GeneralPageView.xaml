@@ -43,6 +43,9 @@
                     <DataTrigger Binding="{Binding CurrentPage}" Value="GameSettings">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding CurrentPage}" Value="Multiplayer">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
                     <DataTrigger Binding="{Binding CurrentPage}" Value="Resources">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>

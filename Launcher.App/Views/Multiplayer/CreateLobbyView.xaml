@@ -1,0 +1,197 @@
+<!--
+  BlockHelm Launcher
+  Copyright (C) 2026 Quan Zhou
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, version 3.
+
+  SPDX-License-Identifier: GPL-3.0-only
+-->
+
+<UserControl x:Class="Launcher.App.Views.Multiplayer.CreateLobbyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BlockHelm_Launcher_x64;component/Views/Settings/SettingsSectionResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="CreateLobbyStepHost"
+          ClipToBounds="True">
+        <StackPanel x:Name="CreateLobbySetupLayer"
+                    Margin="0,62,12,72"
+                    MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                    HorizontalAlignment="Stretch">
+            <StackPanel.RenderTransform>
+                <TranslateTransform />
+            </StackPanel.RenderTransform>
+        <GroupBox Header="{x:Static res:Strings.Multiplayer_Create_SelectGameInstanceSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <Grid HorizontalAlignment="Left">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid>
+                    <controls:AnimatedComboBox x:Name="GameInstanceSelector"
+                                               HorizontalAlignment="Stretch"
+                                               Style="{StaticResource LauncherComboBoxStyle}" />
+                    <TextBlock Margin="13,0,34,0"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Text="{x:Static res:Strings.Multiplayer_Create_GameInstancePlaceholder}"
+                               TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource LauncherTextSecondaryBrush}" />
+                                <Setter Property="FontSize" Value="13" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=GameInstanceSelector}"
+                                                 Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <Button Grid.Column="1"
+                        Margin="12,0,0,0"
+                        Content="{x:Static res:Strings.Refresh_Button}"
+                        Style="{StaticResource LauncherDialogButtonStyle}" />
+                <Button Grid.Column="2"
+                        Margin="10,0,0,0"
+                        Content="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
+                        Command="{Binding CreateLobbyCommand}"
+                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Margin="0,26,0,0"
+                  Header="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <StackPanel>
+                <TextBlock Text="{x:Static res:Strings.Multiplayer_Create_StepOpenToLan}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+                <TextBlock Margin="0,10,0,0"
+                           Text="{x:Static res:Strings.Multiplayer_Create_StepSelectInstance}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+                <TextBlock Margin="0,10,0,0"
+                           Text="{x:Static res:Strings.Multiplayer_Create_StepCreateLobby}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+            </StackPanel>
+            </GroupBox>
+        </StackPanel>
+
+        <Grid x:Name="CreatedLobbyLayer"
+              MinHeight="360"
+              Opacity="0"
+              Visibility="Collapsed">
+            <Grid.RenderTransform>
+                <TranslateTransform />
+            </Grid.RenderTransform>
+
+            <StackPanel Margin="0,62,12,72"
+                        MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                        HorizontalAlignment="Stretch">
+                <controls:SvgIcon Width="64"
+                                  Height="64"
+                                  HorizontalAlignment="Left"
+                                  IconKey="main_menu_Multiplayer"
+                                  Foreground="{DynamicResource Brush.F4F4F4}" />
+                <Grid Margin="0,18,0,0"
+                      HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               Text="{Binding LobbyTitle}"
+                               Style="{StaticResource PageTitleTextStyle}" />
+                    <Button Grid.Column="1"
+                            Margin="10,0,0,0"
+                            Content="{x:Static res:Strings.Multiplayer_LobbyLeaveAndDisbandButton}"
+                            Command="{Binding RequestLeaveLobbyCommand}"
+                            Style="{StaticResource LauncherDangerDialogButtonStyle}" />
+                </Grid>
+                <TextBlock Margin="0,8,0,0"
+                           HorizontalAlignment="Left"
+                           Text="{x:Static res:Strings.Multiplayer_LobbyGameWorldPlaceholder}"
+                           Foreground="{DynamicResource Brush.AFFFFFFF}"
+                           FontSize="13" />
+
+                <StackPanel Margin="0,26,0,0">
+                    <GroupBox Header="{x:Static res:Strings.Multiplayer_LobbyRoomCodeHeader}"
+                              Style="{StaticResource LauncherContentSectionStyle}">
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{x:Static res:Strings.Multiplayer_LobbyRoomCodePlaceholder}"
+                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                                <Button Grid.Column="1"
+                                        Margin="10,-4,-6,-4"
+                                        Style="{StaticResource InlineIconButtonStyle}">
+                                    <controls:SvgIcon Width="16"
+                                                      Height="16"
+                                                      IconKey="general/general_copy"
+                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </GroupBox>
+                </StackPanel>
+
+                <GroupBox Margin="0,26,0,0"
+                          Header="{x:Static res:Strings.Multiplayer_LobbyPlayerListHeader}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <ItemsControl ItemsSource="{Binding LobbyPlayers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:ListPageItemButton Title="{Binding DisplayName}"
+                                                             Subtitle="{Binding ClientId}"
+                                                             TrailingText="{x:Static res:Strings.Multiplayer_LobbyLatencyPlaceholder}"
+                                                             IconKey="main_menu_account"
+                                                             ItemMargin="0"
+                                                             IsFirstVisible="{Binding IsFirst}"
+                                                             IsLastVisible="{Binding IsLast}">
+                                    <controls:ListPageItemButton.TitleTrailingContent>
+                                        <controls:AdaptiveTagList ItemsSource="{Binding RoleTags}">
+                                            <controls:AdaptiveTagList.Style>
+                                                <Style TargetType="{x:Type controls:AdaptiveTagList}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsHost}" Value="True">
+                                                            <Setter Property="TagBackground" Value="{DynamicResource Brush.Accent.Selection}" />
+                                                            <Setter Property="TagForeground" Value="{DynamicResource Brush.Accent.Primary}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </controls:AdaptiveTagList.Style>
+                                        </controls:AdaptiveTagList>
+                                    </controls:ListPageItemButton.TitleTrailingContent>
+                                </controls:ListPageItemButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </GroupBox>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

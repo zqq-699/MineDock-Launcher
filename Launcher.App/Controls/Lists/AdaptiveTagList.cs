@@ -20,6 +20,7 @@
 using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Launcher.App.Controls;
 
@@ -32,6 +33,18 @@ public sealed class AdaptiveTagList : Panel
         typeof(IEnumerable),
         typeof(AdaptiveTagList),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure, OnItemsSourceChanged));
+
+    public static readonly DependencyProperty TagBackgroundProperty = DependencyProperty.Register(
+        nameof(TagBackground),
+        typeof(Brush),
+        typeof(AdaptiveTagList),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnTagAppearanceChanged));
+
+    public static readonly DependencyProperty TagForegroundProperty = DependencyProperty.Register(
+        nameof(TagForeground),
+        typeof(Brush),
+        typeof(AdaptiveTagList),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnTagAppearanceChanged));
 
     private readonly List<Border> itemTags = [];
     private readonly TextBlock overflowText;
@@ -51,6 +64,18 @@ public sealed class AdaptiveTagList : Panel
     {
         get => (IEnumerable?)GetValue(ItemsSourceProperty);
         set => SetValue(ItemsSourceProperty, value);
+    }
+
+    public Brush? TagBackground
+    {
+        get => (Brush?)GetValue(TagBackgroundProperty);
+        set => SetValue(TagBackgroundProperty, value);
+    }
+
+    public Brush? TagForeground
+    {
+        get => (Brush?)GetValue(TagForegroundProperty);
+        set => SetValue(TagForegroundProperty, value);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -135,6 +160,12 @@ public sealed class AdaptiveTagList : Panel
             list.RebuildItems(args.NewValue as IEnumerable);
     }
 
+    private static void OnTagAppearanceChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    {
+        if (dependencyObject is AdaptiveTagList list)
+            list.RefreshTagAppearance();
+    }
+
     private void RebuildItems(IEnumerable? items)
     {
         Children.Clear();
@@ -161,9 +192,33 @@ public sealed class AdaptiveTagList : Panel
             Padding = new Thickness(6, 1, 6, 1),
             Child = text
         };
-        tag.SetResourceReference(Border.BackgroundProperty, "Brush.14FFFFFF");
+        ApplyTagAppearance(tag);
         tag.SetResourceReference(Border.CornerRadiusProperty, "LauncherCornerRadiusSmall");
         return tag;
+    }
+
+    private void RefreshTagAppearance()
+    {
+        foreach (var tag in itemTags)
+            ApplyTagAppearance(tag);
+
+        ApplyTagAppearance(overflowTag);
+    }
+
+    private void ApplyTagAppearance(Border tag)
+    {
+        if (TagBackground is null)
+            tag.SetResourceReference(Border.BackgroundProperty, "Brush.14FFFFFF");
+        else
+            tag.Background = TagBackground;
+
+        if (tag.Child is not TextBlock text)
+            return;
+
+        if (TagForeground is null)
+            text.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Text.Secondary");
+        else
+            text.Foreground = TagForeground;
     }
 
     private static TextBlock CreateTagText(string text)

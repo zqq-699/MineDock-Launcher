@@ -34,6 +34,7 @@ public sealed class PageTitleConverter : IValueConverter
             "Download" => Strings.Page_Download,
             "Install" => Strings.Page_Install,
             "GameSettings" => Strings.Page_GameSettings,
+            "Multiplayer" => Strings.Page_Multiplayer,
             "Resources" => Strings.Page_Resources,
             "Settings" => Strings.Page_Settings,
             _ => value?.ToString() ?? string.Empty

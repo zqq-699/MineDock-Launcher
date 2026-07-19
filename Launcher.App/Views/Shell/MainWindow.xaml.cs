@@ -160,6 +160,9 @@ public partial class MainWindow : Window
         if (string.Equals(page, "GameSettings", StringComparison.OrdinalIgnoreCase))
             return GameSettingsPageView.RootElement;
 
+        if (string.Equals(page, "Multiplayer", StringComparison.OrdinalIgnoreCase))
+            return MultiplayerPageView.RootElement;
+
         if (string.Equals(page, "Resources", StringComparison.OrdinalIgnoreCase))
             return ResourcesPageView.RootElement;
 

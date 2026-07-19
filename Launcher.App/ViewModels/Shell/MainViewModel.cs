@@ -24,6 +24,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Multiplayer;
 using Launcher.App.ViewModels.Resources;
 using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
@@ -95,6 +96,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPageViewModel downloadPage,
         DownloadTasksPageViewModel downloadTasksPage,
         GameSettingsPageViewModel gameSettingsPage,
+        MultiplayerPageViewModel multiplayerPage,
         ResourcesPageViewModel resourcesPage,
         SettingsPageViewModel settingsPage,
         GameManagementViewModel gameManagement,
@@ -116,6 +118,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
         GameSettingsPage = gameSettingsPage;
+        MultiplayerPage = multiplayerPage;
         ResourcesPage = resourcesPage;
         SettingsPage = settingsPage;
         GameManagement = gameManagement;
@@ -151,6 +154,8 @@ public sealed partial class MainViewModel : ObservableObject
     public DownloadTasksPageViewModel DownloadTasksPage { get; }
 
     public GameSettingsPageViewModel GameSettingsPage { get; }
+
+    public MultiplayerPageViewModel MultiplayerPage { get; }
 
     public ResourcesPageViewModel ResourcesPage { get; }
 

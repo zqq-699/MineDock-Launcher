@@ -21,6 +21,7 @@ global using Launcher.App.ViewModels.Account;
 global using Launcher.App.ViewModels.Download;
 global using Launcher.App.ViewModels.GameSettings;
 global using Launcher.App.ViewModels.Home;
+global using Launcher.App.ViewModels.Multiplayer;
 global using Launcher.App.ViewModels.Resources;
 global using Launcher.App.ViewModels.Settings;
 global using Launcher.App.ViewModels.Shared;

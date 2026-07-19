@@ -31,6 +31,7 @@ internal static class NavigationCatalog
     public const string DownloadPage = "Download";
     public const string InstallPage = "Install";
     public const string GameSettingsPage = "GameSettings";
+    public const string MultiplayerPage = "Multiplayer";
     public const string ResourcesPage = "Resources";
     public const string SettingsPage = "Settings";
 
@@ -51,6 +52,7 @@ internal static class NavigationCatalog
         [
             new NavigationItem { Page = AccountPage, Title = Strings.Page_Account, Icon = "\uE77B", IconKey = "main_menu_account" },
             new NavigationItem { Page = HomePage, Title = Strings.Page_Home, Icon = "\uE80F", IconKey = "main_menu_launch" },
+            new NavigationItem { Page = MultiplayerPage, Title = Strings.Page_Multiplayer, Icon = "\uE701", IconKey = "main_menu_Multiplayer" },
             new NavigationItem { Page = DownloadPage, Title = Strings.Page_Download, Icon = "\uE896", IconKey = "main_menu_instance_download" },
             new NavigationItem { Page = GameSettingsPage, Title = Strings.Page_GameSettings, Icon = "\uE713", IconKey = "main_menu_instance_setting" },
             new NavigationItem { Page = ResourcesPage, Title = Strings.Page_Resources, Icon = "\uE8F1", IconKey = "main_menu_library" },

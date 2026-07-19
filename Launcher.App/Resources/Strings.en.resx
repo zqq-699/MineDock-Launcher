@@ -126,6 +126,75 @@
   <data name="Page_Resources" xml:space="preserve">
     <value>Resources</value>
   </data>
+  <data name="Page_Multiplayer" xml:space="preserve">
+    <value>Multiplayer</value>
+  </data>
+  <data name="Multiplayer_SectionCreateLobby" xml:space="preserve">
+    <value>Create Lobby</value>
+  </data>
+  <data name="Multiplayer_SectionJoinLobby" xml:space="preserve">
+    <value>Join Lobby</value>
+  </data>
+  <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
+    <value>Select Game Instance</value>
+  </data>
+  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
+    <value>Select a game instance</value>
+  </data>
+  <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
+    <value>Step 1: Enter a world, then click “Open to LAN” in the game menu.</value>
+  </data>
+  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
+    <value>Step 2: Select the game instance from the launcher drop-down menu.</value>
+  </data>
+  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
+    <value>Step 3: Click “Create Lobby”.</value>
+  </data>
+  <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve">
+    <value>{0}'s Game Lobby</value>
+  </data>
+  <data name="Multiplayer_LobbyOwnerPlaceholder" xml:space="preserve">
+    <value>Player</value>
+  </data>
+  <data name="Multiplayer_LobbyGameWorldPlaceholder" xml:space="preserve">
+    <value>Instance Name-World Name</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodeHeader" xml:space="preserve">
+    <value>Room Code</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodePlaceholder" xml:space="preserve">
+    <value>XXXX-XXXX</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerListHeader" xml:space="preserve">
+    <value>Players</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerPlaceholderFormat" xml:space="preserve">
+    <value>Player {0}</value>
+  </data>
+  <data name="Multiplayer_LobbyClientIdPlaceholderFormat" xml:space="preserve">
+    <value>client-placeholder-{0}</value>
+  </data>
+  <data name="Multiplayer_LobbyLatencyPlaceholder" xml:space="preserve">
+    <value>xxx ms</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRoleHost" xml:space="preserve">
+    <value>Host</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
+    <value>Player</value>
+  </data>
+  <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
+    <value>Leave and disband</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve">
+    <value>Leave and disband lobby?</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve">
+    <value>Leaving will disband the lobby and disconnect the other players. Are you sure you want to leave?</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyConfirmButton" xml:space="preserve">
+    <value>Leave</value>
+  </data>
   <data name="Resources_SectionMods" xml:space="preserve">
     <value>Mods</value>
   </data>

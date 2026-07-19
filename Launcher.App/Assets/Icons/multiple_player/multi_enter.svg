@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+ <g class="layer">
+  <title>Layer 1</title>
+  <path d="m24,6l-15,0c-1.66,0 -3,1.34 -3,3l0,22c0,1.66 1.34,3 3,3l30,0c1.66,0 3,-1.34 3,-3l0,-8" id="svg_1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m24,34l0,8" id="svg_2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m14,42l20,0" id="svg_3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m36,7l-5,5l5,5" id="svg_4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m42,12l-11,0" id="svg_5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+ </g>
+</svg>

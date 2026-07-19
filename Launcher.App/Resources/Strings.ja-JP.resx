@@ -126,6 +126,75 @@
   <data name="Page_Resources" xml:space="preserve">
     <value>リソースセンター</value>
   </data>
+  <data name="Page_Multiplayer" xml:space="preserve">
+    <value>マルチプレイ</value>
+  </data>
+  <data name="Multiplayer_SectionCreateLobby" xml:space="preserve">
+    <value>ロビーを作成</value>
+  </data>
+  <data name="Multiplayer_SectionJoinLobby" xml:space="preserve">
+    <value>ロビーに参加</value>
+  </data>
+  <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
+    <value>ゲームインスタンスを選択</value>
+  </data>
+  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
+    <value>ゲームインスタンスを選択してください</value>
+  </data>
+  <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
+    <value>ステップ1：ワールドに入り、ゲームメニューで「LANに公開」をクリックします。</value>
+  </data>
+  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
+    <value>ステップ2：ランチャーのドロップダウンメニューでゲームインスタンスを選択します。</value>
+  </data>
+  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
+    <value>ステップ3：「ロビーを作成」をクリックします。</value>
+  </data>
+  <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve">
+    <value>{0}のゲームロビー</value>
+  </data>
+  <data name="Multiplayer_LobbyOwnerPlaceholder" xml:space="preserve">
+    <value>プレイヤー</value>
+  </data>
+  <data name="Multiplayer_LobbyGameWorldPlaceholder" xml:space="preserve">
+    <value>インスタンス名-ワールド名</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodeHeader" xml:space="preserve">
+    <value>ルームコード</value>
+  </data>
+  <data name="Multiplayer_LobbyRoomCodePlaceholder" xml:space="preserve">
+    <value>XXXX-XXXX</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerListHeader" xml:space="preserve">
+    <value>プレイヤー一覧</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerPlaceholderFormat" xml:space="preserve">
+    <value>プレイヤー {0}</value>
+  </data>
+  <data name="Multiplayer_LobbyClientIdPlaceholderFormat" xml:space="preserve">
+    <value>client-placeholder-{0}</value>
+  </data>
+  <data name="Multiplayer_LobbyLatencyPlaceholder" xml:space="preserve">
+    <value>xxx ms</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRoleHost" xml:space="preserve">
+    <value>ホスト</value>
+  </data>
+  <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
+    <value>プレイヤー</value>
+  </data>
+  <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
+    <value>退出して解散</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve">
+    <value>ロビーから退出して解散しますか？</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve">
+    <value>退出するとロビーが解散され、ほかのプレイヤーも切断されます。退出しますか？</value>
+  </data>
+  <data name="Dialog_MultiplayerLeaveLobbyConfirmButton" xml:space="preserve">
+    <value>退出</value>
+  </data>
   <data name="Resources_SectionMods" xml:space="preserve">
     <value>Mod</value>
   </data>
