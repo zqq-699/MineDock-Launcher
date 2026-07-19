@@ -8,6 +8,18 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Application.Services;
 
+public static class TerracottaProjectMetadata
+{
+    public const string RepositoryUrl = "https://github.com/burningtnt/Terracotta";
+    public const string ReferencedVersion = "0.4.2";
+}
+
+public static class EasyTierProjectMetadata
+{
+    public const string RepositoryUrl = "https://github.com/burningtnt/EasyTier/tree/v2.5.0-terracotta.2";
+    public const string ReferencedVersion = "v2.5.0-terracotta.2";
+}
+
 public sealed record TerracottaModule(
     string Version,
     string Architecture,

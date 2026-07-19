@@ -344,7 +344,7 @@
     <value>選擇要安裝到的遊戲</value>
   </data>
   <data name="Resources_ModInstallTargetLocal" xml:space="preserve">
-    <value>下載到本機</value>
+    <value>另存新檔</value>
   </data>
   <data name="Resources_ModInstallTargetsLoading" xml:space="preserve">
     <value>正在載入遊戲清單...</value>
@@ -425,7 +425,7 @@
     <value>選擇要安裝到的遊戲</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve">
-    <value>下載到本機</value>
+    <value>另存新檔</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve">
     <value>正在載入遊戲清單...</value>
@@ -509,7 +509,7 @@
     <value>選擇要安裝到的遊戲</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve">
-    <value>下載到本機</value>
+    <value>另存新檔</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve">
     <value>正在載入遊戲清單...</value>
@@ -596,7 +596,7 @@
     <value>選擇要安裝到的遊戲</value>
   </data>
   <data name="Resources_WorldInstallTargetLocal" xml:space="preserve">
-    <value>下載到本機</value>
+    <value>另存新檔</value>
   </data>
   <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve">
     <value>正在載入遊戲清單...</value>
@@ -695,7 +695,7 @@
     <value>安裝為新遊戲</value>
   </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
-    <value>下載到本機</value>
+    <value>另存新檔</value>
   </data>
   <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve">
     <value>正在準備安裝方式...</value>

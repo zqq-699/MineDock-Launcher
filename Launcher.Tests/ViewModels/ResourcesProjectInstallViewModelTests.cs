@@ -30,6 +30,18 @@ namespace Launcher.Tests.ViewModels;
 public sealed class ResourcesProjectInstallViewModelTests
 {
     [Fact]
+    public void ModpackInstallTargetsUseExpectedIcons()
+    {
+        var newInstance = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall(
+            Strings.Resources_ModpackInstallTargetNewInstance);
+        var saveAs = ResourcesModInstallTargetItemViewModel.CreateLocalDownload(
+            Strings.Resources_ModpackInstallTargetLocal);
+
+        Assert.Equal("main_menu_instance_download", newInstance.IconKey);
+        Assert.Equal("save_as", saveAs.IconKey);
+    }
+
+    [Fact]
     public async Task LocalDownloadUsesDirectoryTargetAndCompletesTask()
     {
         var installation = new RecordingInstallationService();

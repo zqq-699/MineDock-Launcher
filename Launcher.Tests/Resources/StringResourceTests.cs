@@ -50,6 +50,27 @@ public sealed class StringResourceTests
     }
 
     [Theory]
+    [InlineData("Strings.resx", "另存为")]
+    [InlineData("Strings.zh-Hans.resx", "另存为")]
+    [InlineData("Strings.zh-Hant.resx", "另存新檔")]
+    [InlineData("Strings.en.resx", "Save As")]
+    [InlineData("Strings.ja-JP.resx", "名前を付けて保存")]
+    public void ResourceLocalInstallTargetsUseSaveAsCopy(string fileName, string expected)
+    {
+        var resources = Load(fileName);
+        var keys = new[]
+        {
+            nameof(Strings.Resources_ModInstallTargetLocal),
+            nameof(Strings.Resources_ResourcePackInstallTargetLocal),
+            nameof(Strings.Resources_ShaderPackInstallTargetLocal),
+            nameof(Strings.Resources_WorldInstallTargetLocal),
+            nameof(Strings.Resources_ModpackInstallTargetLocal)
+        };
+
+        Assert.All(keys, key => Assert.Equal(expected, resources[key]));
+    }
+
+    [Theory]
     [InlineData("Strings.resx", "大厅")]
     [InlineData("Strings.zh-Hans.resx", "大厅")]
     [InlineData("Strings.zh-Hant.resx", "大廳")]

@@ -344,7 +344,7 @@
     <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ModInstallTargetLocal" xml:space="preserve">
-    <value>ローカルにダウンロード</value>
+    <value>名前を付けて保存</value>
   </data>
   <data name="Resources_ModInstallTargetsLoading" xml:space="preserve">
     <value>ゲームリストを読み込み中...</value>
@@ -425,7 +425,7 @@
     <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve">
-    <value>ローカルにダウンロード</value>
+    <value>名前を付けて保存</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve">
     <value>ゲームリストを読み込み中...</value>
@@ -509,7 +509,7 @@
     <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve">
-    <value>ローカルにダウンロード</value>
+    <value>名前を付けて保存</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve">
     <value>ゲームリストを読み込み中...</value>
@@ -596,7 +596,7 @@
     <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_WorldInstallTargetLocal" xml:space="preserve">
-    <value>ローカルにダウンロード</value>
+    <value>名前を付けて保存</value>
   </data>
   <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve">
     <value>ゲームリストを読み込み中...</value>
@@ -695,7 +695,7 @@
     <value>新しいゲームとしてインストール</value>
   </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
-    <value>ローカルにダウンロード</value>
+    <value>名前を付けて保存</value>
   </data>
   <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve">
     <value>インストール方法を準備中...</value>

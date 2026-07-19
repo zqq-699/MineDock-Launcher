@@ -90,7 +90,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
             title,
             subtitle: string.Empty,
             iconSource: null,
-            iconKey: "general/general_extention",
+            iconKey: "main_menu_instance_download",
             isLocalDownload: false,
             isNewInstanceInstall: true);
     }
@@ -103,7 +103,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
             title ?? Strings.Resources_ModInstallTargetLocal,
             subtitle: string.Empty,
             iconSource: null,
-            iconKey: "main_menu_instance_download",
+            iconKey: "save_as",
             isLocalDownload: true,
             isNewInstanceInstall: false);
     }

@@ -344,7 +344,7 @@
     <value>Choose a Game to Install To</value>
   </data>
   <data name="Resources_ModInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>Save As</value>
   </data>
   <data name="Resources_ModInstallTargetsLoading" xml:space="preserve">
     <value>Loading game list...</value>
@@ -425,7 +425,7 @@
     <value>Choose a Game to Install To</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>Save As</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve">
     <value>Loading game list...</value>
@@ -509,7 +509,7 @@
     <value>Choose a Game to Install To</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>Save As</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve">
     <value>Loading game list...</value>
@@ -596,7 +596,7 @@
     <value>Choose a Game to Install To</value>
   </data>
   <data name="Resources_WorldInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>Save As</value>
   </data>
   <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve">
     <value>Loading game list...</value>
@@ -695,7 +695,7 @@
     <value>Install as New Game</value>
   </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>Save As</value>
   </data>
   <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve">
     <value>Preparing installation methods...</value>

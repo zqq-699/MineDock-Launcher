@@ -17,7 +17,7 @@ namespace Launcher.App.ViewModels.Multiplayer;
 
 public sealed partial class TerracottaAgreementDialogViewModel : ObservableObject
 {
-    internal const string TerracottaProjectUrl = "https://github.com/burningtnt/Terracotta";
+    internal const string TerracottaProjectUrl = TerracottaProjectMetadata.RepositoryUrl;
 
     private readonly ITerracottaProvisioningService provisioningService;
     private readonly IExternalLinkService externalLinkService;

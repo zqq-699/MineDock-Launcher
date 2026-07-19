@@ -117,6 +117,18 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
             "Copyright (c) 2025 Adam Hathcock",
             "MIT License"),
         new InfoReferenceProjectItem(
+            "Terracotta | 陶瓦联机",
+            TerracottaProjectMetadata.ReferencedVersion,
+            TerracottaProjectMetadata.RepositoryUrl,
+            "Copyright (c) Terracotta contributors",
+            "AGPL-3.0-or-later License with exception"),
+        new InfoReferenceProjectItem(
+            "EasyTier",
+            EasyTierProjectMetadata.ReferencedVersion,
+            EasyTierProjectMetadata.RepositoryUrl,
+            "Copyright (c) EasyTier contributors",
+            "LGPL-3.0 License"),
+        new InfoReferenceProjectItem(
             "IconPark",
             "1.0.0",
             "https://github.com/bytedance/IconPark",
