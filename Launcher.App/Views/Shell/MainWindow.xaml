@@ -1134,7 +1134,7 @@
                                  DialogWidth="500"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsOpen}"
-                                 DataContext="{Binding EasyTierAgreementDialog}">
+                                 DataContext="{Binding TerracottaAgreementDialog}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1142,15 +1142,21 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Dialog_EasyTierAgreementTitle}"
+                    <TextBlock Text="{x:Static res:Strings.Dialog_TerracottaAgreementTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <StackPanel Grid.Row="1"
                                 Margin="0,16,0,24">
                         <TextBlock Style="{StaticResource DialogBodyTextStyle}"
                                    TextWrapping="Wrap">
-                            <Run Text="{x:Static res:Strings.Dialog_EasyTierAgreementMessagePrefix}" />
-                            <Run Text="{x:Static res:Strings.Dialog_EasyTierAgreementMessageProvider}" />
+                            <Run Text="{x:Static res:Strings.Dialog_TerracottaAgreementMessage}" />
+                        </TextBlock>
+                        <TextBlock Margin="0,12,0,0"
+                                   Style="{StaticResource DialogBodyTextStyle}">
+                            <Hyperlink Command="{Binding OpenProjectCommand}"
+                                       Foreground="{DynamicResource LauncherAccentBrush}">
+                                <Run Text="{x:Static res:Strings.Dialog_TerracottaProjectLink}" />
+                            </Hyperlink>
                         </TextBlock>
                         <StackPanel Margin="0,16,0,0"
                                     Visibility="{Binding IsDownloading, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
@@ -1168,11 +1174,11 @@
                     <StackPanel Grid.Row="2"
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                Content="{x:Static res:Strings.Dialog_EasyTierDisagreeButton}"
+                                Content="{x:Static res:Strings.Dialog_TerracottaDisagreeButton}"
                                 Command="{Binding DisagreeCommand}" />
                         <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
-                                Content="{x:Static res:Strings.Dialog_EasyTierAgreeButton}"
+                                Content="{x:Static res:Strings.Dialog_TerracottaAgreeButton}"
                                 Command="{Binding AgreeCommand}" />
                     </StackPanel>
                 </Grid>

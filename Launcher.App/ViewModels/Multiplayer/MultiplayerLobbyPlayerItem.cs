@@ -13,7 +13,8 @@ namespace Launcher.App.ViewModels.Multiplayer;
 
 public sealed record MultiplayerLobbyPlayerItem(
     string DisplayName,
-    string ClientId,
+    string Subtitle,
+    string LatencyText,
     string Role,
     bool IsHost,
     bool IsFirst,

@@ -130,18 +130,14 @@
     <value>マルチプレイ</value>
   </data>
   <data name="Multiplayer_SectionCreateLobby" xml:space="preserve">
-    <value>ロビーを作成</value>
+    <value>ルームを作成</value>
   </data>
   <data name="Multiplayer_SectionJoinLobby" xml:space="preserve">
-    <value>ロビーに参加</value>
+    <value>ルームに参加</value>
   </data>
   <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve">
     <value>公開済みのLANワールドを選択</value>
-  </data>
-  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve">
-    <value>公開済みのLANワールドを選択してください</value>
-  </data>
-  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>「更新」をクリックして、このコンピューターで公開中のLANワールドを検出します。</value></data>
+  </data>  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>「更新」をクリックして、このコンピューターで公開中のLANワールドを検出します。</value></data>
   <data name="Multiplayer_Create_LanWorldDiscovering" xml:space="preserve"><value>更新中</value></data>
   <data name="Multiplayer_Create_LanWorldNotFound" xml:space="preserve"><value>このコンピューターで公開中のLANワールドが見つかりません。MinecraftでLANに公開したことを確認してください。</value></data>
   <data name="Multiplayer_Create_LanWorldDiscoveryFailed" xml:space="preserve"><value>LANワールドを検出できません。ネットワーク権限を確認して再試行してください。</value></data>
@@ -149,15 +145,11 @@
   <data name="Multiplayer_Create_LanWorldItemFormat" xml:space="preserve"><value>{0} · ポート {1}</value></data>
   <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve">
     <value>ステップ1：ワールドに入り、ゲームメニューで「LANに公開」をクリックします。</value>
-  </data>
-  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve">
-    <value>ステップ2：「更新」をクリックし、検出されたこのコンピューターのLANワールドを選択します。</value>
-  </data>
-  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
-    <value>ステップ3：「ロビーを作成」をクリックします。</value>
+  </data>  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve">
+    <value>ステップ3：「ルームを作成」をクリックします。</value>
   </data>
   <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve">
-    <value>{0}のゲームロビー</value>
+    <value>{0}のゲームルーム</value>
   </data>
   <data name="Multiplayer_LobbyOwnerPlaceholder" xml:space="preserve">
     <value>プレイヤー</value>
@@ -193,10 +185,10 @@
     <value>退出して解散</value>
   </data>
   <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve">
-    <value>ロビーから退出して解散しますか？</value>
+    <value>ルームから退出して解散しますか？</value>
   </data>
   <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve">
-    <value>退出するとロビーが解散され、ほかのプレイヤーも切断されます。退出しますか？</value>
+    <value>退出するとルームが解散され、ほかのプレイヤーも切断されます。退出しますか？</value>
   </data>
   <data name="Dialog_MultiplayerLeaveLobbyConfirmButton" xml:space="preserve">
     <value>退出</value>
@@ -3438,26 +3430,37 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意する</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>利用規約への同意状態を保存できませんでした。もう一度お試しください。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>利用規約を開けませんでした。既定のブラウザー設定を確認して、もう一度お試しください。</value></data>
-  <data name="Dialog_EasyTierAgreementTitle" xml:space="preserve"><value>マルチプレイ機能の利用上の注意</value></data>
-  <data name="Dialog_EasyTierAgreementMessagePrefix" xml:space="preserve"><value>マルチプレイ機能は</value></data>
-  <data name="Dialog_EasyTierAgreementMessageProvider" xml:space="preserve"><value>EasyTierによって動作します。マルチプレイ機能を使用する際は、中国本土の関連法令を遵守し、違法な目的に使用してはなりません。</value></data>
-  <data name="Dialog_EasyTierAgreementMessageSuffix" xml:space="preserve"><value>。マルチプレイ機能を使用すると、</value></data>
-  <data name="Dialog_EasyTierAgreementLink" xml:space="preserve"><value>EasyTier 利用規約</value></data>
-  <data name="Dialog_EasyTierAgreementMessageAnd" xml:space="preserve"><value>および</value></data>
-  <data name="Dialog_EasyTierPrivacyPolicyLink" xml:space="preserve"><value>プライバシーポリシー</value></data>
-  <data name="Dialog_EasyTierAgreementMessageEnd" xml:space="preserve"><value>に同意したものとみなされます。</value></data>
-  <data name="Dialog_EasyTierDownloadNotice" xml:space="preserve"><value>同意すると、ランチャーがマルチプレイモジュールを自動的にダウンロードして検証します。</value></data>
-  <data name="Dialog_EasyTierDisagreeButton" xml:space="preserve"><value>同意しない</value></data>
-  <data name="Dialog_EasyTierAgreeButton" xml:space="preserve"><value>同意する</value></data>
-  <data name="Dialog_EasyTierDownloadPreparing" xml:space="preserve"><value>マルチプレイモジュールを準備しています…</value></data>
-  <data name="Dialog_EasyTierDownloading" xml:space="preserve"><value>マルチプレイモジュールをダウンロードしています…</value></data>
-  <data name="Dialog_EasyTierExtracting" xml:space="preserve"><value>マルチプレイモジュールをインストールしています…</value></data>
-  <data name="Dialog_EasyTierDownloadComplete" xml:space="preserve"><value>マルチプレイモジュールの準備ができました。</value></data>
-  <data name="Dialog_EasyTierDownloadFailed" xml:space="preserve"><value>ダウンロードに失敗しました。再試行するか、マルチプレイを有効にせず閉じることができます。</value></data>
-  <data name="Status_EasyTierReady" xml:space="preserve"><value>EasyTier マルチプレイモジュールの準備ができました。</value></data>
-  <data name="Status_EasyTierDownloadFailed" xml:space="preserve"><value>マルチプレイモジュールのダウンロードまたは検証に失敗しました。ネットワークを確認して再試行してください。</value></data>
-  <data name="Status_OpenEasyTierLegalDocumentFailed" xml:space="preserve"><value>EasyTier の規約ページを開けませんでした。既定のブラウザー設定を確認して、もう一度お試しください。</value></data>
+  <data name="Dialog_TerracottaAgreementTitle" xml:space="preserve"><value>マルチプレイ機能の利用上の注意</value></data>
+  <data name="Dialog_TerracottaAgreementMessage" xml:space="preserve"><value>マルチプレイ機能は Terracotta によって提供され、EasyTier を基盤としています。使用する際は、中国本土の関連法令を遵守し、違法な目的に使用してはなりません。</value></data>
+  <data name="Dialog_TerracottaProjectLink" xml:space="preserve"><value>Terracotta プロジェクト</value></data>
+  <data name="Dialog_TerracottaDisagreeButton" xml:space="preserve"><value>同意しない</value></data>
+  <data name="Dialog_TerracottaAgreeButton" xml:space="preserve"><value>同意する</value></data>
+  <data name="Dialog_TerracottaDownloadPreparing" xml:space="preserve"><value>マルチプレイモジュールを準備しています…</value></data>
+  <data name="Dialog_TerracottaDownloading" xml:space="preserve"><value>マルチプレイモジュールをダウンロードしています…</value></data>
+  <data name="Dialog_TerracottaExtracting" xml:space="preserve"><value>マルチプレイモジュールをインストールしています…</value></data>
+  <data name="Dialog_TerracottaDownloadComplete" xml:space="preserve"><value>マルチプレイモジュールの準備ができました。</value></data>
+  <data name="Dialog_TerracottaDownloadFailed" xml:space="preserve"><value>ダウンロードに失敗しました。再試行するか、マルチプレイを有効にせず閉じることができます。</value></data>
+  <data name="Status_TerracottaReady" xml:space="preserve"><value>Terracotta マルチプレイモジュールの準備ができました。</value></data>
+  <data name="Status_TerracottaDownloadFailed" xml:space="preserve"><value>マルチプレイモジュールのダウンロードまたは検証に失敗しました。ネットワークを確認して再試行してください。</value></data>
+  <data name="Status_OpenTerracottaProjectFailed" xml:space="preserve"><value>Terracotta のプロジェクトページを開けませんでした。既定のブラウザー設定を確認してください。</value></data>
   <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
   <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
   <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>
+  <data name="Multiplayer_Create_CreatingLobby" xml:space="preserve"><value>ルームを作成中</value></data>
+  <data name="Multiplayer_Create_LobbyFailed" xml:space="preserve"><value>ルームを作成できませんでした。しばらくしてから再試行してください。</value></data>
+  <data name="Multiplayer_Create_TerracottaUnavailable" xml:space="preserve"><value>Terracotta マルチプレイモジュールを使用できません。マルチプレイ画面を開き直してください。</value></data>
+  <data name="Multiplayer_Create_WorldUnavailable" xml:space="preserve"><value>利用可能なLANワールドが見つかりません。ワールドがLANに公開されたままであることを確認してください。</value></data>
+  <data name="Multiplayer_Create_TerracottaBusy" xml:space="preserve"><value>Terracotta は別のランチャーで使用中です。別のルームを終了してから再試行してください。</value></data>
+  <data name="Multiplayer_Create_TerracottaProtocolFailed" xml:space="preserve"><value>Terracotta サービスで問題が発生しました。他の Terracotta を終了してから再試行してください。</value></data>
+  <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
+  <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>ルームコードをコピーしました</value></data>
+  <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>ルームを解散できませんでした。しばらくしてから再試行してください。</value></data>
+  <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>LAN ワールドが終了したため、ルームを自動的に解散しました。</value></data>
+  <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta が停止したため、ルームを自動的に解散しました。</value></data>
+  <data name="Multiplayer_LobbyTerracottaServiceFailed" xml:space="preserve"><value>Terracotta サービスで問題が発生したため、ルームを自動的に解散しました。</value></data>
+  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve"><value>更新してワールドを検出</value></data>
+  <data name="Multiplayer_Create_MultipleLanWorldsWarning" xml:space="preserve"><value>複数のワールドが見つかりました。Terracotta は最初に検出したワールドを自動的に使用します。</value></data>
+  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve"><value>手順2：更新をクリックし、公開中のLANワールドが検出されたことを確認します。</value></data>
+  <data name="Multiplayer_LobbyPoweredByTerracotta" xml:space="preserve"><value>マルチプレイ機能は Terracotta によって提供されています</value></data>
 </root>

@@ -49,6 +49,22 @@ public sealed class StringResourceTests
         }
     }
 
+    [Theory]
+    [InlineData("Strings.resx", "大厅")]
+    [InlineData("Strings.zh-Hans.resx", "大厅")]
+    [InlineData("Strings.zh-Hant.resx", "大廳")]
+    [InlineData("Strings.en.resx", "lobby")]
+    [InlineData("Strings.ja-JP.resx", "ロビー")]
+    public void MultiplayerCopyDoesNotUseLegacyLobbyTerm(string fileName, string legacyTerm)
+    {
+        var multiplayerResources = Load(fileName)
+            .Where(entry => entry.Key.StartsWith("Multiplayer_", StringComparison.Ordinal)
+                || entry.Key.StartsWith("Dialog_Multiplayer", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(multiplayerResources, entry =>
+            entry.Value.Contains(legacyTerm, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static IReadOnlyDictionary<string, string> Load(string fileName)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);

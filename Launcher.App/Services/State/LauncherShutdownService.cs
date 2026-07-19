@@ -33,6 +33,7 @@ public sealed class LauncherShutdownService
     private readonly IInstanceInstallCleanupService installCleanupService;
     private readonly IModpackWorkspaceCleanupService workspaceCleanupService;
     private readonly IModpackSandboxCleanupService sandboxCleanupService;
+    private readonly IMultiplayerLobbyService? multiplayerLobbyService;
     private readonly ILogger<LauncherShutdownService> logger;
     private Task? shutdownTask;
 
@@ -42,13 +43,15 @@ public sealed class LauncherShutdownService
         IModpackWorkspaceCleanupService workspaceCleanupService,
         IModpackSandboxCleanupService sandboxCleanupService,
         SettingsPageViewModel? settingsPage = null,
-        ILogger<LauncherShutdownService>? logger = null)
+        ILogger<LauncherShutdownService>? logger = null,
+        IMultiplayerLobbyService? multiplayerLobbyService = null)
     {
         this.downloadTasksPage = downloadTasksPage;
         this.settingsPage = settingsPage;
         this.installCleanupService = installCleanupService;
         this.workspaceCleanupService = workspaceCleanupService;
         this.sandboxCleanupService = sandboxCleanupService;
+        this.multiplayerLobbyService = multiplayerLobbyService;
         this.logger = logger ?? NullLogger<LauncherShutdownService>.Instance;
     }
 
@@ -64,6 +67,20 @@ public sealed class LauncherShutdownService
         timeoutCancellation.CancelAfter(timeout);
 
         downloadTasksPage.CancelAllRunningTasks();
+        try
+        {
+            if (multiplayerLobbyService is not null)
+                await multiplayerLobbyService.StopAsync(timeoutCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeoutCancellation.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out stopping the multiplayer lobby during launcher exit.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to stop the multiplayer lobby during launcher exit.");
+        }
+
         try
         {
             if (settingsPage is not null)

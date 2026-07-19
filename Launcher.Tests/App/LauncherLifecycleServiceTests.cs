@@ -175,6 +175,22 @@ public sealed class LauncherLifecycleServiceTests
         Assert.Equal(1, installCleanup.CallCount);
     }
 
+    [Fact]
+    public async Task ShutdownStopsActiveMultiplayerLobby()
+    {
+        var lobby = new TestMultiplayerLobbyService();
+        var service = new LauncherShutdownService(
+            new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1)),
+            new TestInstallCleanupService(),
+            new TestWorkspaceCleanupService(completeImmediately: true),
+            new TestSandboxCleanupService(),
+            multiplayerLobbyService: lobby);
+
+        await service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(1, lobby.StopCount);
+    }
+
     private sealed class TestLauncherStateMonitor : ILauncherStateMonitor
     {
         public event EventHandler? StateChanged;
@@ -263,6 +279,35 @@ public sealed class LauncherLifecycleServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             if (waitTask is not null)
                 await waitTask.WaitAsync(cancellationToken);
+        }
+    }
+
+    private sealed class TestMultiplayerLobbyService : IMultiplayerLobbyService
+    {
+        public MultiplayerLobbySnapshot? Current => null;
+
+        public int StopCount { get; private set; }
+
+        public event Action<MultiplayerLobbySnapshot>? SnapshotChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<MultiplayerLobbyStopped>? Stopped
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<MultiplayerLobbySnapshot> CreateHostAsync(
+            string hostName,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            StopCount++;
+            return Task.CompletedTask;
         }
     }
 }

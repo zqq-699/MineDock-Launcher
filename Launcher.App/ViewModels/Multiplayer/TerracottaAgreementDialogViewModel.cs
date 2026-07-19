@@ -15,16 +15,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Multiplayer;
 
-public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
+public sealed partial class TerracottaAgreementDialogViewModel : ObservableObject
 {
-    internal const string EasyTierLicenseUrl = "https://easytier.cn/guide/license.html";
-    internal const string EasyTierPrivacyUrl = "https://easytier.cn/guide/privacy.html";
+    internal const string TerracottaProjectUrl = "https://github.com/burningtnt/Terracotta";
 
-    private readonly IEasyTierProvisioningService provisioningService;
+    private readonly ITerracottaProvisioningService provisioningService;
     private readonly IExternalLinkService externalLinkService;
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
-    private readonly ILogger<EasyTierAgreementDialogViewModel> logger;
+    private readonly ILogger<TerracottaAgreementDialogViewModel> logger;
     private TaskCompletionSource<bool>? pendingDecision;
 
     [ObservableProperty]
@@ -37,36 +36,47 @@ public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
     private double downloadProgressPercent;
 
     [ObservableProperty]
-    private string downloadStatus = Strings.Dialog_EasyTierDownloadPreparing;
+    private string downloadStatus = Strings.Dialog_TerracottaDownloadPreparing;
 
-    public EasyTierAgreementDialogViewModel(
-        IEasyTierProvisioningService provisioningService,
+    public TerracottaAgreementDialogViewModel(
+        ITerracottaProvisioningService provisioningService,
         IExternalLinkService externalLinkService,
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
-        ILogger<EasyTierAgreementDialogViewModel>? logger = null)
+        ILogger<TerracottaAgreementDialogViewModel>? logger = null)
     {
         this.provisioningService = provisioningService;
         this.externalLinkService = externalLinkService;
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
-        this.logger = logger ?? NullLogger<EasyTierAgreementDialogViewModel>.Instance;
+        this.logger = logger ?? NullLogger<TerracottaAgreementDialogViewModel>.Instance;
     }
 
-    public Task<bool> EnsureReadyAsync()
+    public async Task<bool> EnsureReadyAsync()
     {
         if (provisioningService.TryGetAvailable() is not null)
-            return Task.FromResult(true);
+        {
+            try
+            {
+                await provisioningService.EnsureAvailableAsync().ConfigureAwait(true);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception,
+                    "Terracotta update check failed; the installed module will remain available.");
+            }
+            return true;
+        }
 
         if (pendingDecision is not null)
-            return pendingDecision.Task;
+            return await pendingDecision.Task.ConfigureAwait(true);
 
         pendingDecision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         DownloadProgressPercent = 0;
-        DownloadStatus = Strings.Dialog_EasyTierDownloadPreparing;
+        DownloadStatus = Strings.Dialog_TerracottaDownloadPreparing;
         IsOpen = true;
-        logger.LogInformation("EasyTier agreement requested because the local module is unavailable.");
-        return pendingDecision.Task;
+        logger.LogInformation("Terracotta usage notice requested because the local module is unavailable.");
+        return await pendingDecision.Task.ConfigureAwait(true);
     }
 
     [RelayCommand(CanExecute = nameof(CanRespond))]
@@ -74,7 +84,7 @@ public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
     {
         IsOpen = false;
         CompleteDecision(false);
-        logger.LogInformation("EasyTier agreement declined; multiplayer navigation canceled.");
+        logger.LogInformation("Terracotta usage notice declined; multiplayer navigation canceled.");
     }
 
     [RelayCommand(CanExecute = nameof(CanRespond))]
@@ -82,31 +92,31 @@ public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
     {
         IsDownloading = true;
         DownloadProgressPercent = 0;
-        DownloadStatus = Strings.Dialog_EasyTierDownloading;
+        DownloadStatus = Strings.Dialog_TerracottaDownloading;
         try
         {
             var progress = new Progress<LauncherProgress>(value =>
             {
                 if (value.Percent is { } percent)
                     DownloadProgressPercent = Math.Clamp(percent, 0, 100);
-                DownloadStatus = value.Stage == "easytier-extract"
-                    ? Strings.Dialog_EasyTierExtracting
-                    : Strings.Dialog_EasyTierDownloading;
+                DownloadStatus = value.Stage == "terracotta-extract"
+                    ? Strings.Dialog_TerracottaExtracting
+                    : Strings.Dialog_TerracottaDownloading;
             });
             await provisioningService.EnsureAvailableAsync(progress);
             DownloadProgressPercent = 100;
-            DownloadStatus = Strings.Dialog_EasyTierDownloadComplete;
+            DownloadStatus = Strings.Dialog_TerracottaDownloadComplete;
             IsOpen = false;
             CompleteDecision(true);
-            statusService.Report(Strings.Status_EasyTierReady);
-            logger.LogInformation("EasyTier agreement accepted and module provisioning completed.");
+            statusService.Report(Strings.Status_TerracottaReady);
+            logger.LogInformation("Terracotta usage notice accepted and module provisioning completed.");
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Failed to provision the EasyTier module after agreement acceptance.");
+            logger.LogWarning(exception, "Failed to provision the Terracotta module after notice acceptance.");
             DownloadProgressPercent = 0;
-            DownloadStatus = Strings.Dialog_EasyTierDownloadFailed;
-            ReportFailure(Strings.Status_EasyTierDownloadFailed);
+            DownloadStatus = Strings.Dialog_TerracottaDownloadFailed;
+            ReportFailure(Strings.Status_TerracottaDownloadFailed);
         }
         finally
         {
@@ -115,10 +125,23 @@ public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenAgreement() => OpenLegalDocument(EasyTierLicenseUrl, "license");
+    private void OpenProject()
+    {
+        try
+        {
+            if (externalLinkService.TryOpen(TerracottaProjectUrl))
+                return;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to open the Terracotta project page.");
+            ReportFailure(Strings.Status_OpenTerracottaProjectFailed);
+            return;
+        }
 
-    [RelayCommand]
-    private void OpenPrivacyPolicy() => OpenLegalDocument(EasyTierPrivacyUrl, "privacy-policy");
+        logger.LogWarning("Failed to open the Terracotta project page.");
+        ReportFailure(Strings.Status_OpenTerracottaProjectFailed);
+    }
 
     private bool CanRespond() => !IsDownloading;
 
@@ -133,24 +156,6 @@ public sealed partial class EasyTierAgreementDialogViewModel : ObservableObject
         var decision = pendingDecision;
         pendingDecision = null;
         decision?.TrySetResult(result);
-    }
-
-    private void OpenLegalDocument(string url, string documentName)
-    {
-        try
-        {
-            if (externalLinkService.TryOpen(url))
-                return;
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Failed to open the EasyTier legal document. Document={Document}", documentName);
-            ReportFailure(Strings.Status_OpenEasyTierLegalDocumentFailed);
-            return;
-        }
-
-        logger.LogWarning("Failed to open the EasyTier legal document. Document={Document}", documentName);
-        ReportFailure(Strings.Status_OpenEasyTierLegalDocumentFailed);
     }
 
     private void ReportFailure(string message)

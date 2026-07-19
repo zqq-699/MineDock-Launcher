@@ -12,10 +12,10 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Tests.ViewModels.Multiplayer;
 
-public sealed class EasyTierAgreementDialogViewModelTests
+public sealed class TerracottaAgreementDialogViewModelTests
 {
     [Fact]
-    public async Task InstalledModuleAllowsEntryWithoutOpeningDialog()
+    public async Task InstalledModuleChecksForUpdatesWithoutOpeningDialog()
     {
         var context = Create(isAvailable: true);
 
@@ -23,11 +23,11 @@ public sealed class EasyTierAgreementDialogViewModelTests
 
         Assert.True(result);
         Assert.False(context.ViewModel.IsOpen);
-        Assert.Equal(0, context.Provisioning.EnsureCount);
+        Assert.Equal(1, context.Provisioning.EnsureCount);
     }
 
     [Fact]
-    public async Task MissingModuleOpensDialogAndDisagreeCancelsEntry()
+    public async Task MissingModuleOpensNoticeAndDisagreeCancelsEntry()
     {
         var context = Create();
         var decision = context.ViewModel.EnsureReadyAsync();
@@ -49,13 +49,12 @@ public sealed class EasyTierAgreementDialogViewModelTests
 
         Assert.True(await decision);
         Assert.False(context.ViewModel.IsOpen);
-        Assert.False(context.ViewModel.IsDownloading);
         Assert.Equal(1, context.Provisioning.EnsureCount);
-        Assert.Equal(Strings.Status_EasyTierReady, context.Messages.StatusMessage);
+        Assert.Equal(Strings.Status_TerracottaReady, context.Messages.StatusMessage);
     }
 
     [Fact]
-    public async Task DownloadFailureKeepsDialogOpenAndEntryBlockedForRetry()
+    public async Task DownloadFailureKeepsNoticeOpenForRetry()
     {
         var context = Create();
         context.Provisioning.EnsureException = new IOException("Test failure.");
@@ -65,23 +64,18 @@ public sealed class EasyTierAgreementDialogViewModelTests
 
         Assert.False(decision.IsCompleted);
         Assert.True(context.ViewModel.IsOpen);
-        Assert.False(context.ViewModel.IsDownloading);
-        Assert.Equal(Strings.Dialog_EasyTierDownloadFailed, context.ViewModel.DownloadStatus);
-        Assert.Equal(Strings.Status_EasyTierDownloadFailed, context.Messages.StatusMessage);
-        Assert.Equal(Strings.Status_EasyTierDownloadFailed, context.Messages.FloatingMessage);
+        Assert.Equal(Strings.Dialog_TerracottaDownloadFailed, context.ViewModel.DownloadStatus);
+        Assert.Equal(Strings.Status_TerracottaDownloadFailed, context.Messages.StatusMessage);
     }
 
     [Fact]
-    public void LegalLinksUseOfficialEasyTierPages()
+    public void ProjectLinkUsesOfficialTerracottaRepository()
     {
         var context = Create();
 
-        context.ViewModel.OpenAgreementCommand.Execute(null);
-        var agreementUrl = context.ExternalLinks.LastUrl;
-        context.ViewModel.OpenPrivacyPolicyCommand.Execute(null);
+        context.ViewModel.OpenProjectCommand.Execute(null);
 
-        Assert.Equal(EasyTierAgreementDialogViewModel.EasyTierLicenseUrl, agreementUrl);
-        Assert.Equal(EasyTierAgreementDialogViewModel.EasyTierPrivacyUrl, context.ExternalLinks.LastUrl);
+        Assert.Equal(TerracottaAgreementDialogViewModel.TerracottaProjectUrl, context.ExternalLinks.LastUrl);
     }
 
     private static TestContext Create(bool isAvailable = false)
@@ -89,7 +83,7 @@ public sealed class EasyTierAgreementDialogViewModelTests
         var provisioning = new RecordingProvisioningService { IsAvailable = isAvailable };
         var externalLinks = new RecordingExternalLinkService();
         var messages = new RecordingMessageService();
-        var viewModel = new EasyTierAgreementDialogViewModel(
+        var viewModel = new TerracottaAgreementDialogViewModel(
             provisioning,
             externalLinks,
             messages,
@@ -98,37 +92,36 @@ public sealed class EasyTierAgreementDialogViewModelTests
     }
 
     private sealed record TestContext(
-        EasyTierAgreementDialogViewModel ViewModel,
+        TerracottaAgreementDialogViewModel ViewModel,
         RecordingProvisioningService Provisioning,
         RecordingExternalLinkService ExternalLinks,
         RecordingMessageService Messages);
 
-    private sealed class RecordingProvisioningService : IEasyTierProvisioningService
+    private sealed class RecordingProvisioningService : ITerracottaProvisioningService
     {
         public bool IsAvailable { get; set; }
         public int EnsureCount { get; private set; }
         public Exception? EnsureException { get; set; }
 
-        public EasyTierModule? TryGetAvailable() => IsAvailable ? CreateModule() : null;
+        public TerracottaModule? TryGetAvailable() => IsAvailable ? CreateModule() : null;
 
-        public Task<EasyTierModule> EnsureAvailableAsync(
+        public Task<TerracottaModule> EnsureAvailableAsync(
             IProgress<LauncherProgress>? progress = null,
             CancellationToken cancellationToken = default)
         {
             EnsureCount++;
             if (EnsureException is not null)
-                return Task.FromException<EasyTierModule>(EnsureException);
+                return Task.FromException<TerracottaModule>(EnsureException);
             IsAvailable = true;
-            progress?.Report(new LauncherProgress("easytier-ready", "Ready", 100));
+            progress?.Report(new LauncherProgress("terracotta-ready", "Ready", 100));
             return Task.FromResult(CreateModule());
         }
 
-        private static EasyTierModule CreateModule() => new(
-            "test",
+        private static TerracottaModule CreateModule() => new(
+            "0.4.2",
+            "x86_64",
             "C:\\test",
-            "C:\\test\\easytier-core.exe",
-            "C:\\test\\easytier-cli.exe",
-            "C:\\test\\Packet.dll");
+            "C:\\test\\terracotta.exe");
     }
 
     private sealed class RecordingExternalLinkService : IExternalLinkService
@@ -148,7 +141,6 @@ public sealed class EasyTierAgreementDialogViewModelTests
         public event Action<string>? MessageRequested;
 
         public string? StatusMessage { get; private set; }
-        public string? FloatingMessage { get; private set; }
 
         public void Report(string message)
         {
@@ -156,10 +148,6 @@ public sealed class EasyTierAgreementDialogViewModelTests
             MessageReported?.Invoke(message);
         }
 
-        public void Show(string message)
-        {
-            FloatingMessage = message;
-            MessageRequested?.Invoke(message);
-        }
+        public void Show(string message) => MessageRequested?.Invoke(message);
     }
 }

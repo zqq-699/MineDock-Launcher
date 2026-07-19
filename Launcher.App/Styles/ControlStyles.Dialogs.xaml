@@ -295,7 +295,7 @@
 
     <Style x:Key="DialogButtonStyle" TargetType="Button">
         <Setter Property="MinWidth" Value="86" />
-        <Setter Property="Height" Value="34" />
+        <Setter Property="Height" Value="{StaticResource LauncherCompactControlHeight}" />
         <Setter Property="Padding" Value="18,0" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="Background" Value="{DynamicResource Brush.Button.Secondary.Background}" />

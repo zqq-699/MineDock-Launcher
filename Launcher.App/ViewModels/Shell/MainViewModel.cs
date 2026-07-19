@@ -107,7 +107,7 @@ public sealed partial class MainViewModel : ObservableObject
         IHomePageViewModelFactory homePageFactory,
         LaunchStatusDialogViewModel launchStatusDialog,
         UserAgreementDialogViewModel userAgreementDialog,
-        EasyTierAgreementDialogViewModel easyTierAgreementDialog,
+        TerracottaAgreementDialogViewModel terracottaAgreementDialog,
         ILogger<MainViewModel>? logger = null)
     {
         this.settingsService = settingsService;
@@ -125,7 +125,7 @@ public sealed partial class MainViewModel : ObservableObject
         GameManagement = gameManagement;
         LaunchStatusDialog = launchStatusDialog;
         UserAgreementDialog = userAgreementDialog;
-        EasyTierAgreementDialog = easyTierAgreementDialog;
+        TerracottaAgreementDialog = terracottaAgreementDialog;
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
@@ -169,7 +169,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public UserAgreementDialogViewModel UserAgreementDialog { get; }
 
-    public EasyTierAgreementDialogViewModel EasyTierAgreementDialog { get; }
+    public TerracottaAgreementDialogViewModel TerracottaAgreementDialog { get; }
 
     public NavigationItem DownloadTasksNavigationItem { get; } = NavigationCatalog.CreateDownloadTasksItem();
 

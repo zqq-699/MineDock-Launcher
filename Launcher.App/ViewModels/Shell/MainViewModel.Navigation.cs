@@ -39,7 +39,7 @@ public sealed partial class MainViewModel
     private async Task NavigateAsync(NavigationItem item)
     {
         if (NavigationCatalog.IsPage(item.Page, NavigationCatalog.MultiplayerPage)
-            && !await EasyTierAgreementDialog.EnsureReadyAsync())
+            && !await TerracottaAgreementDialog.EnsureReadyAsync())
         {
             return;
         }

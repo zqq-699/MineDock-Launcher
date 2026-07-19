@@ -145,8 +145,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IThirdPartyAccountService, ThirdPartyAccountService>();
         services.AddSingleton<IThirdPartyLaunchSessionService, ThirdPartyLaunchSessionService>();
         services.AddSingleton<IAuthlibInjectorProvisioningService, AuthlibInjectorProvisioningService>();
-        services.AddSingleton<IEasyTierProvisioningService, EasyTierProvisioningService>();
+        services.AddSingleton<ITerracottaProvisioningService, TerracottaProvisioningService>();
         services.AddSingleton<IMinecraftLanWorldDiscoveryService, MinecraftLanWorldDiscoveryService>();
+        services.AddSingleton<IMultiplayerLobbyService, MultiplayerLobbyService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();

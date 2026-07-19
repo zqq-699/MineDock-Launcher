@@ -8,18 +8,17 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Application.Services;
 
-public sealed record EasyTierModule(
+public sealed record TerracottaModule(
     string Version,
+    string Architecture,
     string DirectoryPath,
-    string CoreExecutablePath,
-    string CliExecutablePath,
-    string PacketLibraryPath);
+    string ExecutablePath);
 
-public interface IEasyTierProvisioningService
+public interface ITerracottaProvisioningService
 {
-    EasyTierModule? TryGetAvailable();
+    TerracottaModule? TryGetAvailable();
 
-    Task<EasyTierModule> EnsureAvailableAsync(
+    Task<TerracottaModule> EnsureAvailableAsync(
         IProgress<LauncherProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

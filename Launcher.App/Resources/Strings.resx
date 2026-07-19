@@ -51,20 +51,20 @@
   <data name="Page_GameSettings" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Page_Resources" xml:space="preserve"><value>资源中心</value></data>
   <data name="Page_Multiplayer" xml:space="preserve"><value>联机</value></data>
-  <data name="Multiplayer_SectionCreateLobby" xml:space="preserve"><value>创建大厅</value></data>
-  <data name="Multiplayer_SectionJoinLobby" xml:space="preserve"><value>加入大厅</value></data>
+  <data name="Multiplayer_SectionCreateLobby" xml:space="preserve"><value>创建房间</value></data>
+  <data name="Multiplayer_SectionJoinLobby" xml:space="preserve"><value>加入房间</value></data>
   <data name="Multiplayer_Create_SelectGameInstanceSection" xml:space="preserve"><value>选择已开放的局域网世界</value></data>
-  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve"><value>请选择已开放的局域网世界</value></data>
-  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>点击“刷新”检测本机已开放的局域网世界。</value></data>
+  <data name="Multiplayer_Create_GameInstancePlaceholder" xml:space="preserve"><value>刷新以探测世界</value></data>
+  <data name="Multiplayer_Create_LanWorldRefreshHint" xml:space="preserve"><value>点击“刷新”探测本机已开放的局域网世界。</value></data>
   <data name="Multiplayer_Create_LanWorldDiscovering" xml:space="preserve"><value>正在刷新</value></data>
   <data name="Multiplayer_Create_LanWorldNotFound" xml:space="preserve"><value>未检测到本机已开放的局域网世界，请确认已在游戏中开放到局域网。</value></data>
   <data name="Multiplayer_Create_LanWorldDiscoveryFailed" xml:space="preserve"><value>无法检测局域网世界，请检查网络权限后重试。</value></data>
   <data name="Multiplayer_Create_UnknownLanWorld" xml:space="preserve"><value>未命名的局域网世界</value></data>
   <data name="Multiplayer_Create_LanWorldItemFormat" xml:space="preserve"><value>{0} · 端口 {1}</value></data>
   <data name="Multiplayer_Create_StepOpenToLan" xml:space="preserve"><value>第一步：进入世界，并在游戏菜单中点击“对局域网开放”。</value></data>
-  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve"><value>第二步：点击刷新，并选择检测到的本机局域网世界。</value></data>
-  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve"><value>第三步：点击“创建大厅”。</value></data>
-  <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve"><value>{0}的游戏大厅</value></data>
+  <data name="Multiplayer_Create_StepSelectInstance" xml:space="preserve"><value>第二步：点击刷新，确认已探测到开放的局域网世界。</value></data>
+  <data name="Multiplayer_Create_StepCreateLobby" xml:space="preserve"><value>第三步：点击“创建房间”。</value></data>
+  <data name="Multiplayer_LobbyTitleFormat" xml:space="preserve"><value>{0}的游戏房间</value></data>
   <data name="Multiplayer_LobbyOwnerPlaceholder" xml:space="preserve"><value>玩家</value></data>
   <data name="Multiplayer_LobbyGameWorldPlaceholder" xml:space="preserve"><value>实例名字-世界名字</value></data>
   <data name="Multiplayer_LobbyRoomCodeHeader" xml:space="preserve"><value>房间代码</value></data>
@@ -76,8 +76,8 @@
   <data name="Multiplayer_LobbyPlayerRoleHost" xml:space="preserve"><value>房主</value></data>
   <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve"><value>玩家</value></data>
   <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve"><value>退出并解散</value></data>
-  <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve"><value>退出并解散大厅？</value></data>
-  <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve"><value>退出后大厅将被解散，其他玩家也会断开连接。是否确认退出？</value></data>
+  <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve"><value>退出并解散房间？</value></data>
+  <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve"><value>退出后房间将被解散，其他玩家也会断开连接。是否确认退出？</value></data>
   <data name="Dialog_MultiplayerLeaveLobbyConfirmButton" xml:space="preserve"><value>退出</value></data>
   <data name="Resources_SectionMods" xml:space="preserve"><value>模组</value></data>
   <data name="Resources_SectionResourcePacks" xml:space="preserve"><value>资源包</value></data>
@@ -1189,26 +1189,35 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>无法保存用户协议接受状态，请重试。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>无法打开用户协议，请检查系统浏览器设置后重试。</value></data>
-  <data name="Dialog_EasyTierAgreementTitle" xml:space="preserve"><value>联机功能使用须知</value></data>
-  <data name="Dialog_EasyTierAgreementMessagePrefix" xml:space="preserve"><value>联机功能由</value></data>
-  <data name="Dialog_EasyTierAgreementMessageProvider" xml:space="preserve"><value>EasyTier驱动。使用联机功能时，您必须遵守中国大陆相关法律法规，不得用于违法用途</value></data>
-  <data name="Dialog_EasyTierAgreementMessageSuffix" xml:space="preserve"><value>，使用联机功能即代表您同意 </value></data>
-  <data name="Dialog_EasyTierAgreementLink" xml:space="preserve"><value>EasyTier 用户协议</value></data>
-  <data name="Dialog_EasyTierAgreementMessageAnd" xml:space="preserve"><value>和</value></data>
-  <data name="Dialog_EasyTierPrivacyPolicyLink" xml:space="preserve"><value>隐私政策</value></data>
-  <data name="Dialog_EasyTierAgreementMessageEnd" xml:space="preserve"><value>。</value></data>
-  <data name="Dialog_EasyTierDownloadNotice" xml:space="preserve"><value>同意后，启动器将自动下载并校验联机模块。</value></data>
-  <data name="Dialog_EasyTierDisagreeButton" xml:space="preserve"><value>不同意</value></data>
-  <data name="Dialog_EasyTierAgreeButton" xml:space="preserve"><value>同意</value></data>
-  <data name="Dialog_EasyTierDownloadPreparing" xml:space="preserve"><value>准备下载联机模块…</value></data>
-  <data name="Dialog_EasyTierDownloading" xml:space="preserve"><value>正在下载联机模块…</value></data>
-  <data name="Dialog_EasyTierExtracting" xml:space="preserve"><value>正在安装联机模块…</value></data>
-  <data name="Dialog_EasyTierDownloadComplete" xml:space="preserve"><value>联机模块已就绪。</value></data>
-  <data name="Dialog_EasyTierDownloadFailed" xml:space="preserve"><value>下载失败，您可以重试或暂不启用联机功能。</value></data>
-  <data name="Status_EasyTierReady" xml:space="preserve"><value>EasyTier 联机模块已就绪。</value></data>
-  <data name="Status_EasyTierDownloadFailed" xml:space="preserve"><value>联机模块下载或校验失败，请检查网络后重试。</value></data>
-  <data name="Status_OpenEasyTierLegalDocumentFailed" xml:space="preserve"><value>无法打开 EasyTier 协议页面，请检查系统浏览器设置后重试。</value></data>
+  <data name="Dialog_TerracottaAgreementTitle" xml:space="preserve"><value>联机功能使用须知</value></data>
+  <data name="Dialog_TerracottaAgreementMessage" xml:space="preserve"><value>联机功能由 Terracotta | 陶瓦联机提供，底层基于 EasyTier。使用联机功能时，您必须遵守中国大陆相关法律法规，不得用于违法用途。</value></data>
+  <data name="Dialog_TerracottaProjectLink" xml:space="preserve"><value>Terracotta | 陶瓦联机项目</value></data>
+  <data name="Dialog_TerracottaDisagreeButton" xml:space="preserve"><value>不同意</value></data>
+  <data name="Dialog_TerracottaAgreeButton" xml:space="preserve"><value>同意</value></data>
+  <data name="Dialog_TerracottaDownloadPreparing" xml:space="preserve"><value>准备下载联机模块…</value></data>
+  <data name="Dialog_TerracottaDownloading" xml:space="preserve"><value>正在下载联机模块…</value></data>
+  <data name="Dialog_TerracottaExtracting" xml:space="preserve"><value>正在安装联机模块…</value></data>
+  <data name="Dialog_TerracottaDownloadComplete" xml:space="preserve"><value>联机模块已就绪。</value></data>
+  <data name="Dialog_TerracottaDownloadFailed" xml:space="preserve"><value>下载失败，您可以重试或暂不启用联机功能。</value></data>
+  <data name="Status_TerracottaReady" xml:space="preserve"><value>Terracotta 联机模块已就绪。</value></data>
+  <data name="Status_TerracottaDownloadFailed" xml:space="preserve"><value>联机模块下载或校验失败，请检查网络后重试。</value></data>
+  <data name="Status_OpenTerracottaProjectFailed" xml:space="preserve"><value>无法打开 Terracotta 项目页面，请检查系统浏览器设置后重试。</value></data>
   <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
   <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
   <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>
+  <data name="Multiplayer_Create_CreatingLobby" xml:space="preserve"><value>正在创建房间</value></data>
+  <data name="Multiplayer_Create_LobbyFailed" xml:space="preserve"><value>创建房间失败，请稍后重试。</value></data>
+  <data name="Multiplayer_Create_TerracottaUnavailable" xml:space="preserve"><value>Terracotta 联机模块不可用，请重新进入联机页面后重试。</value></data>
+  <data name="Multiplayer_Create_WorldUnavailable" xml:space="preserve"><value>未检测到可用的局域网世界，请确认世界仍已开放到局域网。</value></data>
+  <data name="Multiplayer_Create_TerracottaBusy" xml:space="preserve"><value>Terracotta 正被其他启动器使用，请先结束其他联机房间后重试。</value></data>
+  <data name="Multiplayer_Create_TerracottaProtocolFailed" xml:space="preserve"><value>Terracotta 联机服务异常，请关闭其他 Terracotta 实例后重试。</value></data>
+  <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
+  <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>已复制房间代码</value></data>
+  <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>解散房间失败，请稍后重试。</value></data>
+  <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>局域网世界已关闭，房间已自动解散。</value></data>
+  <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta 联机模块已停止，房间已自动解散。</value></data>
+  <data name="Multiplayer_LobbyTerracottaServiceFailed" xml:space="preserve"><value>Terracotta 联机服务异常，房间已自动解散。</value></data>
+  <data name="Multiplayer_Create_MultipleLanWorldsWarning" xml:space="preserve"><value>检测到多个世界，Terracotta 将自动使用最先探测到的世界。</value></data>
+  <data name="Multiplayer_LobbyPoweredByTerracotta" xml:space="preserve"><value>联机服务由 Terracotta | 陶瓦联机提供</value></data>
 </root>

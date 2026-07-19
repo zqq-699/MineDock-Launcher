@@ -11,7 +11,7 @@ namespace Launcher.Tests.Views.Multiplayer;
 public sealed class CreateLobbyViewContractTests
 {
     [Fact]
-    public void LanWorldSelectorUsesDisplayTemplateForListAndSelection()
+    public void LanWorldsUseReadOnlyDisplayWithThemeForeground()
     {
         var view = XDocument.Load(Path.Combine(
             FindRepositoryRoot().FullName,
@@ -19,17 +19,22 @@ public sealed class CreateLobbyViewContractTests
             "Views",
             "Multiplayer",
             "CreateLobbyView.xaml"));
-        var selector = Assert.Single(view
+        var display = Assert.Single(view
             .Descendants()
-            .Where(element => element.Name.LocalName == "AnimatedComboBox")
+            .Where(element => element.Name.LocalName == "ItemsControl")
             .Where(element => element.Attribute("ItemsSource")?.Value.Contains("LanWorlds", StringComparison.Ordinal) == true));
 
         Assert.Equal(
             "{StaticResource MultiplayerLanWorldItemTemplate}",
-            selector.Attribute("ItemTemplate")?.Value);
+            display.Attribute("ItemTemplate")?.Value);
+        var displaySurface = Assert.Single(display.Ancestors()
+            .Where(element => element.Name.LocalName == "Border"));
         Assert.Equal(
-            "{StaticResource MultiplayerLanWorldItemTemplate}",
-            selector.Attribute("SelectionItemTemplate")?.Value);
+            "{StaticResource ReadOnlyFieldSurfaceStyle}",
+            displaySurface.Attribute("Style")?.Value);
+        Assert.Null(displaySurface.Attribute("Height"));
+        Assert.DoesNotContain(view.Descendants(), element =>
+            element.Attribute("SelectedItem") is not null);
 
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
         var itemTemplate = Assert.Single(view
@@ -40,8 +45,87 @@ public sealed class CreateLobbyViewContractTests
             .Descendants()
             .Where(element => element.Name.LocalName == "TextBlock"));
         Assert.Equal(
-            "{DynamicResource Brush.F4F4F4}",
+            "{DynamicResource LauncherTextPrimaryBrush}",
             itemText.Attribute("Foreground")?.Value);
+    }
+
+    [Fact]
+    public void LobbyControlsBindToRealCreationState()
+    {
+        var view = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "CreateLobbyView.xaml"));
+
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding CreateLobbyCommand}"
+            && element.Attribute("Content")?.Value == "{Binding CreateLobbyButtonText}");
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && element.Attribute("Text")?.Value == "{Binding RoomCode}");
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding CopyRoomCodeCommand}");
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "ListPageItemButton"
+            && element.Attribute("Subtitle")?.Value == "{Binding Subtitle}"
+            && element.Attribute("TrailingText")?.Value == "{Binding LatencyText}");
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "AdaptiveTagList"
+            && element.Attribute("ItemsSource")?.Value == "{Binding RoleTags}");
+
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var createdLobbyLayer = Assert.Single(view
+            .Descendants()
+            .Where(element => element.Attribute(xaml + "Name")?.Value == "CreatedLobbyLayer"));
+        var createdLobbyContent = Assert.Single(createdLobbyLayer
+            .Elements()
+            .Where(element => element.Name.LocalName == "StackPanel"));
+        var subtitle = Assert.Single(createdLobbyContent
+            .Elements()
+            .Where(element => element.Attribute("Text")?.Value == "{x:Static res:Strings.Multiplayer_LobbyPoweredByTerracotta}"));
+        var leaveButton = Assert.Single(createdLobbyContent
+            .Elements()
+            .Where(element => element.Attribute("Command")?.Value == "{Binding RequestLeaveLobbyCommand}"));
+        var roomCodeSection = Assert.Single(createdLobbyContent
+            .Elements()
+            .Where(element => element.Descendants().Any(descendant =>
+                descendant.Attribute("Header")?.Value == "{x:Static res:Strings.Multiplayer_LobbyRoomCodeHeader}")));
+
+        Assert.Equal("{StaticResource LauncherDangerDialogButtonStyle}", leaveButton.Attribute("Style")?.Value);
+        Assert.Null(leaveButton.Attribute("FontSize"));
+        Assert.True(subtitle.IsBefore(leaveButton));
+        Assert.True(leaveButton.IsBefore(roomCodeSection));
+    }
+
+    [Fact]
+    public void CreationInstructionsAppearBeforeLanWorldSelection()
+    {
+        var view = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "CreateLobbyView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var setupLayer = Assert.Single(view
+            .Descendants()
+            .Where(element => element.Attribute(xaml + "Name")?.Value == "CreateLobbySetupLayer"));
+        var sectionHeaders = setupLayer
+            .Elements()
+            .Where(element => element.Name.LocalName == "GroupBox")
+            .Select(element => element.Attribute("Header")?.Value)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "{x:Static res:Strings.Multiplayer_SectionCreateLobby}",
+                "{x:Static res:Strings.Multiplayer_Create_SelectGameInstanceSection}",
+            ],
+            sectionHeaders);
     }
 
     private static DirectoryInfo FindRepositoryRoot()

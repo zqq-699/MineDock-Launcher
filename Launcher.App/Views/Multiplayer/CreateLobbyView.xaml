@@ -23,7 +23,8 @@
 
             <DataTemplate x:Key="MultiplayerLanWorldItemTemplate">
                 <TextBlock Text="{Binding DisplayText}"
-                           Foreground="{DynamicResource Brush.F4F4F4}"
+                           Foreground="{DynamicResource LauncherTextPrimaryBrush}"
+                           FontSize="13"
                            TextTrimming="CharacterEllipsis" />
             </DataTemplate>
         </ResourceDictionary>
@@ -38,7 +39,22 @@
             <StackPanel.RenderTransform>
                 <TranslateTransform />
             </StackPanel.RenderTransform>
-        <GroupBox Header="{x:Static res:Strings.Multiplayer_Create_SelectGameInstanceSection}"
+        <GroupBox Header="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <StackPanel>
+                <TextBlock Text="{x:Static res:Strings.Multiplayer_Create_StepOpenToLan}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+                <TextBlock Margin="0,10,0,0"
+                           Text="{x:Static res:Strings.Multiplayer_Create_StepSelectInstance}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+                <TextBlock Margin="0,10,0,0"
+                           Text="{x:Static res:Strings.Multiplayer_Create_StepCreateLobby}"
+                           Style="{StaticResource SettingsDescriptionTextStyle}" />
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Margin="0,26,0,0"
+                  Header="{x:Static res:Strings.Multiplayer_Create_SelectGameInstanceSection}"
                   Style="{StaticResource LauncherContentSectionStyle}">
             <StackPanel HorizontalAlignment="Left">
                 <Grid>
@@ -48,45 +64,48 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Grid>
-                        <controls:AnimatedComboBox x:Name="GameInstanceSelector"
-                                                   HorizontalAlignment="Stretch"
-                                                   ItemsSource="{Binding LanWorlds}"
-                                                   SelectedItem="{Binding SelectedLanWorld, Mode=TwoWay}"
-                                                   IsEnabled="{Binding CanSelectLanWorld}"
-                                                   ItemTemplate="{StaticResource MultiplayerLanWorldItemTemplate}"
-                                                   SelectionItemTemplate="{StaticResource MultiplayerLanWorldItemTemplate}"
-                                                   Style="{StaticResource LauncherComboBoxStyle}">
-                        </controls:AnimatedComboBox>
-                        <TextBlock Margin="13,0,34,0"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Text="{x:Static res:Strings.Multiplayer_Create_GameInstancePlaceholder}"
-                                   TextTrimming="CharacterEllipsis">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource LauncherTextSecondaryBrush}" />
-                                    <Setter Property="FontSize" Value="13" />
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedItem, ElementName=GameInstanceSelector}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Grid>
+                    <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding LanWorlds}"
+                                          ItemTemplate="{StaticResource MultiplayerLanWorldItemTemplate}"
+                                          IsHitTestVisible="False"
+                                          Visibility="{Binding HasLanWorlds, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Text="{x:Static res:Strings.Multiplayer_Create_GameInstancePlaceholder}"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource LauncherTextSecondaryBrush}" />
+                                        <Setter Property="FontSize" Value="13" />
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasLanWorlds}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
 
                     <Button Grid.Column="1"
                             Margin="12,0,0,0"
+                            VerticalAlignment="Top"
                             Content="{x:Static res:Strings.Refresh_Button}"
                             Command="{Binding RefreshLanWorldsCommand}"
                             Style="{StaticResource LauncherDialogButtonStyle}" />
                     <Button Grid.Column="2"
                             Margin="10,0,0,0"
-                            Content="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
+                            VerticalAlignment="Top"
+                            Content="{Binding CreateLobbyButtonText}"
                             Command="{Binding CreateLobbyCommand}"
                             Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
                 </Grid>
@@ -99,21 +118,6 @@
                            Style="{StaticResource SettingsDescriptionTextStyle}" />
             </StackPanel>
         </GroupBox>
-
-        <GroupBox Margin="0,26,0,0"
-                  Header="{x:Static res:Strings.Multiplayer_SectionCreateLobby}"
-                  Style="{StaticResource LauncherContentSectionStyle}">
-            <StackPanel>
-                <TextBlock Text="{x:Static res:Strings.Multiplayer_Create_StepOpenToLan}"
-                           Style="{StaticResource SettingsDescriptionTextStyle}" />
-                <TextBlock Margin="0,10,0,0"
-                           Text="{x:Static res:Strings.Multiplayer_Create_StepSelectInstance}"
-                           Style="{StaticResource SettingsDescriptionTextStyle}" />
-                <TextBlock Margin="0,10,0,0"
-                           Text="{x:Static res:Strings.Multiplayer_Create_StepCreateLobby}"
-                           Style="{StaticResource SettingsDescriptionTextStyle}" />
-            </StackPanel>
-            </GroupBox>
         </StackPanel>
 
         <Grid x:Name="CreatedLobbyLayer"
@@ -132,28 +136,20 @@
                                   HorizontalAlignment="Left"
                                   IconKey="main_menu_Multiplayer"
                                   Foreground="{DynamicResource Brush.F4F4F4}" />
-                <Grid Margin="0,18,0,0"
-                      HorizontalAlignment="Left">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock HorizontalAlignment="Left"
-                               VerticalAlignment="Center"
-                               Text="{Binding LobbyTitle}"
-                               Style="{StaticResource PageTitleTextStyle}" />
-                    <Button Grid.Column="1"
-                            Margin="10,0,0,0"
-                            Content="{x:Static res:Strings.Multiplayer_LobbyLeaveAndDisbandButton}"
-                            Command="{Binding RequestLeaveLobbyCommand}"
-                            Style="{StaticResource LauncherDangerDialogButtonStyle}" />
-                </Grid>
+                <TextBlock Margin="0,18,0,0"
+                           HorizontalAlignment="Left"
+                           Text="{Binding LobbyTitle}"
+                           Style="{StaticResource PageTitleTextStyle}" />
                 <TextBlock Margin="0,8,0,0"
                            HorizontalAlignment="Left"
-                           Text="{Binding SelectedLanWorld.DisplayText}"
-                           Foreground="{DynamicResource Brush.AFFFFFFF}"
+                           Text="{x:Static res:Strings.Multiplayer_LobbyPoweredByTerracotta}"
+                           Foreground="{DynamicResource LauncherTextSecondaryBrush}"
                            FontSize="13" />
+                <Button Margin="0,12,0,0"
+                        HorizontalAlignment="Left"
+                        Content="{x:Static res:Strings.Multiplayer_LobbyLeaveAndDisbandButton}"
+                        Command="{Binding RequestLeaveLobbyCommand}"
+                        Style="{StaticResource LauncherDangerDialogButtonStyle}" />
 
                 <StackPanel Margin="0,26,0,0">
                     <GroupBox Header="{x:Static res:Strings.Multiplayer_LobbyRoomCodeHeader}"
@@ -165,10 +161,11 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Text="{x:Static res:Strings.Multiplayer_LobbyRoomCodePlaceholder}"
+                                <TextBlock Text="{Binding RoomCode}"
                                            Style="{StaticResource ReadOnlyFieldTextStyle}" />
                                 <Button Grid.Column="1"
                                         Margin="10,-4,-6,-4"
+                                        Command="{Binding CopyRoomCodeCommand}"
                                         Style="{StaticResource InlineIconButtonStyle}">
                                     <controls:SvgIcon Width="16"
                                                       Height="16"
@@ -187,8 +184,8 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <controls:ListPageItemButton Title="{Binding DisplayName}"
-                                                             Subtitle="{Binding ClientId}"
-                                                             TrailingText="{x:Static res:Strings.Multiplayer_LobbyLatencyPlaceholder}"
+                                                             Subtitle="{Binding Subtitle}"
+                                                             TrailingText="{Binding LatencyText}"
                                                              IconKey="main_menu_account"
                                                              ItemMargin="0"
                                                              IsFirstVisible="{Binding IsFirst}"
