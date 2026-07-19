@@ -55,7 +55,8 @@
             </controls:SecondaryMenuFrame.MenuContent>
         </controls:SecondaryMenuFrame>
 
-        <controls:ListPageFrame Margin="284,36,24,8"
+        <controls:ListPageFrame x:Name="MultiplayerListFrame"
+                                Margin="284,36,24,8"
                                 Title="{Binding SectionTitle}"
                                 IsHeaderBackButtonVisible="{Binding IsLobbyStep}"
                                 HeaderBackCommand="{Binding RequestLeaveLobbyCommand}"
@@ -64,38 +65,46 @@
                                 IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="True">
             <controls:ListPageFrame.ListContent>
-                <Grid>
-                    <views:CreateLobbyView>
-                        <views:CreateLobbyView.Style>
-                            <Style TargetType="{x:Type views:CreateLobbyView}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCreateLobbySection}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsLobbyStep}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </views:CreateLobbyView.Style>
-                    </views:CreateLobbyView>
-                    <views:JoinLobbyView>
-                        <views:JoinLobbyView.Style>
-                            <Style TargetType="{x:Type views:JoinLobbyView}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding IsJoinLobbySection}" Value="True" />
-                                            <Condition Binding="{Binding IsLobbyStep}" Value="False" />
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </views:JoinLobbyView.Style>
-                    </views:JoinLobbyView>
+                <Grid Tag="MultiplayerSectionHost"
+                      ClipToBounds="True">
+                    <Grid Loaded="SectionContentRoot_OnLoaded"
+                          Unloaded="SectionContentRoot_OnUnloaded">
+                        <Grid.RenderTransform>
+                            <TranslateTransform />
+                        </Grid.RenderTransform>
+
+                        <views:CreateLobbyView>
+                            <views:CreateLobbyView.Style>
+                                <Style TargetType="{x:Type views:CreateLobbyView}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCreateLobbySection}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLobbyStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </views:CreateLobbyView.Style>
+                        </views:CreateLobbyView>
+                        <views:JoinLobbyView>
+                            <views:JoinLobbyView.Style>
+                                <Style TargetType="{x:Type views:JoinLobbyView}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsJoinLobbySection}" Value="True" />
+                                                <Condition Binding="{Binding IsLobbyStep}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </views:JoinLobbyView.Style>
+                        </views:JoinLobbyView>
+                    </Grid>
                 </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>

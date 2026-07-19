@@ -227,6 +227,38 @@ public sealed class CreateLobbyViewContractTests
         Assert.Contains(("{Binding IsLobbyStep}", "False"), conditions);
     }
 
+    [Fact]
+    public void MultiplayerSectionsUseClippedTransitionHost()
+    {
+        var view = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "MultiplayerPageView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var host = Assert.Single(view
+            .Descendants()
+            .Where(element => element.Attribute("Tag")?.Value == "MultiplayerSectionHost"));
+        var transitionRoot = Assert.Single(host.Elements()
+            .Where(element => element.Name.LocalName == "Grid"));
+
+        Assert.Equal("True", host.Attribute("ClipToBounds")?.Value);
+        Assert.Equal("SectionContentRoot_OnLoaded", transitionRoot.Attribute("Loaded")?.Value);
+        Assert.Equal("SectionContentRoot_OnUnloaded", transitionRoot.Attribute("Unloaded")?.Value);
+        Assert.Single(transitionRoot.Elements()
+            .Where(element => element.Name.LocalName == "Grid.RenderTransform")
+            .SelectMany(element => element.Elements())
+            .Where(element => element.Name.LocalName == "TranslateTransform"));
+        Assert.Single(transitionRoot.Elements()
+            .Where(element => element.Name.LocalName == "CreateLobbyView"));
+        Assert.Single(transitionRoot.Elements()
+            .Where(element => element.Name.LocalName == "JoinLobbyView"));
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "ListPageFrame"
+            && element.Attribute(xaml + "Name")?.Value == "MultiplayerListFrame");
+    }
+
     private static DirectoryInfo FindRepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
