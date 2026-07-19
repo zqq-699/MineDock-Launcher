@@ -19,35 +19,101 @@
 
 using System.Threading;
 using System.Windows;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.Services;
 
 public sealed class ClipboardService : IClipboardService
 {
-    private const int RetryCount = 8;
-    private const int RetryDelayMilliseconds = 35;
+    private const int RetryCount = 3;
+    private const int RetryDelayMilliseconds = 20;
 
-    public void CopyText(string text)
+    private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger<ClipboardService> logger;
+
+    public ClipboardService(
+        IUiDispatcher uiDispatcher,
+        ILogger<ClipboardService> logger)
     {
-        var thread = new Thread(() => TrySetClipboardText(text));
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
+        this.uiDispatcher = uiDispatcher;
+        this.logger = logger;
     }
 
-    private static void TrySetClipboardText(string text)
+    public async Task<bool> CopyTextAsync(
+        string text,
+        CancellationToken cancellationToken = default)
     {
-        for (var attempt = 0; attempt < RetryCount; attempt++)
+        cancellationToken.ThrowIfCancellationRequested();
+        var copied = false;
+        Exception? lastException = null;
+        await uiDispatcher.InvokeAsync(async () =>
         {
-            try
+            for (var attempt = 0; attempt < RetryCount; attempt++)
             {
-                Clipboard.SetText(text);
-                return;
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    // Clipboard.SetText flushes the OLE clipboard. On some Windows systems the
+                    // text is already available even though that follow-up flush throws
+                    // CLIPBRD_E_CANT_OPEN, which produces a false failure in the UI. Keep the
+                    // data owned by the launcher's long-lived UI STA instead.
+                    Clipboard.SetDataObject(text, copy: false);
+                    copied = true;
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    lastException = exception;
+                    if (attempt + 1 < RetryCount)
+                    {
+                        await Task.Delay(
+                            RetryDelayMilliseconds,
+                            cancellationToken);
+                    }
+                }
             }
-            catch
+        });
+
+        if (!copied)
+            logger.LogWarning(lastException, "Failed to write text to the Windows clipboard after retries.");
+        return copied;
+    }
+
+    public async Task<string?> GetTextAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string? text = null;
+        var completed = false;
+        Exception? lastException = null;
+        await uiDispatcher.InvokeAsync(async () =>
+        {
+            for (var attempt = 0; attempt < RetryCount; attempt++)
             {
-                Thread.Sleep(RetryDelayMilliseconds * (attempt + 1));
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+                    completed = true;
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    lastException = exception;
+                    if (attempt + 1 < RetryCount)
+                    {
+                        await Task.Delay(
+                            RetryDelayMilliseconds,
+                            cancellationToken);
+                    }
+                }
             }
+        });
+
+        if (!completed)
+        {
+            logger.LogWarning(lastException, "Failed to read text from the Windows clipboard after retries.");
+            return null;
         }
+        return text;
     }
 }

@@ -181,6 +181,9 @@
   <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
     <value>プレイヤー</value>
   </data>
+  <data name="Multiplayer_LobbyPlayerRoleSelf" xml:space="preserve">
+    <value>自分</value>
+  </data>
   <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
     <value>退出して解散</value>
   </data>
@@ -3455,6 +3458,7 @@
   <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
   <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
   <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>ルームコードをコピーしました</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopyFailed" xml:space="preserve"><value>ルームコードをコピーできませんでした。しばらくしてから再試行してください。</value></data>
   <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>ルームを解散できませんでした。しばらくしてから再試行してください。</value></data>
   <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>LAN ワールドが終了したため、ルームを自動的に解散しました。</value></data>
   <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta が停止したため、ルームを自動的に解散しました。</value></data>
@@ -3466,4 +3470,20 @@
   <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>マルチプレイ機能は </value></data>
   <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
   <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value> によって提供されています。</value></data>
+  <data name="Multiplayer_Join_StepEnterRoomCode" xml:space="preserve"><value>ステップ1：ホストから提供されたルームコードを入力します。</value></data>
+  <data name="Multiplayer_Join_StepJoinLobby" xml:space="preserve"><value>ステップ2：「ルームに参加」をクリックします。</value></data>
+  <data name="Multiplayer_Join_RoomCodeSection" xml:space="preserve"><value>ルームコードを入力</value></data>
+  <data name="Multiplayer_Join_RoomCodePlaceholder" xml:space="preserve"><value>ルームコードを入力してください</value></data>
+  <data name="Multiplayer_Join_PasteButton" xml:space="preserve"><value>貼り付け</value></data>
+  <data name="Multiplayer_Join_Joining" xml:space="preserve"><value>参加しています…</value></data>
+  <data name="Multiplayer_Join_InvalidRoomCode" xml:space="preserve"><value>ルームコードの形式が正しくありません。確認して再試行してください。</value></data>
+  <data name="Multiplayer_Join_Failed" xml:space="preserve"><value>ルームに参加できませんでした。ルームが有効か確認し、ネットワークを確認して再試行してください。</value></data>
+  <data name="Multiplayer_Join_ClipboardEmpty" xml:space="preserve"><value>クリップボードに利用できるルームコードがありません。</value></data>
+  <data name="Multiplayer_LobbyLeaveButton" xml:space="preserve"><value>ルームから退出</value></data>
+  <data name="Multiplayer_LobbyLeaveFailed" xml:space="preserve"><value>ルームから退出できませんでした。再試行してください。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyTitle" xml:space="preserve"><value>ルームから退出しますか？</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyMessage" xml:space="preserve"><value>退出すると、このルームとの接続が切断されます。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>ルームから退出</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>マルチプレイモードを切り替えられません</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>現在ルームに参加しています。先にルームから退出してください。</value></data>
 </root>

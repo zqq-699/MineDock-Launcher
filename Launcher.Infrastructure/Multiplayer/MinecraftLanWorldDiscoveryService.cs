@@ -193,8 +193,8 @@ internal interface IMinecraftLanDatagramReceiver
 
 internal sealed class MinecraftLanDatagramReceiver : IMinecraftLanDatagramReceiver
 {
-    private static readonly IPAddress MulticastAddress = IPAddress.Parse("224.0.2.60");
-    private const int MulticastPort = 4445;
+    internal static readonly IPAddress MulticastAddress = IPAddress.Parse("224.0.2.60");
+    internal const int MulticastPort = 4445;
 
     public async Task ReceiveAsync(
         IReadOnlyCollection<IPAddress> localAddresses,
@@ -210,6 +210,16 @@ internal sealed class MinecraftLanDatagramReceiver : IMinecraftLanDatagramReceiv
         client.Client.Bind(new IPEndPoint(IPAddress.Any, MulticastPort));
 
         var joinedGroup = false;
+        try
+        {
+            client.JoinMulticastGroup(MulticastAddress);
+            joinedGroup = true;
+        }
+        catch (SocketException)
+        {
+            // Explicit interface memberships below may still receive announcements.
+        }
+
         foreach (var address in localAddresses.Where(address =>
                      address.AddressFamily == AddressFamily.InterNetwork
                      && !IPAddress.IsLoopback(address)))
@@ -276,8 +286,43 @@ internal sealed class LocalIpv4AddressProvider : ILocalIpv4AddressProvider
             .Where(address => address.AddressFamily == AddressFamily.InterNetwork)
             .Distinct()
             .ToList();
+        return IncludeDefaultMulticastRouteAddress(
+            addresses,
+            TryGetDefaultMulticastRouteAddress());
+    }
+
+    internal static IReadOnlyCollection<IPAddress> IncludeDefaultMulticastRouteAddress(
+        IEnumerable<IPAddress> localAddresses,
+        IPAddress? defaultMulticastRouteAddress)
+    {
+        var addresses = localAddresses
+            .Where(address => address.AddressFamily == AddressFamily.InterNetwork)
+            .Distinct()
+            .ToList();
+        if (defaultMulticastRouteAddress is not null
+            && defaultMulticastRouteAddress.AddressFamily == AddressFamily.InterNetwork
+            && !addresses.Contains(defaultMulticastRouteAddress))
+        {
+            addresses.Add(defaultMulticastRouteAddress);
+        }
         if (!addresses.Contains(IPAddress.Loopback))
             addresses.Add(IPAddress.Loopback);
         return addresses;
+    }
+
+    internal static IPAddress? TryGetDefaultMulticastRouteAddress()
+    {
+        try
+        {
+            using var client = new UdpClient(AddressFamily.InterNetwork);
+            client.Connect(
+                MinecraftLanDatagramReceiver.MulticastAddress,
+                MinecraftLanDatagramReceiver.MulticastPort);
+            return (client.Client.LocalEndPoint as IPEndPoint)?.Address;
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
     }
 }

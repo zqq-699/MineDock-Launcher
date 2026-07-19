@@ -9,6 +9,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.App.Resources;
+
 namespace Launcher.App.ViewModels.Multiplayer;
 
 public sealed record MultiplayerLobbyPlayerItem(
@@ -17,8 +19,13 @@ public sealed record MultiplayerLobbyPlayerItem(
     string LatencyText,
     string Role,
     bool IsHost,
+    bool IsLocal,
     bool IsFirst,
     bool IsLast)
 {
     public IReadOnlyList<string> RoleTags => [Role];
+
+    public IReadOnlyList<string> LocalTags => IsLocal
+        ? [Strings.Multiplayer_LobbyPlayerRoleSelf]
+        : [];
 }

@@ -149,7 +149,7 @@
                            FontSize="13" />
                 <Button Margin="0,12,0,0"
                         HorizontalAlignment="Left"
-                        Content="{x:Static res:Strings.Multiplayer_LobbyLeaveAndDisbandButton}"
+                        Content="{Binding LeaveLobbyButtonText}"
                         Command="{Binding RequestLeaveLobbyCommand}"
                         Style="{StaticResource LauncherDangerDialogButtonStyle}" />
 
@@ -193,18 +193,23 @@
                                                              IsFirstVisible="{Binding IsFirst}"
                                                              IsLastVisible="{Binding IsLast}">
                                     <controls:ListPageItemButton.TitleTrailingContent>
-                                        <controls:AdaptiveTagList ItemsSource="{Binding RoleTags}">
-                                            <controls:AdaptiveTagList.Style>
-                                                <Style TargetType="{x:Type controls:AdaptiveTagList}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsHost}" Value="True">
-                                                            <Setter Property="TagBackground" Value="{DynamicResource Brush.Accent.Selection}" />
-                                                            <Setter Property="TagForeground" Value="{DynamicResource Brush.Accent.Primary}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </controls:AdaptiveTagList.Style>
-                                        </controls:AdaptiveTagList>
+                                        <StackPanel Orientation="Horizontal">
+                                            <controls:AdaptiveTagList ItemsSource="{Binding RoleTags}">
+                                                <controls:AdaptiveTagList.Style>
+                                                    <Style TargetType="{x:Type controls:AdaptiveTagList}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHost}" Value="True">
+                                                                <Setter Property="TagBackground" Value="{DynamicResource Brush.Accent.Selection}" />
+                                                                <Setter Property="TagForeground" Value="{DynamicResource Brush.Accent.Primary}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </controls:AdaptiveTagList.Style>
+                                            </controls:AdaptiveTagList>
+                                            <controls:AdaptiveTagList ItemsSource="{Binding LocalTags}"
+                                                                      TagBackground="{DynamicResource Brush.Accent.Selection}"
+                                                                      TagForeground="{DynamicResource Brush.Accent.Primary}" />
+                                        </StackPanel>
                                     </controls:ListPageItemButton.TitleTrailingContent>
                                 </controls:ListPageItemButton>
                             </DataTemplate>

@@ -73,10 +73,29 @@
                                     <DataTrigger Binding="{Binding IsCreateLobbySection}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsLobbyStep}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </views:CreateLobbyView.Style>
                     </views:CreateLobbyView>
+                    <views:JoinLobbyView>
+                        <views:JoinLobbyView.Style>
+                            <Style TargetType="{x:Type views:JoinLobbyView}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsJoinLobbySection}" Value="True" />
+                                            <Condition Binding="{Binding IsLobbyStep}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:JoinLobbyView.Style>
+                    </views:JoinLobbyView>
                 </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
@@ -93,13 +112,9 @@
                 <Style TargetType="TextBlock">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding IsCreateLobbySection}" Value="True" />
-                                <Condition Binding="{Binding IsLobbyStep}" Value="False" />
-                            </MultiDataTrigger.Conditions>
+                        <DataTrigger Binding="{Binding IsLobbyStep}" Value="False">
                             <Setter Property="Visibility" Value="Visible" />
-                        </MultiDataTrigger>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </TextBlock.Style>

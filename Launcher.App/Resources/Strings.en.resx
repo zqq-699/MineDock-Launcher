@@ -181,6 +181,9 @@
   <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
     <value>Player</value>
   </data>
+  <data name="Multiplayer_LobbyPlayerRoleSelf" xml:space="preserve">
+    <value>Me</value>
+  </data>
   <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
     <value>Leave and disband</value>
   </data>
@@ -3455,6 +3458,7 @@ The current game folder will be backed up first.</value>
   <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
   <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
   <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>Room code copied</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopyFailed" xml:space="preserve"><value>Could not copy the room code. Please try again.</value></data>
   <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>Could not disband the room. Please try again later.</value></data>
   <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>The LAN world closed, so the room was disbanded automatically.</value></data>
   <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta stopped, so the room was disbanded automatically.</value></data>
@@ -3466,4 +3470,20 @@ The current game folder will be backed up first.</value>
   <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>Multiplayer is powered by </value></data>
   <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
   <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value>.</value></data>
+  <data name="Multiplayer_Join_StepEnterRoomCode" xml:space="preserve"><value>Step 1: Enter the room code provided by the host.</value></data>
+  <data name="Multiplayer_Join_StepJoinLobby" xml:space="preserve"><value>Step 2: Click “Join Room”.</value></data>
+  <data name="Multiplayer_Join_RoomCodeSection" xml:space="preserve"><value>Enter Room Code</value></data>
+  <data name="Multiplayer_Join_RoomCodePlaceholder" xml:space="preserve"><value>Enter a room code</value></data>
+  <data name="Multiplayer_Join_PasteButton" xml:space="preserve"><value>Paste</value></data>
+  <data name="Multiplayer_Join_Joining" xml:space="preserve"><value>Joining…</value></data>
+  <data name="Multiplayer_Join_InvalidRoomCode" xml:space="preserve"><value>The room code format is invalid. Check the code and try again.</value></data>
+  <data name="Multiplayer_Join_Failed" xml:space="preserve"><value>Could not join the room. Confirm that it is still available, check your connection, and try again.</value></data>
+  <data name="Multiplayer_Join_ClipboardEmpty" xml:space="preserve"><value>The clipboard does not contain a room code.</value></data>
+  <data name="Multiplayer_LobbyLeaveButton" xml:space="preserve"><value>Leave Room</value></data>
+  <data name="Multiplayer_LobbyLeaveFailed" xml:space="preserve"><value>Could not leave the room. Try again.</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyTitle" xml:space="preserve"><value>Leave room?</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyMessage" xml:space="preserve"><value>Leaving will disconnect you from this room.</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>Leave Room</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>Cannot Switch Multiplayer Mode</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>You are currently in a room. Leave the room before switching.</value></data>
 </root>

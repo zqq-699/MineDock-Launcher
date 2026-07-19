@@ -95,6 +95,19 @@ public sealed class MinecraftLanWorldDiscoveryServiceTests
         Assert.Equal(51234, Assert.Single(worlds).Port);
     }
 
+    [Fact]
+    public void DefaultMulticastRouteAddress_IsIncludedInLocalAddressDiscovery()
+    {
+        var interfaceAddress = IPAddress.Parse("192.168.88.4");
+        var routeAddress = IPAddress.Parse("10.7.0.2");
+
+        var addresses = LocalIpv4AddressProvider.IncludeDefaultMulticastRouteAddress(
+            [interfaceAddress],
+            routeAddress);
+
+        Assert.Equal([interfaceAddress, routeAddress, IPAddress.Loopback], addresses);
+    }
+
     private static MinecraftLanDatagram CreateDatagram(IPAddress address, string name, int port)
     {
         return new MinecraftLanDatagram(

@@ -102,7 +102,7 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
             try
             {
                 var endpoint = await GetOrStartEndpointAsync(module, cancellationToken).ConfigureAwait(false);
-                createdRuntime = new LobbyRuntime(endpoint.Port, endpoint.OwnedProcess);
+                createdRuntime = new LobbyRuntime(endpoint.Port, endpoint.OwnedProcess, LobbyRole.Host);
                 var initialState = await GetStateAsync(endpoint.Port, cancellationToken).ConfigureAwait(false);
                 if (initialState.Kind is not TerracottaStateKind.Waiting)
                 {
@@ -120,7 +120,7 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
                     endpoint.Port,
                     BuildScanPath(normalizedHostName),
                     cancellationToken).ConfigureAwait(false);
-                createdRuntime.ScanningStarted = true;
+                createdRuntime.ControllerStateStarted = true;
 
                 var active = await WaitForHostAsync(createdRuntime, cancellationToken).ConfigureAwait(false);
                 PublishSnapshot(active);
@@ -157,6 +157,111 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
         }
     }
 
+    public async Task<MultiplayerLobbySnapshot> JoinAsync(
+        string roomCode,
+        string playerName,
+        CancellationToken cancellationToken = default)
+    {
+        await operationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (runtime is not null)
+            {
+                throw new MultiplayerLobbyCreationException(
+                    MultiplayerLobbyCreationFailure.TerracottaBusy,
+                    "A multiplayer lobby is already active.");
+            }
+
+            var normalizedRoomCode = NormalizeProfileText(roomCode, string.Empty, 256);
+            if (normalizedRoomCode.Length == 0)
+            {
+                throw new MultiplayerLobbyCreationException(
+                    MultiplayerLobbyCreationFailure.InvalidRoomCode,
+                    "The Terracotta room code is empty.");
+            }
+
+            TerracottaModule module;
+            try
+            {
+                module = provisioningService.TryGetAvailable()
+                    ?? await provisioningService.EnsureAvailableAsync(cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                throw new MultiplayerLobbyCreationException(
+                    MultiplayerLobbyCreationFailure.TerracottaUnavailable,
+                    "The Terracotta module is unavailable.",
+                    exception);
+            }
+
+            var normalizedPlayerName = NormalizeProfileText(playerName, "Player", 64);
+            LobbyRuntime? createdRuntime = null;
+            try
+            {
+                var endpoint = await GetOrStartEndpointAsync(module, cancellationToken).ConfigureAwait(false);
+                createdRuntime = new LobbyRuntime(endpoint.Port, endpoint.OwnedProcess, LobbyRole.Guest);
+                var initialState = await GetStateAsync(endpoint.Port, cancellationToken).ConfigureAwait(false);
+                if (initialState.Kind is not TerracottaStateKind.Waiting)
+                {
+                    throw new MultiplayerLobbyCreationException(
+                        MultiplayerLobbyCreationFailure.TerracottaBusy,
+                        "Another launcher is already using Terracotta.");
+                }
+
+                runtime = createdRuntime;
+                PublishSnapshot(new MultiplayerLobbySnapshot(
+                    normalizedRoomCode,
+                    MultiplayerLobbyState.Joining,
+                    []));
+                await SendGuestCommandAsync(
+                    endpoint.Port,
+                    BuildGuestPath(normalizedRoomCode, normalizedPlayerName),
+                    cancellationToken).ConfigureAwait(false);
+                createdRuntime.ControllerStateStarted = true;
+
+                var active = await WaitForGuestAsync(
+                    createdRuntime,
+                    normalizedRoomCode,
+                    cancellationToken).ConfigureAwait(false);
+                PublishSnapshot(active);
+                createdRuntime.MonitorTask = MonitorRuntimeAsync(createdRuntime);
+                logger.LogInformation(
+                    "Terracotta multiplayer lobby joined. Version={Version} PlayerCount={PlayerCount} OwnsProcess={OwnsProcess}",
+                    module.Version,
+                    active.Players.Count,
+                    endpoint.OwnedProcess is not null);
+                return active;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await CleanupFailedCreationAsync(createdRuntime).ConfigureAwait(false);
+                throw;
+            }
+            catch (MultiplayerLobbyCreationException)
+            {
+                await CleanupFailedCreationAsync(createdRuntime).ConfigureAwait(false);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                await CleanupFailedCreationAsync(createdRuntime).ConfigureAwait(false);
+                throw new MultiplayerLobbyCreationException(
+                    MultiplayerLobbyCreationFailure.RoomConnectionFailed,
+                    "Terracotta could not join the lobby.",
+                    exception);
+            }
+        }
+        finally
+        {
+            operationLock.Release();
+        }
+    }
+
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         Volatile.Read(ref runtime)?.RequestStop();
@@ -173,7 +278,7 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
                 PublishSnapshot(snapshot with { State = MultiplayerLobbyState.Stopping });
             await StopRuntimeAsync(activeRuntime, CancellationToken.None).ConfigureAwait(false);
             Volatile.Write(ref current, null);
-            logger.LogInformation("Terracotta multiplayer lobby stopped by the host.");
+            logger.LogInformation("Terracotta multiplayer lobby stopped by the user.");
         }
         finally
         {
@@ -415,6 +520,9 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
                         throw new MultiplayerLobbyCreationException(
                             MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
                             "Terracotta returned to the waiting state during creation.");
+                    case TerracottaStateKind.GuestConnecting:
+                    case TerracottaStateKind.GuestStarting:
+                    case TerracottaStateKind.GuestOk:
                     case TerracottaStateKind.Other:
                         throw new MultiplayerLobbyCreationException(
                             MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
@@ -438,6 +546,65 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
         }
     }
 
+    private async Task<MultiplayerLobbySnapshot> WaitForGuestAsync(
+        LobbyRuntime activeRuntime,
+        string roomCode,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            activeRuntime.Shutdown.Token);
+        timeout.CancelAfter(StartupTimeout);
+        var canonicalRoomCode = roomCode;
+        try
+        {
+            while (true)
+            {
+                timeout.Token.ThrowIfCancellationRequested();
+                EnsureOwnedProcessRunning(activeRuntime);
+                var state = await GetStateAsync(activeRuntime.Port, timeout.Token).ConfigureAwait(false);
+                if (state.Kind is TerracottaStateKind.GuestConnecting or TerracottaStateKind.GuestStarting
+                    && !string.IsNullOrWhiteSpace(state.RoomCode))
+                {
+                    canonicalRoomCode = state.RoomCode;
+                }
+                switch (state.Kind)
+                {
+                    case TerracottaStateKind.GuestOk:
+                        return new MultiplayerLobbySnapshot(
+                            canonicalRoomCode,
+                            MultiplayerLobbyState.Active,
+                            state.Players);
+                    case TerracottaStateKind.Exception:
+                        throw MapJoinException(state.ExceptionType);
+                    case TerracottaStateKind.Waiting:
+                        throw new MultiplayerLobbyCreationException(
+                            MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
+                            "Terracotta returned to the waiting state while joining.");
+                    case TerracottaStateKind.HostScanning:
+                    case TerracottaStateKind.HostStarting:
+                    case TerracottaStateKind.HostOk:
+                    case TerracottaStateKind.Other:
+                        throw new MultiplayerLobbyCreationException(
+                            MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
+                            "Terracotta returned an incompatible guest state.");
+                }
+
+                await Task.Delay(PollInterval, timeout.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (activeRuntime.Shutdown.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MultiplayerLobbyCreationException(
+                MultiplayerLobbyCreationFailure.RoomConnectionFailed,
+                "Terracotta did not join the lobby before the startup timeout.");
+        }
+    }
+
     private async Task MonitorRuntimeAsync(LobbyRuntime activeRuntime)
     {
         string? lastSignature = null;
@@ -458,7 +625,10 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
                     return;
                 }
 
-                if (state.Kind is not TerracottaStateKind.HostOk)
+                var expectedState = activeRuntime.Role is LobbyRole.Host
+                    ? TerracottaStateKind.HostOk
+                    : TerracottaStateKind.GuestOk;
+                if (state.Kind != expectedState)
                 {
                     await StopUnexpectedlyAsync(
                         activeRuntime,
@@ -528,7 +698,7 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
     private async Task StopRuntimeAsync(LobbyRuntime activeRuntime, CancellationToken cancellationToken)
     {
         activeRuntime.RequestStop();
-        if (activeRuntime.ScanningStarted)
+        if (activeRuntime.ControllerStateStarted)
         {
             try
             {
@@ -620,6 +790,28 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
         response.EnsureSuccessStatusCode();
     }
 
+    private async Task SendGuestCommandAsync(
+        int port,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(RequestTimeout);
+        using var request = new HttpRequestMessage(HttpMethod.Get, CreateLoopbackUri(port, path));
+        using var response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeout.Token).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.BadRequest)
+        {
+            throw new MultiplayerLobbyCreationException(
+                MultiplayerLobbyCreationFailure.InvalidRoomCode,
+                "Terracotta rejected the room code.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
     private static Uri CreateLoopbackUri(int port, string path) =>
         new($"http://127.0.0.1:{port}{path}", UriKind.Absolute);
 
@@ -659,6 +851,9 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
             "host-scanning" => TerracottaStateKind.HostScanning,
             "host-starting" => TerracottaStateKind.HostStarting,
             "host-ok" => TerracottaStateKind.HostOk,
+            "guest-connecting" => TerracottaStateKind.GuestConnecting,
+            "guest-starting" => TerracottaStateKind.GuestStarting,
+            "guest-ok" => TerracottaStateKind.GuestOk,
             "exception" => TerracottaStateKind.Exception,
             _ => TerracottaStateKind.Other
         };
@@ -685,13 +880,22 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
                 var name = NormalizeProfileText(GetString(profile, "name", 64), "Player", 64);
                 var vendor = NormalizeProfileText(GetString(profile, "vendor", 128), "Terracotta", 128);
                 var profileKind = GetString(profile, "kind", 16);
+                var isHost = string.Equals(
+                    profileKind,
+                    "HOST",
+                    StringComparison.OrdinalIgnoreCase);
                 players.Add(new MultiplayerLobbyPlayer(
                     name,
                     machineId,
                     vendor,
-                    string.Equals(profileKind, "HOST", StringComparison.OrdinalIgnoreCase)
+                    isHost
                         ? MultiplayerLobbyPlayerKind.Host
-                        : MultiplayerLobbyPlayerKind.Guest));
+                        : MultiplayerLobbyPlayerKind.Guest,
+                    IsLocal: string.Equals(
+                            profileKind,
+                            "LOCAL",
+                            StringComparison.OrdinalIgnoreCase)
+                        || kind is TerracottaStateKind.HostOk && isHost));
             }
         }
 
@@ -700,6 +904,10 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
 
     internal static string BuildScanPath(string hostName) =>
         $"/state/scanning?player={Uri.EscapeDataString(NormalizeProfileText(hostName, "Player", 64))}";
+
+    internal static string BuildGuestPath(string roomCode, string playerName) =>
+        $"/state/guesting?room={Uri.EscapeDataString(NormalizeProfileText(roomCode, string.Empty, 256))}"
+        + $"&player={Uri.EscapeDataString(NormalizeProfileText(playerName, "Player", 64))}";
 
     private static string GetString(JsonElement element, string propertyName, int maximumLength)
     {
@@ -734,6 +942,20 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
             _ => new MultiplayerLobbyCreationException(
                 MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
                 "Terracotta reported a host creation error.")
+        };
+
+    private static MultiplayerLobbyCreationException MapJoinException(int? exceptionType) =>
+        exceptionType switch
+        {
+            0 or 1 => new MultiplayerLobbyCreationException(
+                MultiplayerLobbyCreationFailure.RoomConnectionFailed,
+                "Terracotta could not reach the room host."),
+            2 => new MultiplayerLobbyCreationException(
+                MultiplayerLobbyCreationFailure.RoomConnectionFailed,
+                "Terracotta's EasyTier guest stopped while joining."),
+            _ => new MultiplayerLobbyCreationException(
+                MultiplayerLobbyCreationFailure.TerracottaProtocolFailed,
+                "Terracotta reported a guest connection error.")
         };
 
     private static MultiplayerLobbyStopReason MapStopReason(int? exceptionType) => exceptionType switch
@@ -852,6 +1074,9 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
         HostScanning,
         HostStarting,
         HostOk,
+        GuestConnecting,
+        GuestStarting,
+        GuestOk,
         Exception,
         Other
     }
@@ -862,17 +1087,20 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
     {
         private int disposed;
 
-        public LobbyRuntime(int port, Process? ownedProcess)
+        public LobbyRuntime(int port, Process? ownedProcess, LobbyRole role)
         {
             Port = port;
             OwnedProcess = ownedProcess;
+            Role = role;
         }
 
         public int Port { get; }
 
         public Process? OwnedProcess { get; }
 
-        public bool ScanningStarted { get; set; }
+        public LobbyRole Role { get; }
+
+        public bool ControllerStateStarted { get; set; }
 
         public CancellationTokenSource Shutdown { get; } = new();
 
@@ -891,5 +1119,11 @@ internal sealed class MultiplayerLobbyService : IMultiplayerLobbyService
             RequestStop();
             Shutdown.Dispose();
         }
+    }
+
+    private enum LobbyRole
+    {
+        Host,
+        Guest
     }
 }

@@ -9,6 +9,7 @@ namespace Launcher.Application.Services;
 public enum MultiplayerLobbyState
 {
     Creating,
+    Joining,
     Active,
     Stopping
 }
@@ -33,7 +34,9 @@ public enum MultiplayerLobbyCreationFailure
     MinecraftWorldUnavailable,
     TerracottaStartupFailed,
     TerracottaBusy,
-    TerracottaProtocolFailed
+    TerracottaProtocolFailed,
+    InvalidRoomCode,
+    RoomConnectionFailed
 }
 
 public sealed record MultiplayerLobbyPlayer(
@@ -41,7 +44,8 @@ public sealed record MultiplayerLobbyPlayer(
     string MachineId,
     string Vendor,
     MultiplayerLobbyPlayerKind Kind,
-    int? LatencyMilliseconds = null);
+    int? LatencyMilliseconds = null,
+    bool IsLocal = false);
 
 public sealed record MultiplayerLobbySnapshot(
     string RoomCode,
@@ -76,6 +80,11 @@ public interface IMultiplayerLobbyService
 
     Task<MultiplayerLobbySnapshot> CreateHostAsync(
         string hostName,
+        CancellationToken cancellationToken = default);
+
+    Task<MultiplayerLobbySnapshot> JoinAsync(
+        string roomCode,
+        string playerName,
         CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);

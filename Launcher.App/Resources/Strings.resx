@@ -75,6 +75,7 @@
   <data name="Multiplayer_LobbyLatencyPlaceholder" xml:space="preserve"><value>xxx ms</value></data>
   <data name="Multiplayer_LobbyPlayerRoleHost" xml:space="preserve"><value>房主</value></data>
   <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve"><value>玩家</value></data>
+  <data name="Multiplayer_LobbyPlayerRoleSelf" xml:space="preserve"><value>我</value></data>
   <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve"><value>退出并解散</value></data>
   <data name="Dialog_MultiplayerLeaveLobbyTitle" xml:space="preserve"><value>退出并解散房间？</value></data>
   <data name="Dialog_MultiplayerLeaveLobbyMessage" xml:space="preserve"><value>退出后房间将被解散，其他玩家也会断开连接。是否确认退出？</value></data>
@@ -1214,6 +1215,7 @@
   <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
   <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
   <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>已复制房间代码</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopyFailed" xml:space="preserve"><value>复制房间代码失败，请稍后重试。</value></data>
   <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>解散房间失败，请稍后重试。</value></data>
   <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>局域网世界已关闭，房间已自动解散。</value></data>
   <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta 联机模块已停止，房间已自动解散。</value></data>
@@ -1223,4 +1225,20 @@
   <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>联机功能由 </value></data>
   <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
   <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value> 驱动。</value></data>
+  <data name="Multiplayer_Join_StepEnterRoomCode" xml:space="preserve"><value>第一步：输入由房主提供的房间代码。</value></data>
+  <data name="Multiplayer_Join_StepJoinLobby" xml:space="preserve"><value>第二步：点击“加入房间”。</value></data>
+  <data name="Multiplayer_Join_RoomCodeSection" xml:space="preserve"><value>输入房间代码</value></data>
+  <data name="Multiplayer_Join_RoomCodePlaceholder" xml:space="preserve"><value>请输入房间代码</value></data>
+  <data name="Multiplayer_Join_PasteButton" xml:space="preserve"><value>粘贴</value></data>
+  <data name="Multiplayer_Join_Joining" xml:space="preserve"><value>正在加入…</value></data>
+  <data name="Multiplayer_Join_InvalidRoomCode" xml:space="preserve"><value>房间代码格式无效，请检查后重试。</value></data>
+  <data name="Multiplayer_Join_Failed" xml:space="preserve"><value>加入房间失败，请确认房间仍然有效并检查网络后重试。</value></data>
+  <data name="Multiplayer_Join_ClipboardEmpty" xml:space="preserve"><value>剪贴板中没有可用的房间代码。</value></data>
+  <data name="Multiplayer_LobbyLeaveButton" xml:space="preserve"><value>离开房间</value></data>
+  <data name="Multiplayer_LobbyLeaveFailed" xml:space="preserve"><value>离开房间失败，请重试。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyTitle" xml:space="preserve"><value>离开房间？</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyMessage" xml:space="preserve"><value>离开后将断开与房间的连接。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>离开房间</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>无法切换联机模式</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>当前在房间内，请先退出房间。</value></data>
 </root>

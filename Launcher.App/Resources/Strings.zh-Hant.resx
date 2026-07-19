@@ -181,6 +181,9 @@
   <data name="Multiplayer_LobbyPlayerRolePlayer" xml:space="preserve">
     <value>玩家</value>
   </data>
+  <data name="Multiplayer_LobbyPlayerRoleSelf" xml:space="preserve">
+    <value>我</value>
+  </data>
   <data name="Multiplayer_LobbyLeaveAndDisbandButton" xml:space="preserve">
     <value>退出並解散</value>
   </data>
@@ -3455,6 +3458,7 @@
   <data name="Multiplayer_LobbyLatencyUnknown" xml:space="preserve"><value>—</value></data>
   <data name="Multiplayer_LobbyLatencyFormat" xml:space="preserve"><value>{0} ms</value></data>
   <data name="Multiplayer_LobbyRoomCodeCopied" xml:space="preserve"><value>已複製房間代碼</value></data>
+  <data name="Multiplayer_LobbyRoomCodeCopyFailed" xml:space="preserve"><value>複製房間代碼失敗，請稍後再試。</value></data>
   <data name="Multiplayer_LobbyDisbandFailed" xml:space="preserve"><value>解散房間失敗，請稍後再試。</value></data>
   <data name="Multiplayer_LobbyWorldClosed" xml:space="preserve"><value>區域網路世界已關閉，房間已自動解散。</value></data>
   <data name="Multiplayer_LobbyTerracottaExited" xml:space="preserve"><value>Terracotta 連線模組已停止，房間已自動解散。</value></data>
@@ -3466,4 +3470,20 @@
   <data name="Multiplayer_Create_TerracottaAttributionPrefix" xml:space="preserve"><value>連線功能由 </value></data>
   <data name="Multiplayer_Create_TerracottaAttributionLinkText" xml:space="preserve"><value>Terracotta | 陶瓦联机</value></data>
   <data name="Multiplayer_Create_TerracottaAttributionSuffix" xml:space="preserve"><value> 驅動。</value></data>
+  <data name="Multiplayer_Join_StepEnterRoomCode" xml:space="preserve"><value>第一步：輸入由房主提供的房間代碼。</value></data>
+  <data name="Multiplayer_Join_StepJoinLobby" xml:space="preserve"><value>第二步：點擊「加入房間」。</value></data>
+  <data name="Multiplayer_Join_RoomCodeSection" xml:space="preserve"><value>輸入房間代碼</value></data>
+  <data name="Multiplayer_Join_RoomCodePlaceholder" xml:space="preserve"><value>請輸入房間代碼</value></data>
+  <data name="Multiplayer_Join_PasteButton" xml:space="preserve"><value>貼上</value></data>
+  <data name="Multiplayer_Join_Joining" xml:space="preserve"><value>正在加入…</value></data>
+  <data name="Multiplayer_Join_InvalidRoomCode" xml:space="preserve"><value>房間代碼格式無效，請檢查後重試。</value></data>
+  <data name="Multiplayer_Join_Failed" xml:space="preserve"><value>加入房間失敗，請確認房間仍然有效並檢查網路後重試。</value></data>
+  <data name="Multiplayer_Join_ClipboardEmpty" xml:space="preserve"><value>剪貼簿中沒有可用的房間代碼。</value></data>
+  <data name="Multiplayer_LobbyLeaveButton" xml:space="preserve"><value>離開房間</value></data>
+  <data name="Multiplayer_LobbyLeaveFailed" xml:space="preserve"><value>離開房間失敗，請重試。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyTitle" xml:space="preserve"><value>離開房間？</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyMessage" xml:space="preserve"><value>離開後將中斷與房間的連線。</value></data>
+  <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>離開房間</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>無法切換聯機模式</value></data>
+  <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>目前仍在房間內，請先退出房間。</value></data>
 </root>

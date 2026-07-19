@@ -304,6 +304,11 @@ public sealed class LauncherLifecycleServiceTests
             string hostName,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<MultiplayerLobbySnapshot> JoinAsync(
+            string roomCode,
+            string playerName,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task StopAsync(CancellationToken cancellationToken = default)
         {
             StopCount++;

@@ -203,11 +203,11 @@ public sealed partial class AccountOfflineUuidViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void CopySelectedUuid()
+    private async Task CopySelectedUuidAsync(CancellationToken cancellationToken)
     {
         var uuid = accountList.SelectedAccount?.Uuid;
         if (!string.IsNullOrWhiteSpace(uuid))
-            clipboardService.CopyText(uuid);
+            await clipboardService.CopyTextAsync(uuid, cancellationToken);
     }
 
     private void RefreshSelection()

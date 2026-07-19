@@ -73,9 +73,19 @@ public sealed class CreateLobbyViewContractTests
             element.Name.LocalName == "ListPageItemButton"
             && element.Attribute("Subtitle")?.Value == "{Binding Subtitle}"
             && element.Attribute("TrailingText")?.Value == "{Binding LatencyText}");
-        Assert.Contains(view.Descendants(), element =>
+        var roleTags = Assert.Single(view.Descendants().Where(element =>
             element.Name.LocalName == "AdaptiveTagList"
-            && element.Attribute("ItemsSource")?.Value == "{Binding RoleTags}");
+            && element.Attribute("ItemsSource")?.Value == "{Binding RoleTags}"));
+        var localTags = Assert.Single(view.Descendants().Where(element =>
+            element.Name.LocalName == "AdaptiveTagList"
+            && element.Attribute("ItemsSource")?.Value == "{Binding LocalTags}"));
+        Assert.True(roleTags.IsBefore(localTags));
+        Assert.Equal(
+            "{DynamicResource Brush.Accent.Selection}",
+            localTags.Attribute("TagBackground")?.Value);
+        Assert.Equal(
+            "{DynamicResource Brush.Accent.Primary}",
+            localTags.Attribute("TagForeground")?.Value);
 
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
         var createdLobbyLayer = Assert.Single(view
@@ -155,16 +165,66 @@ public sealed class CreateLobbyViewContractTests
         Assert.Equal("Center", attribution.Attribute("TextAlignment")?.Value);
         Assert.Equal("{Binding OpenTerracottaProjectCommand}", hyperlink.Attribute("Command")?.Value);
         Assert.Equal("{StaticResource MultiplayerProjectHyperlinkStyle}", hyperlink.Attribute("Style")?.Value);
-        var conditions = attribution
+        var triggers = attribution
+            .Descendants()
+            .Where(element => element.Name.LocalName == "DataTrigger")
+            .Select(element => (element.Attribute("Binding")?.Value, element.Attribute("Value")?.Value))
+            .ToArray();
+        Assert.Contains(("{Binding IsLobbyStep}", "False"), triggers);
+        Assert.Contains(hyperlink.Descendants(), element =>
+            element.Attribute("Text")?.Value
+                == "{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionLinkText}");
+    }
+
+    [Fact]
+    public void JoinLobbyCopiesCreationLayoutWithTwoStepsInputPasteAndJoin()
+    {
+        var view = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "JoinLobbyView.xaml"));
+        var instructionKeys = view
+            .Descendants()
+            .Where(element => element.Name.LocalName == "TextBlock")
+            .Select(element => element.Attribute("Text")?.Value)
+            .Where(value => value?.Contains("Multiplayer_Join_Step", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "{x:Static res:Strings.Multiplayer_Join_StepEnterRoomCode}",
+                "{x:Static res:Strings.Multiplayer_Join_StepJoinLobby}"
+            ],
+            instructionKeys);
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "TextBox"
+            && element.Attribute("Text")?.Value.Contains("JoinRoomCode", StringComparison.Ordinal) == true);
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding PasteRoomCodeCommand}");
+        Assert.Contains(view.Descendants(), element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding JoinLobbyCommand}"
+            && element.Attribute("Content")?.Value == "{Binding JoinLobbyButtonText}");
+
+        var page = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Multiplayer",
+            "MultiplayerPageView.xaml"));
+        var joinView = Assert.Single(page
+            .Descendants()
+            .Where(element => element.Name.LocalName == "JoinLobbyView"));
+        var conditions = joinView
             .Descendants()
             .Where(element => element.Name.LocalName == "Condition")
             .Select(element => (element.Attribute("Binding")?.Value, element.Attribute("Value")?.Value))
             .ToArray();
-        Assert.Contains(("{Binding IsCreateLobbySection}", "True"), conditions);
+        Assert.Contains(("{Binding IsJoinLobbySection}", "True"), conditions);
         Assert.Contains(("{Binding IsLobbyStep}", "False"), conditions);
-        Assert.Contains(hyperlink.Descendants(), element =>
-            element.Attribute("Text")?.Value
-                == "{x:Static res:Strings.Multiplayer_Create_TerracottaAttributionLinkText}");
     }
 
     private static DirectoryInfo FindRepositoryRoot()

@@ -162,12 +162,12 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Dialog_MultiplayerLeaveLobbyTitle}"
+                    <TextBlock Text="{Binding LeaveLobbyDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"
                                Margin="0,16,0,24"
-                               Text="{x:Static res:Strings.Dialog_MultiplayerLeaveLobbyMessage}"
+                               Text="{Binding LeaveLobbyDialogMessage}"
                                Style="{StaticResource DialogBodyTextStyle}"
                                TextWrapping="Wrap" />
 
@@ -177,9 +177,41 @@
                                 Command="{Binding CancelLeaveLobbyCommand}"
                                 Style="{StaticResource LauncherDialogButtonStyle}" />
                         <Button Margin="{StaticResource DialogTrailingButtonMargin}"
-                                Content="{x:Static res:Strings.Dialog_MultiplayerLeaveLobbyConfirmButton}"
+                                Content="{Binding LeaveLobbyConfirmButtonText}"
                                 Command="{Binding ConfirmLeaveLobbyCommand}"
                                 Style="{StaticResource LauncherDangerDialogButtonStyle}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="MultiplayerLobbySectionSwitchBlockedDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="400"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsLobbySectionSwitchBlockedDialogOpen}"
+                                 DataContext="{Binding MultiplayerPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_MultiplayerLobbySectionSwitchBlockedTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{x:Static res:Strings.Dialog_MultiplayerLobbySectionSwitchBlockedMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding CloseLobbySectionSwitchBlockedDialogCommand}"
+                                Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
                     </StackPanel>
                 </Grid>
             </controls:DialogHost>
