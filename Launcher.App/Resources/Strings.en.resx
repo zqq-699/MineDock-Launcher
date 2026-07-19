@@ -767,13 +767,13 @@
     <value>Report a Bug</value>
   </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
-    <value>Info</value>
+    <value>About</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
     <value>Controls</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
-    <value>Info</value>
+    <value>About</value>
   </data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve">
     <value>Launcher Version</value>

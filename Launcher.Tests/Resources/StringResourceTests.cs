@@ -71,6 +71,20 @@ public sealed class StringResourceTests
     }
 
     [Theory]
+    [InlineData("Strings.resx", "关于")]
+    [InlineData("Strings.zh-Hans.resx", "关于")]
+    [InlineData("Strings.zh-Hant.resx", "關於")]
+    [InlineData("Strings.en.resx", "About")]
+    [InlineData("Strings.ja-JP.resx", "このアプリについて")]
+    public void SettingsInfoSectionUsesAboutCopy(string fileName, string expected)
+    {
+        var resources = Load(fileName);
+
+        Assert.Equal(expected, resources[nameof(Strings.Settings_SectionInfo)]);
+        Assert.Equal(expected, resources[nameof(Strings.Settings_InfoContent)]);
+    }
+
+    [Theory]
     [InlineData("Strings.resx", "大厅")]
     [InlineData("Strings.zh-Hans.resx", "大厅")]
     [InlineData("Strings.zh-Hant.resx", "大廳")]

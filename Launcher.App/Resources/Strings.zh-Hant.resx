@@ -767,13 +767,13 @@
     <value>Bug 意見回饋</value>
   </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
-    <value>資訊</value>
+    <value>關於</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
     <value>控制項清單</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
-    <value>資訊</value>
+    <value>關於</value>
   </data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve">
     <value>啟動器版本</value>

@@ -270,9 +270,9 @@
   <data name="Dialog_FeedbackTitle" xml:space="preserve"><value>建议与反馈</value></data>
   <data name="Dialog_FeedbackFeatureSuggestionsButton" xml:space="preserve"><value>新功能建议</value></data>
   <data name="Dialog_FeedbackBugReportsButton" xml:space="preserve"><value>Bug 反馈</value></data>
-  <data name="Settings_SectionInfo" xml:space="preserve"><value>信息</value></data>
+  <data name="Settings_SectionInfo" xml:space="preserve"><value>关于</value></data>
   <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
-  <data name="Settings_InfoContent" xml:space="preserve"><value>信息</value></data>
+  <data name="Settings_InfoContent" xml:space="preserve"><value>关于</value></data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve"><value>启动器版本</value></data>
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
   <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve"><value>查看 GitHub 仓库</value></data>

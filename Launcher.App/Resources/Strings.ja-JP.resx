@@ -767,13 +767,13 @@
     <value>バグの報告</value>
   </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
-    <value>情報</value>
+    <value>このアプリについて</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
     <value>コントロール一覧</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
-    <value>情報</value>
+    <value>このアプリについて</value>
   </data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve">
     <value>ランチャーバージョン</value>
