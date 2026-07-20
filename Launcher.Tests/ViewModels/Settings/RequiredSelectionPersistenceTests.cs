@@ -19,6 +19,7 @@
 
 using System.Reflection;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shell;
 using Launcher.Application.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -141,7 +142,8 @@ public sealed class RequiredSelectionPersistenceTests
             LauncherBackgroundEffect = LauncherBackgroundEffects.Acrylic
         };
         var settingsService = new TestSettingsService(settings);
-        using var viewModel = CreateSettingsPage(settingsService);
+        var themeService = new TestThemeService();
+        using var viewModel = CreateSettingsPage(settingsService, themeService: themeService);
         viewModel.PrimeFromSettings(settings);
 
         viewModel.Theme.SelectedBackgroundEffectOption = viewModel.Theme.BackgroundEffectOptions.Single(option =>
@@ -150,6 +152,45 @@ public sealed class RequiredSelectionPersistenceTests
 
         Assert.Equal(LauncherBackgroundEffects.Image, settings.LauncherBackgroundEffect);
         Assert.False(viewModel.Theme.IsBackgroundOpacityVisible);
+        Assert.True(themeService.ImageBackgroundStylesEnabled);
+
+        viewModel.Theme.SelectedBackgroundEffectOption = viewModel.Theme.BackgroundEffectOptions.Single(option =>
+            option.Id == LauncherBackgroundEffects.None);
+        await viewModel.FlushPendingSettingsAsync();
+
+        Assert.False(themeService.ImageBackgroundStylesEnabled);
+    }
+
+    [Fact]
+    public void BackgroundImageFolderCommandsOpenRefreshAndClearDedicatedDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            LauncherBackgroundEffect = LauncherBackgroundEffects.Image
+        };
+        var catalog = new TestLauncherBackgroundImageCatalog();
+        var folderService = new TestFolderService();
+        var background = new LauncherBackgroundViewModel(
+            catalog,
+            new LauncherBackgroundImageLoader(),
+            folderService,
+            Stub<IStatusService>(),
+            logger: null,
+            _ => 0);
+        var settingsService = new TestSettingsService(settings);
+        using var viewModel = CreateSettingsPage(settingsService, background);
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.True(viewModel.Theme.IsBackgroundImageSelectionVisible);
+
+        viewModel.Theme.OpenLauncherBackgroundImageFolderCommand.Execute(null);
+        viewModel.Theme.RefreshLauncherBackgroundImageCommand.Execute(null);
+        viewModel.Theme.ClearLauncherBackgroundImagesCommand.Execute(null);
+
+        Assert.Equal(1, catalog.EnsureDirectoryCallCount);
+        Assert.Equal(1, catalog.GetCandidatePathsCallCount);
+        Assert.Equal(1, catalog.ClearImagesCallCount);
+        Assert.Equal(catalog.DirectoryPath, folderService.OpenedDirectory);
     }
 
     [Fact]
@@ -245,7 +286,10 @@ public sealed class RequiredSelectionPersistenceTests
         Assert.Equal(1, instanceService.SaveCallCount);
     }
 
-    private static SettingsPageViewModel CreateSettingsPage(ISettingsService settingsService)
+    private static SettingsPageViewModel CreateSettingsPage(
+        ISettingsService settingsService,
+        LauncherBackgroundViewModel? launcherBackground = null,
+        IThemeService? themeService = null)
     {
         return new SettingsPageViewModel(
             settingsService,
@@ -255,11 +299,12 @@ public sealed class RequiredSelectionPersistenceTests
             Stub<IFilePickerService>(),
             Stub<IInstanceFolderService>(),
             Stub<IFloatingMessageService>(),
-            Stub<IThemeService>(),
+            themeService ?? Stub<IThemeService>(),
             Stub<IExternalLinkService>(),
             Stub<ILauncherUpdateService>(),
             Stub<ILauncherSelfUpdateService>(),
-            Stub<IApplicationExitService>());
+            Stub<IApplicationExitService>(),
+            launcherBackground: launcherBackground);
     }
 
     private static InstanceSettingsPersistenceCoordinator CreateInstancePersistence(
@@ -334,6 +379,98 @@ public sealed class RequiredSelectionPersistenceTests
     private static T Stub<T>() where T : class
     {
         return DispatchProxy.Create<T, DefaultInterfaceProxy>();
+    }
+
+    private sealed class TestLauncherBackgroundImageCatalog : ILauncherBackgroundImageCatalog
+    {
+        public string DirectoryPath { get; } = @"C:\BHL\images";
+        public int EnsureDirectoryCallCount { get; private set; }
+        public int GetCandidatePathsCallCount { get; private set; }
+        public int ClearImagesCallCount { get; private set; }
+
+        public string EnsureDirectoryExists()
+        {
+            EnsureDirectoryCallCount++;
+            return DirectoryPath;
+        }
+
+        public IReadOnlyList<string> GetCandidatePaths()
+        {
+            GetCandidatePathsCallCount++;
+            return [];
+        }
+
+        public void ClearImages()
+        {
+            ClearImagesCallCount++;
+        }
+    }
+
+    private sealed class TestFolderService : IInstanceFolderService
+    {
+        public string? OpenedDirectory { get; private set; }
+
+        public bool DirectoryExists(string folderPath) => true;
+
+        public string EnsureDirectoryExists(string folderPath) => folderPath;
+
+        public bool TryOpen(string folderPath)
+        {
+            OpenedDirectory = folderPath;
+            return true;
+        }
+
+        public bool TryOpenFile(string filePath) => false;
+
+        public bool TryRevealFile(string filePath) => false;
+    }
+
+    private sealed class TestThemeService : IThemeService
+    {
+        public EffectiveTheme EffectiveTheme => EffectiveTheme.Dark;
+
+        public bool BackgroundBlurDisabled { get; private set; }
+
+        public bool ImageBackgroundStylesEnabled { get; private set; }
+
+#pragma warning disable CS0067
+        public event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
+
+        public event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
+#pragma warning restore CS0067
+
+        public void ApplyPreference(
+            string? theme,
+            bool followSystem,
+            int backgroundOpacityPercent,
+            bool disableBackgroundBlur)
+        {
+            BackgroundBlurDisabled = disableBackgroundBlur;
+        }
+
+        public void ApplyAccent(string? accentColor)
+        {
+        }
+
+        public void ApplyBackgroundOpacity(int opacityPercent)
+        {
+        }
+
+        public void ApplyBackgroundBlurDisabled(bool disabled)
+        {
+            BackgroundBlurDisabled = disabled;
+        }
+
+        public void ApplyImageBackgroundStyles(bool enabled)
+        {
+            ImageBackgroundStylesEnabled = enabled;
+        }
+
+        public object? GetResource(object key) => null;
+
+        public System.Windows.Media.Brush? GetBrush(object key) => null;
+
+        public System.Windows.Media.Color? GetColor(object key) => null;
     }
 
     public class DefaultInterfaceProxy : DispatchProxy

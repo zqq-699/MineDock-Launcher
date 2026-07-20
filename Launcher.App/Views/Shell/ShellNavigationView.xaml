@@ -24,11 +24,17 @@
              xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Class="Launcher.App.Views.Shell.ShellNavigationView"
              x:Name="Root">
-    <Border BorderBrush="{DynamicResource Brush.284E4E4E}"
-            BorderThickness="0,0,1,0"
-            Background="Transparent"
-            ClipToBounds="True">
-        <DockPanel LastChildFill="True">
+    <Grid>
+        <controls:BackdropBlurBorder
+            SourceElement="{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+            Style="{StaticResource PrimaryMenuBackdropStyle}"
+            IsHitTestVisible="False" />
+
+        <Border BorderBrush="{DynamicResource Brush.284E4E4E}"
+                BorderThickness="0,0,1,0"
+                Background="Transparent"
+                ClipToBounds="True">
+            <DockPanel LastChildFill="True">
             <Button DockPanel.Dock="Bottom"
                     Style="{StaticResource NavigationMenuButtonStyle}"
                     Command="{Binding ToggleMenuCommand}">
@@ -196,7 +202,8 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </DockPanel>
-    </Border>
+            </DockPanel>
+        </Border>
+    </Grid>
 </UserControl>
 

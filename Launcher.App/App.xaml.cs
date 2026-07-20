@@ -109,6 +109,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IClipboardService, ClipboardService>();
             services.AddSingleton<IFilePickerService, FilePickerService>();
             services.AddSingleton<IInstanceFolderService, InstanceFolderService>();
+            services.AddSingleton<ILauncherBackgroundImageLoader, LauncherBackgroundImageLoader>();
             services.AddSingleton<IExternalLinkService, ExternalLinkService>();
             services.AddSingleton<IApplicationExitService, ApplicationExitService>();
             services.AddSingleton<IAccountDialogService, AccountDialogService>();
@@ -121,6 +122,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<LaunchStatusDialogViewModel>();
             services.AddSingleton<UserAgreementDialogViewModel>();
             services.AddSingleton<TerracottaAgreementDialogViewModel>();
+            services.AddSingleton<LauncherBackgroundViewModel>();
             services.AddSingleton<AccountListViewModel>();
             services.AddSingleton<AccountDialogViewModel>();
             services.AddSingleton<AccountAppearanceViewModel>();
@@ -172,12 +174,15 @@ public partial class App : System.Windows.Application
 
             var mainViewModel = serviceProvider.GetRequiredService<MainViewModel>();
             await mainViewModel.PrimeAsync(startupSettings);
-            serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
+            var themeService = serviceProvider.GetRequiredService<IThemeService>();
+            themeService.ApplyPreference(
                 mainViewModel.Settings.Theme,
                 mainViewModel.Settings.ThemeFollowSystem,
                 mainViewModel.Settings.LauncherBackgroundOpacityPercent,
                 !LauncherBackgroundEffects.IsAcrylic(mainViewModel.Settings.LauncherBackgroundEffect));
-            serviceProvider.GetRequiredService<IThemeService>().ApplyAccent(mainViewModel.Settings.AccentColor);
+            themeService.ApplyAccent(mainViewModel.Settings.AccentColor);
+            themeService.ApplyImageBackgroundStyles(
+                LauncherBackgroundEffects.IsImage(mainViewModel.Settings.LauncherBackgroundEffect));
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information(

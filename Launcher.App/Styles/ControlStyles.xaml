@@ -28,6 +28,7 @@
         <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Dialogs.xaml" />
         <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Inputs.xaml" />
         <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Messages.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Effects.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
 

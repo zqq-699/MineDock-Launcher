@@ -39,6 +39,31 @@ public sealed class ThemeSettingsViewContractTests
             && element.Attributes().Any(attribute =>
                 attribute.Name.LocalName.EndsWith(".IsExpanded", StringComparison.Ordinal)
                 && attribute.Value == "{Binding IsBackgroundOpacityVisible}"));
+
+        var imageSelection = Assert.Single(document.Descendants().Where(element =>
+            element.Name.LocalName == "Grid"
+            && element.Attributes().Any(attribute =>
+                attribute.Name.LocalName.EndsWith(".IsExpanded", StringComparison.Ordinal)
+                && attribute.Value == "{Binding IsBackgroundImageSelectionVisible}")));
+        var openFolderButton = Assert.Single(imageSelection.Descendants().Where(element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding OpenLauncherBackgroundImageFolderCommand}"));
+        var refreshButton = Assert.Single(imageSelection.Descendants().Where(element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding RefreshLauncherBackgroundImageCommand}"));
+        var clearButton = Assert.Single(imageSelection.Descendants().Where(element =>
+            element.Name.LocalName == "Button"
+            && element.Attribute("Command")?.Value == "{Binding ClearLauncherBackgroundImagesCommand}"));
+
+        Assert.DoesNotContain(imageSelection.Descendants(), element =>
+            element.Name.LocalName == "Border"
+            && element.Attribute("Style")?.Value == "{StaticResource ReadOnlyFieldSurfaceStyle}");
+        Assert.Equal("1", openFolderButton.Attribute("Grid.Column")?.Value);
+        Assert.Equal("{StaticResource LauncherDialogButtonStyle}", openFolderButton.Attribute("Style")?.Value);
+        Assert.Equal("2", refreshButton.Attribute("Grid.Column")?.Value);
+        Assert.Equal("{StaticResource LauncherDialogButtonStyle}", refreshButton.Attribute("Style")?.Value);
+        Assert.Equal("3", clearButton.Attribute("Grid.Column")?.Value);
+        Assert.Equal("{StaticResource LauncherDangerDialogButtonStyle}", clearButton.Attribute("Style")?.Value);
     }
 
     private static DirectoryInfo FindRepositoryRoot()

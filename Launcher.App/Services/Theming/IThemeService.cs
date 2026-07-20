@@ -27,6 +27,8 @@ public interface IThemeService
 
     bool BackgroundBlurDisabled { get; }
 
+    bool ImageBackgroundStylesEnabled { get; }
+
     event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
     event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
@@ -42,6 +44,8 @@ public interface IThemeService
     void ApplyBackgroundOpacity(int opacityPercent);
 
     void ApplyBackgroundBlurDisabled(bool disabled);
+
+    void ApplyImageBackgroundStyles(bool enabled);
 
     object? GetResource(object key);
 

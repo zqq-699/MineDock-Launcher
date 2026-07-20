@@ -47,7 +47,9 @@
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Root"
-                            Background="{TemplateBinding Background}"
+                            behaviors:BackdropBlurHost.IsApplied="True"
+                            behaviors:BackdropBlurHost.IsBlurEnabled="{DynamicResource Is.Surface.BackdropBlur.Enabled}"
+                            behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">
@@ -138,7 +140,9 @@
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
                     <Border x:Name="Root"
-                            Background="{TemplateBinding Background}"
+                            behaviors:BackdropBlurHost.IsApplied="True"
+                            behaviors:BackdropBlurHost.IsBlurEnabled="{DynamicResource Is.Surface.BackdropBlur.Enabled}"
+                            behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">

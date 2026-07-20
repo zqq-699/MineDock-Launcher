@@ -19,8 +19,10 @@
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shell;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Settings;
@@ -28,11 +30,16 @@ namespace Launcher.App.ViewModels.Settings;
 public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBase
 {
     private readonly IThemeService themeService;
+    private readonly LauncherBackgroundViewModel? launcherBackground;
 
-    internal ThemeSettingsViewModel(SettingsPersistenceCoordinator persistence, IThemeService themeService)
+    internal ThemeSettingsViewModel(
+        SettingsPersistenceCoordinator persistence,
+        IThemeService themeService,
+        LauncherBackgroundViewModel? launcherBackground)
         : base(persistence)
     {
         this.themeService = themeService;
+        this.launcherBackground = launcherBackground;
         ThemeOptions =
         [
             new(LauncherDefaults.DefaultTheme, Strings.Settings_ThemeDarkTitle),
@@ -71,6 +78,7 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
     [ObservableProperty] private int launcherBackgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
 
     public bool IsThemeSelectionVisible => !FollowSystemTheme;
+    public bool IsBackgroundImageSelectionVisible => SelectedBackgroundEffectOption?.IsImageSelected ?? false;
     public bool IsBackgroundOpacityVisible => SelectedBackgroundEffectOption?.IsAcrylicEnabled ?? true;
     public string LauncherBackgroundOpacityText => $"{LauncherBackgroundOpacityPercent}%";
 
@@ -139,6 +147,24 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         Persist(settings => settings.LauncherBackgroundOpacityPercent = normalized);
     }
 
+    [RelayCommand]
+    private void OpenLauncherBackgroundImageFolder()
+    {
+        launcherBackground?.TryOpenDirectory();
+    }
+
+    [RelayCommand]
+    private void RefreshLauncherBackgroundImage()
+    {
+        launcherBackground?.Refresh();
+    }
+
+    [RelayCommand]
+    private void ClearLauncherBackgroundImages()
+    {
+        launcherBackground?.ClearImages();
+    }
+
     partial void OnSelectedBackgroundEffectOptionChanged(
         SettingsBackgroundEffectOption? oldValue,
         SettingsBackgroundEffectOption? newValue)
@@ -149,11 +175,14 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
             return;
         }
 
+        OnPropertyChanged(nameof(IsBackgroundImageSelectionVisible));
         OnPropertyChanged(nameof(IsBackgroundOpacityVisible));
         if (!CanPersist)
             return;
         var disableBackgroundBlur = !newValue.IsAcrylicEnabled;
         themeService.ApplyBackgroundBlurDisabled(disableBackgroundBlur);
+        themeService.ApplyImageBackgroundStyles(newValue.IsImageSelected);
+        launcherBackground?.ApplyEffect(newValue.Id, reportFailure: newValue.IsImageSelected);
         Persist(settings =>
         {
             settings.LauncherBackgroundEffect = newValue.Id;

@@ -312,8 +312,17 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
-                                    Background="{TemplateBinding Background}"
+                                    behaviors:BackdropBlurHost.IsApplied="True"
+                                    behaviors:BackdropBlurHost.IsBlurEnabled="{DynamicResource Is.Surface.BackdropBlur.Enabled}"
+                                    behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                                     CornerRadius="8" />
+                            <Border x:Name="SurfaceContrastLayer"
+                                    Background="{DynamicResource Brush.Button.Secondary.Background}"
+                                    BorderBrush="{DynamicResource Brush.Input.TextBox.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    IsHitTestVisible="False"
+                                    Opacity="0" />
                             <Border x:Name="HoverBackground"
                                     Background="{DynamicResource Brush.Button.Secondary.Hover}"
                                     CornerRadius="8"
@@ -359,10 +368,15 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
+                        <DataTrigger Binding="{Binding Path=(behaviors:BackdropBlurHost.IsBlurEnabled), ElementName=BaseBackground}"
+                                     Value="True">
+                            <Setter TargetName="SurfaceContrastLayer" Property="Opacity" Value="1" />
+                        </DataTrigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -387,8 +401,16 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
-                                    Background="{TemplateBinding Background}"
+                                    behaviors:BackdropBlurHost.IsApplied="True"
+                                    behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                                     CornerRadius="8" />
+                            <Border x:Name="SurfaceContrastLayer"
+                                    Background="{DynamicResource Brush.Button.Secondary.Background}"
+                                    BorderBrush="{DynamicResource Brush.Input.TextBox.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    IsHitTestVisible="False"
+                                    Opacity="0" />
                             <Border x:Name="HoverBackground"
                                     Background="{DynamicResource Brush.047EDC}"
                                     CornerRadius="8"
@@ -434,10 +456,16 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
+                        <DataTrigger Binding="{Binding Path=(behaviors:BackdropBlurHost.IsBlurEnabled), ElementName=BaseBackground}"
+                                     Value="True">
+                            <Setter TargetName="SurfaceContrastLayer" Property="Opacity" Value="1" />
+                        </DataTrigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
+                            <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -457,8 +485,16 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
-                                    Background="{TemplateBinding Background}"
+                                    behaviors:BackdropBlurHost.IsApplied="True"
+                                    behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                                     CornerRadius="8" />
+                            <Border x:Name="SurfaceContrastLayer"
+                                    Background="{DynamicResource Brush.Button.Secondary.Background}"
+                                    BorderBrush="{DynamicResource Brush.Input.TextBox.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    IsHitTestVisible="False"
+                                    Opacity="0" />
                             <Border x:Name="HoverBackground"
                                     Background="{DynamicResource Brush.B83232}"
                                     CornerRadius="8"
@@ -504,10 +540,16 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
+                        <DataTrigger Binding="{Binding Path=(behaviors:BackdropBlurHost.IsBlurEnabled), ElementName=BaseBackground}"
+                                     Value="True">
+                            <Setter TargetName="SurfaceContrastLayer" Property="Opacity" Value="1" />
+                        </DataTrigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
+                            <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>

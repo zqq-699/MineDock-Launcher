@@ -5,6 +5,7 @@
  */
 
 using Launcher.App.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Services.Theming;
 
@@ -27,5 +28,22 @@ public sealed class ThemeServiceOpacityPolicyTests
             ThemeService.ResolveEffectiveBackgroundOpacityPercent(
                 preferredOpacityPercent,
                 backgroundBlurDisabled));
+    }
+
+    [Theory]
+    [InlineData(false, EffectiveTheme.Dark, false)]
+    [InlineData(false, EffectiveTheme.Light, false)]
+    [InlineData(true, EffectiveTheme.Light, false)]
+    [InlineData(true, EffectiveTheme.Dark, true)]
+    public void ResolveSurfaceBackdropBlurEnabled_RequiresDarkImageMode(
+        bool imageBackgroundStylesEnabled,
+        EffectiveTheme effectiveTheme,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            ThemeService.ResolveSurfaceBackdropBlurEnabled(
+                imageBackgroundStylesEnabled,
+                effectiveTheme));
     }
 }

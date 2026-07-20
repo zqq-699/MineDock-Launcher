@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddLauncherInfrastructure(this IServiceCollection services)
     {
         services.AddSingleton<LauncherPathProvider>();
+        services.AddSingleton<ILauncherBackgroundImageCatalog, LauncherBackgroundImageCatalog>();
         services.AddSingleton<IDownloadSpeedLimitState, DownloadSpeedLimitState>();
         services.AddSingleton<IImportConcurrencyLimiter>(_ => ImportConcurrencyLimiter.Shared);
         services.AddSingleton<IDownloadConcurrencyLimitState>(_ => ImportConcurrencyLimiter.Shared);

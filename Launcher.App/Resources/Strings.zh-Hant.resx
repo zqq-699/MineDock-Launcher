@@ -913,6 +913,33 @@
   <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve">
     <value>圖片</value>
   </data>
+  <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve">
+    <value>選擇圖片</value>
+  </data>
+  <data name="Settings_BackgroundImageOpenFolderButton" xml:space="preserve">
+    <value>開啟資料夾</value>
+  </data>
+  <data name="Settings_BackgroundImageRefreshButton" xml:space="preserve">
+    <value>換一張</value>
+  </data>
+  <data name="Settings_BackgroundImageClearButton" xml:space="preserve">
+    <value>清除圖片</value>
+  </data>
+  <data name="Status_OpenLauncherBackgroundImageFolderFailed" xml:space="preserve">
+    <value>無法開啟啟動器背景圖片資料夾，請檢查資料夾權限後再試一次。</value>
+  </data>
+  <data name="Status_ClearLauncherBackgroundImagesFailed" xml:space="preserve">
+    <value>無法清除啟動器背景圖片，請檢查檔案權限後再試一次。</value>
+  </data>
+  <data name="Status_NoLauncherBackgroundImages" xml:space="preserve">
+    <value>背景圖片資料夾中沒有可用圖片，請加入圖片後再試一次。</value>
+  </data>
+  <data name="Status_NoOtherLauncherBackgroundImages" xml:space="preserve">
+    <value>找不到其他可用的背景圖片。</value>
+  </data>
+  <data name="Status_ReadLauncherBackgroundImagesFailed" xml:space="preserve">
+    <value>無法讀取啟動器背景圖片，請檢查圖片資料夾權限。</value>
+  </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
     <value>啟動器背景不透明度</value>
   </data>

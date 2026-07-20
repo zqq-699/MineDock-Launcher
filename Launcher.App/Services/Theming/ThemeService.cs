@@ -32,6 +32,8 @@ namespace Launcher.App.Services;
 /// </summary>
 public sealed class ThemeService : IThemeService, IDisposable
 {
+    internal const string SurfaceBackdropBlurEnabledResourceKey = "Is.Surface.BackdropBlur.Enabled";
+
     // ResourceDictionary 顺序决定覆盖优先级；主题和 Accent 必须分别替换而不能全量清空应用资源。
     private const string DarkThemeSource =
         "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Dark.xaml";
@@ -42,6 +44,9 @@ public sealed class ThemeService : IThemeService, IDisposable
     private const string AccentThemeSourcePrefix =
         "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Accents/";
 
+    private const string ImageBackgroundStyleSource =
+        "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Backgrounds/Image.xaml";
+
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<ThemeService> logger;
     private readonly IProgressiveBlurSupport progressiveBlurSupport;
@@ -50,6 +55,7 @@ public sealed class ThemeService : IThemeService, IDisposable
     private bool followSystem = true;
     private int backgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
     private bool disableBackgroundBlur;
+    private bool imageBackgroundStylesEnabled;
     private bool hasAppliedTheme;
     private bool isDisposed;
     private ProgressiveBlurCapabilitySnapshot? lastLoggedProgressiveBlurCapability;
@@ -75,6 +81,8 @@ public sealed class ThemeService : IThemeService, IDisposable
     public EffectiveTheme EffectiveTheme { get; private set; } = EffectiveTheme.Dark;
 
     public bool BackgroundBlurDisabled => disableBackgroundBlur;
+
+    public bool ImageBackgroundStylesEnabled => imageBackgroundStylesEnabled;
 
     public event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
@@ -112,7 +120,11 @@ public sealed class ThemeService : IThemeService, IDisposable
         }
 
         preferredAccentColor = normalizedAccentColor;
-        uiDispatcher.Invoke(() => ApplyAccentCore(preferredAccentColor));
+        uiDispatcher.Invoke(() =>
+        {
+            ApplyAccentCore(preferredAccentColor);
+            ApplyImageBackgroundStylesCore();
+        });
     }
 
     public void ApplyBackgroundOpacity(int opacityPercent)
@@ -130,6 +142,12 @@ public sealed class ThemeService : IThemeService, IDisposable
             ResolveEffectiveBackgroundOpacityPercent(backgroundOpacityPercent, disableBackgroundBlur)));
         if (changed)
             BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(disableBackgroundBlur));
+    }
+
+    public void ApplyImageBackgroundStyles(bool enabled)
+    {
+        imageBackgroundStylesEnabled = enabled;
+        uiDispatcher.Invoke(() => ApplyImageBackgroundStylesCore());
     }
 
     public object? GetResource(object key)
@@ -185,6 +203,7 @@ public sealed class ThemeService : IThemeService, IDisposable
             ResolveEffectiveBackgroundOpacityPercent(backgroundOpacityPercent, disableBackgroundBlur));
         ApplyProgressiveBlurAvailabilityCore();
         ApplyAccentCore(preferredAccentColor);
+        ApplyImageBackgroundStylesCore(nextTheme);
 
         var oldTheme = EffectiveTheme;
         EffectiveTheme = nextTheme;
@@ -341,6 +360,41 @@ public sealed class ThemeService : IThemeService, IDisposable
         logger.LogDebug("Launcher accent applied. AccentColor={AccentColor}", accentColor);
     }
 
+    private void ApplyImageBackgroundStylesCore(EffectiveTheme? effectiveThemeOverride = null)
+    {
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+            return;
+
+        var dictionaries = application.Resources.MergedDictionaries;
+        for (var index = dictionaries.Count - 1; index >= 0; index--)
+        {
+            if (IsImageBackgroundStyleDictionary(dictionaries[index]))
+                dictionaries.RemoveAt(index);
+        }
+
+        if (imageBackgroundStylesEnabled)
+        {
+            dictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(ImageBackgroundStyleSource, UriKind.Absolute)
+            });
+            logger.LogDebug("Launcher image background styles applied.");
+        }
+
+        application.Resources[SurfaceBackdropBlurEnabledResourceKey] =
+            ResolveSurfaceBackdropBlurEnabled(
+                imageBackgroundStylesEnabled,
+                effectiveThemeOverride ?? EffectiveTheme);
+    }
+
+    internal static bool ResolveSurfaceBackdropBlurEnabled(
+        bool imageBackgroundStylesEnabled,
+        EffectiveTheme effectiveTheme)
+    {
+        return imageBackgroundStylesEnabled && effectiveTheme is EffectiveTheme.Dark;
+    }
+
     private static string GetThemeSource(EffectiveTheme theme)
     {
         return theme is EffectiveTheme.Light ? LightThemeSource : DarkThemeSource;
@@ -363,6 +417,14 @@ public sealed class ThemeService : IThemeService, IDisposable
     {
         var source = dictionary.Source?.ToString();
         return source?.Contains("/Resources/Themes/Accents/", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsImageBackgroundStyleDictionary(ResourceDictionary dictionary)
+    {
+        var source = dictionary.Source?.ToString();
+        return source?.EndsWith(
+            "/Resources/Themes/Backgrounds/Image.xaml",
+            StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)

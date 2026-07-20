@@ -37,6 +37,8 @@
     <CornerRadius x:Key="LauncherCornerRadiusMedium">8</CornerRadius>
     <CornerRadius x:Key="LauncherCornerRadiusLarge">12</CornerRadius>
     <CornerRadius x:Key="LauncherDialogCornerRadius">14</CornerRadius>
+    <sys:Boolean x:Key="Is.SecondaryMenu.BackdropBlur.Enabled">False</sys:Boolean>
+    <sys:Boolean x:Key="Is.Surface.BackdropBlur.Enabled">False</sys:Boolean>
     <sys:Boolean x:Key="Is.ProgressiveBlur.Enabled">False</sys:Boolean>
     <sys:Double x:Key="ListPage.ProgressiveBlur.MaxRadius">24</sys:Double>
     <sys:Double x:Key="ListPage.ProgressiveBlur.RenderScale">0.4</sys:Double>

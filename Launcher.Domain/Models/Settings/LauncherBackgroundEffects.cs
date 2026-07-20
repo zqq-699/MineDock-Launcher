@@ -38,4 +38,9 @@ public static class LauncherBackgroundEffects
         Normalize(value),
         Acrylic,
         StringComparison.Ordinal);
+
+    public static bool IsImage(string? value) => string.Equals(
+        Normalize(value),
+        Image,
+        StringComparison.Ordinal);
 }

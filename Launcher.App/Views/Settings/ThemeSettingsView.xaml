@@ -120,6 +120,37 @@
                     </Grid>
 
                     <Grid Margin="0,18,0,0"
+                          animation:AnimatedCollapse.IsExpanded="{Binding IsBackgroundImageSelectionVisible}"
+                          animation:AnimatedCollapse.Duration="0:0:0.18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.Settings_BackgroundImageSelectionLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <Button Grid.Column="1"
+                                Content="{x:Static res:Strings.Settings_BackgroundImageOpenFolderButton}"
+                                Command="{Binding OpenLauncherBackgroundImageFolderCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+
+                        <Button Grid.Column="2"
+                                Margin="10,0,0,0"
+                                Content="{x:Static res:Strings.Settings_BackgroundImageRefreshButton}"
+                                Command="{Binding RefreshLauncherBackgroundImageCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+
+                        <Button Grid.Column="3"
+                                Margin="10,0,0,0"
+                                Content="{x:Static res:Strings.Settings_BackgroundImageClearButton}"
+                                Command="{Binding ClearLauncherBackgroundImagesCommand}"
+                                Style="{StaticResource LauncherDangerDialogButtonStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,18,0,0"
                           animation:AnimatedCollapse.IsExpanded="{Binding IsBackgroundOpacityVisible}"
                           animation:AnimatedCollapse.Duration="0:0:0.18">
                         <Grid.ColumnDefinitions>

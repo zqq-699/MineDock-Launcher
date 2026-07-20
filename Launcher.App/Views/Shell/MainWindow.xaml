@@ -68,9 +68,36 @@
     <Border CornerRadius="8"
             BorderBrush="{DynamicResource Brush.344E4E4E}"
             BorderThickness="1"
-            Background="Transparent"
             SnapsToDevicePixels="True">
         <Grid Background="Transparent">
+            <Grid x:Name="LauncherBackgroundVisualSource"
+                  IsHitTestVisible="False">
+                <Border>
+                    <Border.Background>
+                        <ImageBrush ImageSource="{Binding LauncherBackground.ImageSource}"
+                                    Stretch="UniformToFill" />
+                    </Border.Background>
+                </Border>
+
+                <Border x:Name="LauncherBackgroundImageDimLayer"
+                        Background="{DynamicResource Brush.LauncherBackground.Image.DimOverlay}"
+                        IsHitTestVisible="False">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Opacity" Value="0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LauncherBackground.IsActive}" Value="True">
+                                    <Setter Property="Opacity" Value="{DynamicResource Opacity.LauncherBackground.Image.NonHomeDim}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Home">
+                                    <Setter Property="Opacity" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
+
             <Grid x:Name="WindowContentLayer">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="MenuColumn" Width="62" />
@@ -86,8 +113,18 @@
 
                 <Border Grid.Column="1"
                         Grid.RowSpan="2"
-                        Background="{DynamicResource Brush.Page.Background}"
-                        Opacity="{DynamicResource Opacity.Page.Background}" />
+                        Background="{DynamicResource Brush.Page.Background}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Opacity" Value="{DynamicResource Opacity.Page.Background}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LauncherBackground.IsActive}" Value="True">
+                                    <Setter Property="Opacity" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
 
                 <Grid x:Name="PageTransitionHost"
                       Grid.Column="1"

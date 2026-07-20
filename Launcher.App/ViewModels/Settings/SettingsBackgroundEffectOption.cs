@@ -33,5 +33,7 @@ public sealed class SettingsBackgroundEffectOption
 
     public bool IsAcrylicEnabled => LauncherBackgroundEffects.IsAcrylic(Id);
 
+    public bool IsImageSelected => LauncherBackgroundEffects.IsImage(Id);
+
     public string Title { get; }
 }

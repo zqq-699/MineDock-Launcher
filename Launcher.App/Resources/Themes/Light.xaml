@@ -282,7 +282,7 @@
     <Color x:Key="Color.Input.ComboBox.Border">#20000000</Color>
     <Color x:Key="Color.Input.ComboBox.BorderExpanded">#3A000000</Color>
     <Color x:Key="Color.Button.Secondary.Background">#12000000</Color>
-    <Color x:Key="Color.Button.Secondary.Disabled">#24000000</Color>
+    <Color x:Key="Color.Button.Secondary.Disabled">#30000000</Color>
     <Color x:Key="Color.Button.Secondary.Hover">#70C9CED6</Color>
     <Color x:Key="Color.Button.Secondary.Pressed">#80BBC1CA</Color>
     <Color x:Key="Color.List.Item.Background">#12000000</Color>
@@ -315,17 +315,26 @@
     <SolidColorBrush x:Key="Brush.List.Item.Selected" Color="{StaticResource Color.List.Item.Selected}" />
     <SolidColorBrush x:Key="Brush.List.Item.SelectedBorder" Color="{StaticResource Color.List.Item.SelectedBorder}" />
     <Color x:Key="Color.SecondaryMenu.Panel">#80FFFFFF</Color>
+    <Color x:Key="Color.SecondaryMenu.BackdropTint">#80FFFFFF</Color>
+    <Color x:Key="Color.SurfaceBackdrop.ContrastOverlay">#00FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Border">#24000000</Color>
     <Color x:Key="Color.SecondaryMenu.Shadow">#52000000</Color>
     <Color x:Key="Color.SecondaryMenu.Header.Start">#D8FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Header.Middle">#C2FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Header.End">#00FFFFFF</Color>
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Panel" Color="{StaticResource Color.SecondaryMenu.Panel}" />
+    <SolidColorBrush x:Key="Brush.SecondaryMenu.BackdropTint" Color="{StaticResource Color.SecondaryMenu.BackdropTint}" />
+    <SolidColorBrush x:Key="Brush.SurfaceBackdrop.ContrastOverlay" Color="{StaticResource Color.SurfaceBackdrop.ContrastOverlay}" />
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Border" Color="{StaticResource Color.SecondaryMenu.Border}" />
     <SolidColorBrush x:Key="Brush.Scroll.Track" Color="{StaticResource Color.5A4A4A4A}" />
     <SolidColorBrush x:Key="Brush.Scroll.Thumb" Color="{StaticResource Color.5CFFFFFF}" />
     <SolidColorBrush x:Key="Brush.Scroll.ThumbHover" Color="{StaticResource Color.84FFFFFF}" />
     <SolidColorBrush x:Key="Brush.Scroll.ThumbPressed" Color="{StaticResource Color.A8FFFFFF}" />
+
+    <Color x:Key="Color.Backdrop.Base">#FFFFFFFF</Color>
+    <Color x:Key="Color.Backdrop.Tint">#8AFFFFFF</Color>
+    <SolidColorBrush x:Key="Brush.Backdrop.Base" Color="{StaticResource Color.Backdrop.Base}" />
+    <SolidColorBrush x:Key="Brush.Backdrop.Tint" Color="{StaticResource Color.Backdrop.Tint}" />
 
     <Color x:Key="Color.Shadow">#000000</Color>
     <Color x:Key="Color.Shadow.Soft">#20000000</Color>

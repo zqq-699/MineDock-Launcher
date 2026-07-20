@@ -913,6 +913,33 @@
   <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve">
     <value>画像</value>
   </data>
+  <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve">
+    <value>画像を選択</value>
+  </data>
+  <data name="Settings_BackgroundImageOpenFolderButton" xml:space="preserve">
+    <value>フォルダーを開く</value>
+  </data>
+  <data name="Settings_BackgroundImageRefreshButton" xml:space="preserve">
+    <value>別の画像</value>
+  </data>
+  <data name="Settings_BackgroundImageClearButton" xml:space="preserve">
+    <value>画像をクリア</value>
+  </data>
+  <data name="Status_OpenLauncherBackgroundImageFolderFailed" xml:space="preserve">
+    <value>ランチャーの背景画像フォルダーを開けませんでした。フォルダーのアクセス許可を確認して、もう一度お試しください。</value>
+  </data>
+  <data name="Status_ClearLauncherBackgroundImagesFailed" xml:space="preserve">
+    <value>ランチャーの背景画像をクリアできませんでした。ファイルのアクセス許可を確認して、もう一度お試しください。</value>
+  </data>
+  <data name="Status_NoLauncherBackgroundImages" xml:space="preserve">
+    <value>背景画像フォルダーに使用できる画像がありません。画像を追加して、もう一度お試しください。</value>
+  </data>
+  <data name="Status_NoOtherLauncherBackgroundImages" xml:space="preserve">
+    <value>ほかに使用できる背景画像が見つかりませんでした。</value>
+  </data>
+  <data name="Status_ReadLauncherBackgroundImagesFailed" xml:space="preserve">
+    <value>ランチャーの背景画像を読み込めませんでした。画像フォルダーのアクセス許可を確認してください。</value>
+  </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
     <value>ランチャー背景の不透明度</value>
   </data>

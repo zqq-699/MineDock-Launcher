@@ -319,6 +319,15 @@
   <data name="Settings_BackgroundEffectNoneTitle" xml:space="preserve"><value>无</value></data>
   <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve"><value>亚克力</value></data>
   <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve"><value>图片</value></data>
+  <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve"><value>选择图片</value></data>
+  <data name="Settings_BackgroundImageOpenFolderButton" xml:space="preserve"><value>打开文件夹</value></data>
+  <data name="Settings_BackgroundImageRefreshButton" xml:space="preserve"><value>换一张</value></data>
+  <data name="Settings_BackgroundImageClearButton" xml:space="preserve"><value>清除图片</value></data>
+  <data name="Status_OpenLauncherBackgroundImageFolderFailed" xml:space="preserve"><value>无法打开启动器背景图片文件夹，请检查文件夹权限后重试。</value></data>
+  <data name="Status_ClearLauncherBackgroundImagesFailed" xml:space="preserve"><value>无法清除启动器背景图片，请检查文件权限后重试。</value></data>
+  <data name="Status_NoLauncherBackgroundImages" xml:space="preserve"><value>背景图片文件夹中没有可用图片，请添加图片后重试。</value></data>
+  <data name="Status_NoOtherLauncherBackgroundImages" xml:space="preserve"><value>没有找到其他可用的背景图片。</value></data>
+  <data name="Status_ReadLauncherBackgroundImagesFailed" xml:space="preserve"><value>无法读取启动器背景图片，请检查图片文件夹权限。</value></data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve"><value>启动器背景不透明度</value></data>
   <data name="Settings_ThemeDarkTitle" xml:space="preserve"><value>深色</value></data>
   <data name="Settings_ThemeLightTitle" xml:space="preserve"><value>浅色</value></data>

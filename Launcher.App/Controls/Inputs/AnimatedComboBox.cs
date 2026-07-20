@@ -92,6 +92,8 @@ public class AnimatedComboBox : ComboBox
     private Window? popupWheelOwner;
     private bool opensAbove;
     private bool isDropDownDescriptorAttached;
+    private long popupOpenGeneration;
+    private long popupOpenAnimationStartedGeneration = -1;
 
     public AnimatedComboBox()
     {
@@ -139,8 +141,8 @@ public class AnimatedComboBox : ComboBox
         DetachPopup();
         base.OnApplyTemplate();
         popup = GetTemplateChild("PART_Popup") as Popup;
-        popupListBox = GetTemplateChild("PART_DropDownList") as ListBox;
-        popupSurface = GetTemplateChild("PopupSurface") as FrameworkElement;
+        popupListBox = Template.FindName("PART_DropDownList", this) as ListBox;
+        popupSurface = Template.FindName("PopupSurface", this) as FrameworkElement;
         selectionTextBlock = GetTemplateChild("SelectionTextBlock") as TextBlock;
         selectionContentPresenter = GetTemplateChild("SelectionContentPresenter") as ContentPresenter;
         AttachPopup();
@@ -149,12 +151,12 @@ public class AnimatedComboBox : ComboBox
         if (popupSurface is not null)
         {
             popupSurface.CacheMode = new BitmapCache();
-            popupSurface.IsHitTestVisible = false;
+            popupSurface.IsHitTestVisible = IsPopupOpen;
         }
         UpdateSelectionPresenterMode();
         EnsurePopupTransforms();
         if (IsPopupOpen && popupSurface is not null)
-            SetPopupVisualState(1, 0, 1);
+            RestorePopupOpenVisualState();
         else
             SetPopupVisualState(0, -10, 0.92);
     }
@@ -173,9 +175,11 @@ public class AnimatedComboBox : ComboBox
 
     private void BeginOpenAnimation()
     {
-        // 先计算 Popup 实际位于控件上方还是下方，再从相应方向进入。
+        // Popup 内部部件在控件首次应用模板时可能尚未加入名称域，因此打开前重新解析。
         closeTimer?.Stop();
+        closeTimer = null;
         IsDropDownClosing = false;
+        ResolvePopupContentParts();
         EnsurePopupTransforms();
         UpdatePopupPlacement();
         if (popupSurface is not null)
@@ -187,30 +191,9 @@ public class AnimatedComboBox : ComboBox
             SetPopupVisualState(0, GetOpenTranslateOffset(), 0.92);
         }
 
+        var generation = ++popupOpenGeneration;
         IsPopupOpen = true;
-
-        // Popup 的视觉树要到下一次调度才具有可靠尺寸，延迟一拍后再启动动画。
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (popupSurface is null)
-                return;
-
-            EnsurePopupTransforms();
-            popupSurface.IsHitTestVisible = true;
-            popupSurface.BeginAnimation(OpacityProperty, null);
-            scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            translateTransform?.BeginAnimation(TranslateTransform.YProperty, null);
-
-            SetPopupVisualState(0, GetOpenTranslateOffset(), 0.92);
-
-            var opacityAnimation = new DoubleAnimation(0, 1, OpenDuration) { EasingFunction = OpenEasing };
-            var scaleAnimation = new DoubleAnimation(0.92, 1, OpenDuration) { EasingFunction = OpenEasing };
-            var translateAnimation = new DoubleAnimation(GetOpenTranslateOffset(), 0, OpenDuration) { EasingFunction = OpenEasing };
-
-            popupSurface.BeginAnimation(OpacityProperty, opacityAnimation);
-            scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
-            translateTransform?.BeginAnimation(TranslateTransform.YProperty, translateAnimation);
-        }, DispatcherPriority.Input);
+        SchedulePopupOpenAnimation(generation);
     }
 
     private void BeginCloseAnimation()
@@ -219,6 +202,7 @@ public class AnimatedComboBox : ComboBox
         if (!IsPopupOpen)
             return;
 
+        popupOpenGeneration++;
         closeTimer?.Stop();
         IsDropDownClosing = true;
 
@@ -292,6 +276,66 @@ public class AnimatedComboBox : ComboBox
             translateTransform.Y = translateY;
     }
 
+    private void RestorePopupOpenVisualState()
+    {
+        if (popupSurface is null)
+            return;
+
+        popupSurface.CacheMode ??= new BitmapCache();
+        EnsurePopupTransforms();
+        popupSurface.BeginAnimation(OpacityProperty, null);
+        scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        translateTransform?.BeginAnimation(TranslateTransform.YProperty, null);
+        popupSurface.IsHitTestVisible = true;
+        SetPopupVisualState(1, 0, 1);
+    }
+
+    private void SchedulePopupOpenAnimation(long generation)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!IsPopupOpen || generation != popupOpenGeneration)
+                return;
+
+            ResolvePopupContentParts();
+            if (popupSurface is not { IsLoaded: true })
+                return;
+            if (popupOpenAnimationStartedGeneration == generation)
+                return;
+
+            popupOpenAnimationStartedGeneration = generation;
+            EnsurePopupTransforms();
+            popupSurface.IsHitTestVisible = true;
+            popupSurface.BeginAnimation(OpacityProperty, null);
+            scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            translateTransform?.BeginAnimation(TranslateTransform.YProperty, null);
+            SetPopupVisualState(0, GetOpenTranslateOffset(), 0.92);
+
+            var opacityAnimation = new DoubleAnimation(0, 1, OpenDuration) { EasingFunction = OpenEasing };
+            var scaleAnimation = new DoubleAnimation(0.92, 1, OpenDuration) { EasingFunction = OpenEasing };
+            var translateAnimation = new DoubleAnimation(GetOpenTranslateOffset(), 0, OpenDuration) { EasingFunction = OpenEasing };
+
+            popupSurface.BeginAnimation(OpacityProperty, opacityAnimation);
+            scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
+            translateTransform?.BeginAnimation(TranslateTransform.YProperty, translateAnimation);
+        }, DispatcherPriority.Background);
+    }
+
+    private void ResolvePopupContentParts()
+    {
+        if (popupSurface is null)
+        {
+            popupSurface = Template.FindName("PopupSurface", this) as FrameworkElement;
+            AttachPopupSurface();
+        }
+
+        if (popupListBox is null)
+        {
+            popupListBox = Template.FindName("PART_DropDownList", this) as ListBox;
+            AttachPopupListBox();
+        }
+    }
+
     private void UpdatePopupPlacement()
     {
         // WPF 会按屏幕空间自动翻转 Popup，因此根据屏幕坐标判断真实展开方向。
@@ -358,6 +402,7 @@ public class AnimatedComboBox : ComboBox
         if (popupSurface is null)
             return;
 
+        popupSurface.Loaded += PopupSurface_Loaded;
         popupSurface.PreviewMouseWheel += PopupDropDown_PreviewMouseWheel;
     }
 
@@ -421,8 +466,15 @@ public class AnimatedComboBox : ComboBox
         if (popupSurface is null)
             return;
 
+        popupSurface.Loaded -= PopupSurface_Loaded;
         popupSurface.PreviewMouseWheel -= PopupDropDown_PreviewMouseWheel;
         popupSurface = null;
+    }
+
+    private void PopupSurface_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (IsPopupOpen)
+            SchedulePopupOpenAnimation(popupOpenGeneration);
     }
 
     private void AttachPopup()
@@ -447,6 +499,7 @@ public class AnimatedComboBox : ComboBox
 
     private void Popup_Opened(object? sender, EventArgs e)
     {
+        ResolvePopupContentParts();
         AttachPopupWheelOwner();
         popupListBox?.Focus();
     }

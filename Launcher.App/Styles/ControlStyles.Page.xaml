@@ -122,7 +122,21 @@
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
-    <Style x:Key="HomeAccountNameTextStyle" TargetType="TextBlock">
+    <Style x:Key="HomeForegroundNameShadowStyle" TargetType="TextBlock">
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="8"
+                                  Color="{DynamicResource Color.000000}"
+                                  Direction="270"
+                                  Opacity="0.82"
+                                  ShadowDepth="2" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HomeAccountNameTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource HomeForegroundNameShadowStyle}">
         <Setter Property="Margin" Value="0,14,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
@@ -133,7 +147,9 @@
         <Setter Property="MaxWidth" Value="260" />
     </Style>
 
-    <Style x:Key="HomeVersionNameTextStyle" TargetType="TextBlock">
+    <Style x:Key="HomeVersionNameTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource HomeForegroundNameShadowStyle}">
         <Setter Property="Margin" Value="0,12,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
@@ -406,6 +422,9 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
+        <Setter Property="behaviors:BackdropBlurHost.IsApplied" Value="True" />
+        <Setter Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
+        <Setter Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Card.Surface}" />
         <Setter Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Border}}, Path=(behaviors:SurfaceShadow.SuppressChildShadows)}"

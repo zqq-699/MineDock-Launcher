@@ -43,6 +43,8 @@ public partial class MainWindow : Window
     public static readonly DependencyProperty IsMenuExpandedProperty =
         DependencyProperty.Register(nameof(IsMenuExpanded), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
+    public FrameworkElement LauncherBackgroundVisualSourceElement => LauncherBackgroundVisualSource;
+
     private readonly NavigationMenuAnimationService navigationMenuService;
     private readonly IAccountDialogService accountDialogService;
     private readonly LauncherStateSyncService stateSyncService;

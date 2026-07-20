@@ -1,0 +1,153 @@
+<!--
+  BlockHelm Launcher
+  Copyright (C) 2026 Quan Zhou
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, version 3.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+  SPDX-License-Identifier: GPL-3.0-only
+-->
+
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
+                    xmlns:controls="clr-namespace:Launcher.App.Controls">
+    <Style x:Key="BackdropBlurBorderStyle"
+           TargetType="{x:Type controls:BackdropBlurBorder}">
+        <Setter Property="BaseBrush" Value="{DynamicResource Brush.Backdrop.Base}" />
+        <Setter Property="TintBrush" Value="{DynamicResource Brush.Backdrop.Tint}" />
+        <Setter Property="BlurRadius" Value="42" />
+        <Setter Property="BlurRenderingBias" Value="Performance" />
+        <Setter Property="CornerRadius" Value="{StaticResource LauncherCornerRadiusMedium}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:BackdropBlurBorder}">
+                    <Grid x:Name="PART_Root"
+                          ClipToBounds="True"
+                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border x:Name="PART_BaseLayer"
+                                Background="{TemplateBinding BaseBrush}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsHitTestVisible="False" />
+
+                        <Border x:Name="PART_BlurLayer"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed">
+                            <Border.Background>
+                                <VisualBrush AlignmentX="Left"
+                                             AlignmentY="Top"
+                                             Stretch="Fill"
+                                             TileMode="FlipXY"
+                                             ViewboxUnits="Absolute"
+                                             ViewportUnits="Absolute" />
+                            </Border.Background>
+                            <Border.Effect>
+                                <BlurEffect KernelType="Gaussian"
+                                            Radius="{Binding BlurRadius, RelativeSource={RelativeSource TemplatedParent}}"
+                                            RenderingBias="{Binding BlurRenderingBias, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Border.Effect>
+                        </Border>
+
+                        <Border x:Name="PART_TintLayer"
+                                Background="{TemplateBinding TintBrush}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsHitTestVisible="False" />
+
+                        <Border x:Name="PART_OverlayLayer"
+                                Background="{TemplateBinding OverlayBrush}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsHitTestVisible="False" />
+
+                        <Border x:Name="PART_ContentLayer"
+                                Padding="{TemplateBinding Padding}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              Content="{TemplateBinding Content}"
+                                              ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type controls:BackdropBlurBorder}"
+           BasedOn="{StaticResource BackdropBlurBorderStyle}" />
+
+    <Style x:Key="SurfaceBackdropBlurStyle"
+           TargetType="{x:Type controls:BackdropBlurBorder}"
+           BasedOn="{StaticResource BackdropBlurBorderStyle}">
+        <Setter Property="BaseBrush">
+            <Setter.Value>
+                <Binding Path="(behaviors:BackdropBlurHost.FallbackBrush)"
+                         RelativeSource="{RelativeSource AncestorType={x:Type Border}}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="TintBrush" Value="Transparent" />
+        <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Style.Triggers>
+            <Trigger Property="IsBlurEnabled" Value="True">
+                <Setter Property="BaseBrush" Value="Transparent" />
+                <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
+                <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SecondaryMenuBackdropStyle"
+           TargetType="{x:Type controls:BackdropBlurBorder}"
+           BasedOn="{StaticResource BackdropBlurBorderStyle}">
+        <Setter Property="IsBlurEnabled" Value="{DynamicResource Is.SecondaryMenu.BackdropBlur.Enabled}" />
+        <Setter Property="BaseBrush" Value="{DynamicResource Brush.SecondaryMenu.Panel}" />
+        <Setter Property="TintBrush" Value="Transparent" />
+        <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.SecondaryMenu.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
+        <Style.Triggers>
+            <Trigger Property="IsBlurEnabled" Value="True">
+                <Setter Property="BaseBrush" Value="Transparent" />
+                <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
+                <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PrimaryMenuBackdropStyle"
+           TargetType="{x:Type controls:BackdropBlurBorder}"
+           BasedOn="{StaticResource BackdropBlurBorderStyle}">
+        <Setter Property="IsBlurEnabled" Value="{DynamicResource Is.SecondaryMenu.BackdropBlur.Enabled}" />
+        <Setter Property="BaseBrush" Value="Transparent" />
+        <Setter Property="TintBrush" Value="Transparent" />
+        <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Style.Triggers>
+            <Trigger Property="IsBlurEnabled" Value="True">
+                <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
+                <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

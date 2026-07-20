@@ -72,8 +72,9 @@
                                   ShadowDepth="0" />
             </Border.Effect>
 
-            <Border x:Name="HomeLaunchMenuPanel"
-                    Style="{StaticResource SecondaryMenuPanelStyle}">
+            <controls:BackdropBlurBorder x:Name="HomeLaunchMenuPanel"
+                                         SourceElement="{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                         Style="{StaticResource SecondaryMenuBackdropStyle}">
                 <Grid x:Name="HomeLaunchMenuViewport"
                       VerticalAlignment="Top"
                       ClipToBounds="True">
@@ -152,7 +153,7 @@
                         </Grid>
                     </Border>
                 </Grid>
-            </Border>
+            </controls:BackdropBlurBorder>
         </Border>
     </Grid>
 </UserControl>

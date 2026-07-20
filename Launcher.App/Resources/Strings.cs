@@ -426,6 +426,15 @@ public static class Strings
     public static string Settings_BackgroundEffectNoneTitle => Get(nameof(Settings_BackgroundEffectNoneTitle));
     public static string Settings_BackgroundEffectAcrylicTitle => Get(nameof(Settings_BackgroundEffectAcrylicTitle));
     public static string Settings_BackgroundEffectImageTitle => Get(nameof(Settings_BackgroundEffectImageTitle));
+    public static string Settings_BackgroundImageSelectionLabel => Get(nameof(Settings_BackgroundImageSelectionLabel));
+    public static string Settings_BackgroundImageOpenFolderButton => Get(nameof(Settings_BackgroundImageOpenFolderButton));
+    public static string Settings_BackgroundImageRefreshButton => Get(nameof(Settings_BackgroundImageRefreshButton));
+    public static string Settings_BackgroundImageClearButton => Get(nameof(Settings_BackgroundImageClearButton));
+    public static string Status_OpenLauncherBackgroundImageFolderFailed => Get(nameof(Status_OpenLauncherBackgroundImageFolderFailed));
+    public static string Status_ClearLauncherBackgroundImagesFailed => Get(nameof(Status_ClearLauncherBackgroundImagesFailed));
+    public static string Status_NoLauncherBackgroundImages => Get(nameof(Status_NoLauncherBackgroundImages));
+    public static string Status_NoOtherLauncherBackgroundImages => Get(nameof(Status_NoOtherLauncherBackgroundImages));
+    public static string Status_ReadLauncherBackgroundImagesFailed => Get(nameof(Status_ReadLauncherBackgroundImagesFailed));
     public static string Settings_BackgroundOpacityLabel => Get(nameof(Settings_BackgroundOpacityLabel));
     public static string Settings_ThemeDarkTitle => Get(nameof(Settings_ThemeDarkTitle));
     public static string Settings_ThemeLightTitle => Get(nameof(Settings_ThemeLightTitle));

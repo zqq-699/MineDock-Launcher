@@ -35,84 +35,80 @@
                 HorizontalAlignment="Stretch">
         <GroupBox Header="{x:Static res:Strings.Settings_MinecraftDirectoryLabel}"
                   Style="{StaticResource LauncherContentSectionStyle}">
-            <StackPanel>
-                <TextBlock Margin="0,0,0,12"
-                           Text="{x:Static res:Strings.Settings_MinecraftDirectoryDescription}"
-                           Style="{StaticResource SettingsDescriptionTextStyle}" />
-                <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                    <TextBlock Text="{Binding MinecraftDirectory}"
-                               Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                </Border>
-                <TextBlock Margin="0,8,0,0"
-                           Foreground="{DynamicResource LauncherDangerBrush}"
-                           Text="{x:Static res:Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock"
-                               BasedOn="{StaticResource SettingsDescriptionTextStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMinecraftDirectoryChangeBlocked}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,12"
+                               Text="{x:Static res:Strings.Settings_MinecraftDirectoryDescription}"
+                               Style="{StaticResource SettingsDescriptionTextStyle}" />
+                    <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                        <TextBlock Text="{Binding MinecraftDirectory}"
+                                   Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                    </Border>
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource LauncherDangerBrush}"
+                               Text="{x:Static res:Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource SettingsDescriptionTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMinecraftDirectoryChangeBlocked}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-                <WrapPanel Margin="0,16,0,0">
-                    <Button Margin="0,0,10,10"
-                            Content="{x:Static res:Strings.Settings_OpenMinecraftDirectoryButton}"
-                            Command="{Binding OpenMinecraftDirectoryCommand}"
-                            Style="{StaticResource LauncherDialogButtonStyle}" />
-                    <Button Margin="0,0,10,10"
-                            Content="{x:Static res:Strings.Settings_ChangeMinecraftDirectoryButton}"
-                            Command="{Binding ChangeMinecraftDirectoryCommand}"
-                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
-                </WrapPanel>
-            </StackPanel>
+                    <WrapPanel Margin="0,16,0,0">
+                        <Button Margin="0,0,10,10"
+                                Content="{x:Static res:Strings.Settings_OpenMinecraftDirectoryButton}"
+                                Command="{Binding OpenMinecraftDirectoryCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                        <Button Margin="0,0,10,10"
+                                Content="{x:Static res:Strings.Settings_ChangeMinecraftDirectoryButton}"
+                                Command="{Binding ChangeMinecraftDirectoryCommand}"
+                                Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
         </GroupBox>
 
         <GroupBox Margin="0,26,0,0"
                   Header="{x:Static res:Strings.Settings_LauncherLogDirectoryLabel}"
                   Style="{StaticResource LauncherContentSectionStyle}">
-            <StackPanel>
-                <TextBlock Margin="0,0,0,12"
-                           Text="{x:Static res:Strings.Settings_LauncherLogDirectoryDescription}"
-                           Style="{StaticResource SettingsDescriptionTextStyle}" />
-                <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                    <TextBlock Text="{Binding LauncherLogDirectory}"
-                               Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                </Border>
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,12"
+                               Text="{x:Static res:Strings.Settings_LauncherLogDirectoryDescription}"
+                               Style="{StaticResource SettingsDescriptionTextStyle}" />
+                    <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                        <TextBlock Text="{Binding LauncherLogDirectory}"
+                                   Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                    </Border>
 
-                <Border Margin="0,16,0,0"
-                        Style="{StaticResource SectionFieldSurfaceStyle}">
-                    <Grid>
+                    <WrapPanel Margin="0,16,0,0">
+                        <Button Margin="0,0,10,10"
+                                Content="{x:Static res:Strings.Settings_OpenLauncherLogDirectoryButton}"
+                                Command="{Binding OpenLauncherLogDirectoryCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                    </WrapPanel>
+
+                    <Grid Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="{x:Static res:Strings.Settings_DiagnosticLoggingLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-                            <TextBlock Margin="0,4,0,0"
-                                       Text="{x:Static res:Strings.Settings_DiagnosticLoggingDescription}"
-                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
-                        </StackPanel>
+                        <TextBlock Text="{x:Static res:Strings.Settings_DiagnosticLoggingLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
                         <CheckBox Grid.Column="1"
                                   Margin="16,0,0,0"
                                   VerticalAlignment="Center"
                                   IsChecked="{Binding DiagnosticLoggingEnabled, Mode=TwoWay}"
                                   Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
                     </Grid>
-                </Border>
-
-                <WrapPanel Margin="0,16,0,0">
-                    <Button Margin="0,0,10,10"
-                            Content="{x:Static res:Strings.Settings_OpenLauncherLogDirectoryButton}"
-                            Command="{Binding OpenLauncherLogDirectoryCommand}"
-                            Style="{StaticResource LauncherDialogButtonStyle}" />
-                </WrapPanel>
-            </StackPanel>
+                </StackPanel>
+            </Border>
         </GroupBox>
     </StackPanel>
 </UserControl>

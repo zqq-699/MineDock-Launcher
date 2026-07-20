@@ -24,6 +24,7 @@ using Launcher.App.Logging;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Download;
+using Launcher.App.ViewModels.Shell;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -58,7 +59,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
         ILogger<SettingsPageViewModel>? logger = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILauncherLogLevelController? logLevelController = null)
+        ILauncherLogLevelController? logLevelController = null,
+        LauncherBackgroundViewModel? launcherBackground = null)
     {
         var resolvedLogger = logger ?? NullLogger<SettingsPageViewModel>.Instance;
         persistence = new SettingsPersistenceCoordinator(settingsService, statusService, resolvedLogger);
@@ -81,7 +83,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             filePickerService,
             floatingMessageService,
             () => General.MinecraftDirectory);
-        Theme = new ThemeSettingsViewModel(persistence, themeService);
+        Theme = new ThemeSettingsViewModel(
+            persistence,
+            themeService,
+            launcherBackground);
         Feedback = new SettingsFeedbackDialogViewModel(
             statusService,
             floatingMessageService,

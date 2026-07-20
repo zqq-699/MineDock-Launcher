@@ -108,6 +108,7 @@ public sealed partial class MainViewModel : ObservableObject
         LaunchStatusDialogViewModel launchStatusDialog,
         UserAgreementDialogViewModel userAgreementDialog,
         TerracottaAgreementDialogViewModel terracottaAgreementDialog,
+        LauncherBackgroundViewModel launcherBackground,
         ILogger<MainViewModel>? logger = null)
     {
         this.settingsService = settingsService;
@@ -126,6 +127,7 @@ public sealed partial class MainViewModel : ObservableObject
         LaunchStatusDialog = launchStatusDialog;
         UserAgreementDialog = userAgreementDialog;
         TerracottaAgreementDialog = terracottaAgreementDialog;
+        LauncherBackground = launcherBackground;
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
@@ -171,6 +173,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public TerracottaAgreementDialogViewModel TerracottaAgreementDialog { get; }
 
+    public LauncherBackgroundViewModel LauncherBackground { get; }
+
     public NavigationItem DownloadTasksNavigationItem { get; } = NavigationCatalog.CreateDownloadTasksItem();
 
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new(NavigationCatalog.CreatePrimaryItems());
@@ -184,6 +188,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
 
         Settings = initialSettings ?? await settingsService.LoadAsync();
+        LauncherBackground.ApplyEffect(Settings.LauncherBackgroundEffect, reportFailure: false);
         UserAgreementDialog.Prime(Settings);
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
