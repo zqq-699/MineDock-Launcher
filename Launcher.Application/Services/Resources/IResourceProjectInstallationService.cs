@@ -25,7 +25,8 @@ public enum ResourceProjectInstallationTargetKind
 {
     LocalDirectory,
     ExistingInstance,
-    NewModpackInstance
+    NewModpackInstance,
+    NewServerDirectory
 }
 
 public sealed record ResourceProjectInstallationRequest(
@@ -35,11 +36,19 @@ public sealed record ResourceProjectInstallationRequest(
     GameInstance? Instance = null,
     ResourceProject? Project = null);
 
-public sealed record ResourceProjectInstallationPreparationResult(bool TargetExists);
+public sealed record ResourceProjectInstallationPreparationResult(
+    bool TargetExists,
+    string? TargetPath = null);
 
 public sealed record ResourceProjectInstallationResult(
     string? InstalledPath = null,
     ModpackImportResult? ModpackImportResult = null);
+
+public sealed class ResourceProjectDistributionRestrictedException(string versionId, Exception? innerException = null)
+    : Exception($"Third-party download is restricted for resource project version {versionId}.", innerException)
+{
+    public string VersionId { get; } = versionId;
+}
 
 public interface IResourceProjectInstallationService
 {

@@ -33,6 +33,7 @@ internal static class ModrinthModpackFormatReader
             archive,
             string.Empty,
             embeddedEntryName: null,
+            ModpackInstallEnvironment.Client,
             validateOverrides: false,
             cancellationToken).ConfigureAwait(false);
     }
@@ -41,12 +42,14 @@ internal static class ModrinthModpackFormatReader
         ZipArchive archive,
         string sourceArchivePath,
         string? embeddedEntryName,
+        ModpackInstallEnvironment environment,
         CancellationToken cancellationToken)
     {
         return ReadCoreAsync(
             archive,
             sourceArchivePath,
             embeddedEntryName,
+            environment,
             validateOverrides: true,
             cancellationToken);
     }
@@ -55,6 +58,7 @@ internal static class ModrinthModpackFormatReader
         ZipArchive archive,
         string sourceArchivePath,
         string? embeddedEntryName,
+        ModpackInstallEnvironment environment,
         bool validateOverrides,
         CancellationToken cancellationToken)
     {
@@ -79,6 +83,7 @@ internal static class ModrinthModpackFormatReader
         return new PreparedModpack
         {
             PackageKind = ModpackPackageKind.Modrinth,
+            Environment = environment,
             SourceArchivePath = sourceArchivePath,
             EmbeddedModrinthEntryName = embeddedEntryName,
             PackageName = string.IsNullOrWhiteSpace(packageName)
@@ -87,12 +92,14 @@ internal static class ModrinthModpackFormatReader
             MinecraftVersion = minecraftVersion,
             Loader = loader,
             LoaderVersion = loaderVersion,
-            HasOverrides = validateOverrides && ModpackOverrideExtractor.HasModrinthOverrides(archive),
-            Files = ParseFiles(index.RootElement)
+            HasOverrides = validateOverrides && ModpackOverrideExtractor.HasModrinthOverrides(archive, environment),
+            Files = ParseFiles(index.RootElement, environment)
         };
     }
 
-    private static IReadOnlyList<PreparedModpackDownload> ParseFiles(JsonElement root)
+    private static IReadOnlyList<PreparedModpackDownload> ParseFiles(
+        JsonElement root,
+        ModpackInstallEnvironment environment)
     {
         if (!root.TryGetProperty("files", out var files) || files.ValueKind is not JsonValueKind.Array)
             return [];
@@ -100,7 +107,7 @@ internal static class ModrinthModpackFormatReader
         var downloads = new List<PreparedModpackDownload>();
         foreach (var file in files.EnumerateArray())
         {
-            if (ShouldSkipClientFile(file))
+            if (ShouldSkipFile(file, environment))
                 continue;
 
             var relativePath = ModpackManifestJson.GetRequiredString(file, "path");
@@ -150,13 +157,14 @@ internal static class ModrinthModpackFormatReader
         };
     }
 
-    private static bool ShouldSkipClientFile(JsonElement file)
+    private static bool ShouldSkipFile(JsonElement file, ModpackInstallEnvironment environment)
     {
+        var environmentName = environment is ModpackInstallEnvironment.Server ? "server" : "client";
         return file.TryGetProperty("env", out var env)
             && env.ValueKind is JsonValueKind.Object
-            && env.TryGetProperty("client", out var clientProperty)
-            && clientProperty.ValueKind is JsonValueKind.String
-            && string.Equals(clientProperty.GetString(), "unsupported", StringComparison.OrdinalIgnoreCase);
+            && env.TryGetProperty(environmentName, out var environmentProperty)
+            && environmentProperty.ValueKind is JsonValueKind.String
+            && string.Equals(environmentProperty.GetString(), "unsupported", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveDownloadUrl(JsonElement file)

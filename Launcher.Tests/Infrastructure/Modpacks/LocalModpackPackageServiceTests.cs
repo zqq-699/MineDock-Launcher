@@ -68,6 +68,53 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ServerPreparationFiltersUnsupportedFilesAndKeepsOptionalFiles()
+    {
+        var path = Path.Combine(TempRoot, "server.mrpack");
+        CreateArchive(path, archive => AddEntry(archive, "modrinth.index.json", """
+            {
+              "name":"Server Pack",
+              "dependencies":{"minecraft":"1.20.1","fabric-loader":"0.16.10"},
+              "files":[
+                {"path":"mods/required.jar","hashes":{"sha1":"1111111111111111111111111111111111111111"},"downloads":["https://example.invalid/required.jar"]},
+                {"path":"mods/client.jar","env":{"server":"unsupported"},"hashes":{"sha1":"2222222222222222222222222222222222222222"},"downloads":["https://example.invalid/client.jar"]},
+                {"path":"mods/optional.jar","env":{"server":"optional"},"hashes":{"sha1":"3333333333333333333333333333333333333333"},"downloads":["https://example.invalid/optional.jar"]}
+              ]
+            }
+            """));
+
+        var prepared = await CreateService().PrepareAsync(path, ModpackInstallEnvironment.Server);
+
+        Assert.Equal(ModpackInstallEnvironment.Server, prepared.Environment);
+        Assert.Equal(["mods/required.jar", "mods/optional.jar"], prepared.Files.Select(file => file.RelativePath));
+    }
+
+    [Fact]
+    public async Task ServerOverridesApplyAfterCommonOverridesAndIgnoreClientOverrides()
+    {
+        var path = Path.Combine(TempRoot, "overrides.mrpack");
+        CreateArchive(path, archive =>
+        {
+            AddEntry(archive, "modrinth.index.json", """{"name":"Server Pack","dependencies":{"minecraft":"1.20.1"},"files":[]}""");
+            AddEntry(archive, "server-overrides/config/value.txt", "server");
+            AddEntry(archive, "client-overrides/config/client.txt", "client");
+            AddEntry(archive, "overrides/config/value.txt", "common");
+        });
+        var service = CreateService();
+        var prepared = await service.PrepareAsync(path, ModpackInstallEnvironment.Server);
+        var target = Path.Combine(TempRoot, "server-target");
+        Directory.CreateDirectory(target);
+
+        await service.CopyOverridesAsync(
+            prepared,
+            new GameInstance { InstanceDirectory = target },
+            progress: null);
+
+        Assert.Equal("server", await File.ReadAllTextAsync(Path.Combine(target, "config", "value.txt")));
+        Assert.False(File.Exists(Path.Combine(target, "config", "client.txt")));
+    }
+
+    [Fact]
     public void ExtractionBudgetRejectsOversizedContent()
     {
         var exception = Assert.Throws<ModpackImportException>(() => new ZipExtractionBudget(1).Reserve(2));

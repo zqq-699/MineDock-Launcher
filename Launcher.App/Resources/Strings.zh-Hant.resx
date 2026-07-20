@@ -694,6 +694,9 @@
   <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve">
     <value>安裝為新遊戲</value>
   </data>
+  <data name="Resources_ModpackInstallTargetServer" xml:space="preserve">
+    <value>安裝為伺服端</value>
+  </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
     <value>另存新檔</value>
   </data>
@@ -3486,4 +3489,10 @@
   <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>離開房間</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>無法切換聯機模式</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>目前仍在房間內，請先退出房間。</value></data>
+  <data name="Status_ServerDeploying" xml:space="preserve"><value>正在部署整合包伺服端...</value></data>
+  <data name="Status_ServerDeployedFormat" xml:space="preserve"><value>伺服端已部署到 {0}</value></data>
+  <data name="Status_ServerDeployFailed" xml:space="preserve"><value>整合包伺服端部署失敗</value></data>
+  <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>伺服端目錄「{0}」已存在，請選擇其他位置。</value></data>
+  <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>選擇伺服端儲存位置</value></data>
+  <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>作者限制了第三方下載，無法取得此伺服端包。</value></data>
 </root>

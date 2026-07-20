@@ -215,6 +215,38 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForgeInstallerRunnerUsesServerInstallArgument()
+    {
+        ProcessStartInfo? capturedStartInfo = null;
+        var javaPath = Path.Combine(TempRoot, "Java Runtime", "bin", "java.exe");
+        var installerPath = Path.Combine(TempRoot, "Forge Installer", "forge installer.jar");
+        var serverDirectory = Path.Combine(TempRoot, "Server Directory");
+        var runner = new ForgeInstallerRunner(startInfo =>
+        {
+            capturedStartInfo = startInfo;
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            processStartInfo.ArgumentList.Add("-NoProfile");
+            processStartInfo.ArgumentList.Add("-NonInteractive");
+            processStartInfo.ArgumentList.Add("-Command");
+            processStartInfo.ArgumentList.Add("exit 0");
+            return Process.Start(processStartInfo);
+        });
+
+        await runner.RunServerInstallerAsync(javaPath, installerPath, serverDirectory, CancellationToken.None);
+
+        Assert.NotNull(capturedStartInfo);
+        Assert.Equal(javaPath, capturedStartInfo.FileName);
+        Assert.Equal(["-jar", installerPath, "--installServer", serverDirectory], capturedStartInfo.ArgumentList);
+    }
+
+    [Fact]
     public async Task ForgeInstallerRunnerRejectsMissingJavaPathWithoutStartingProcess()
     {
         var started = false;

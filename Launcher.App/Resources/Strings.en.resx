@@ -694,6 +694,9 @@
   <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve">
     <value>Install as New Game</value>
   </data>
+  <data name="Resources_ModpackInstallTargetServer" xml:space="preserve">
+    <value>Install as Server</value>
+  </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
     <value>Save As</value>
   </data>
@@ -3486,4 +3489,10 @@ The current game folder will be backed up first.</value>
   <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>Leave Room</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>Cannot Switch Multiplayer Mode</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>You are currently in a room. Leave the room before switching.</value></data>
+  <data name="Status_ServerDeploying" xml:space="preserve"><value>Deploying modpack server...</value></data>
+  <data name="Status_ServerDeployedFormat" xml:space="preserve"><value>Server deployed to {0}</value></data>
+  <data name="Status_ServerDeployFailed" xml:space="preserve"><value>Failed to deploy the modpack server</value></data>
+  <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>The server directory “{0}” already exists. Choose another location.</value></data>
+  <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>Choose server location</value></data>
+  <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>The author restricts third-party downloads, so this server pack cannot be downloaded.</value></data>
 </root>

@@ -34,11 +34,42 @@ public sealed class ResourcesProjectInstallViewModelTests
     {
         var newInstance = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall(
             Strings.Resources_ModpackInstallTargetNewInstance);
+        var server = ResourcesModInstallTargetItemViewModel.CreateServerInstall(
+            Strings.Resources_ModpackInstallTargetServer);
         var saveAs = ResourcesModInstallTargetItemViewModel.CreateLocalDownload(
             Strings.Resources_ModpackInstallTargetLocal);
 
         Assert.Equal("main_menu_instance_download", newInstance.IconKey);
+        Assert.Equal("server", server.IconKey);
+        Assert.True(server.IsServerInstall);
         Assert.Equal("save_as", saveAs.IconKey);
+    }
+
+    [Fact]
+    public async Task ServerInstallTargetOpensVersionListWithServerQuery()
+    {
+        var catalog = new RecordingCatalogService();
+        using var page = new ResourcesModpacksPageViewModel(
+            new ResourcesPageViewModel(),
+            resourceCatalogService: catalog,
+            uiDispatcher: ImmediateUiDispatcher.Instance);
+        page.Versions.SetProject(new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "42",
+            Slug = "pack",
+            Title = "Pack"
+        }));
+        await WaitUntilAsync(() => page.Versions.InstallTargets.Count == 3);
+
+        var serverTarget = page.Versions.InstallTargets.Single(target => target.IsServerInstall);
+        page.Versions.SelectTargetCommand.Execute(serverTarget);
+        await WaitUntilAsync(() => catalog.Requests.Count == 1 && page.Versions.SourceVersions.Count == 1);
+
+        Assert.True(page.IsProjectVersionsStep);
+        Assert.Same(serverTarget, page.Versions.SelectedTarget);
+        Assert.True(Assert.Single(catalog.Requests).ForServerInstallation);
     }
 
     [Fact]
@@ -203,6 +234,84 @@ public sealed class ResourcesProjectInstallViewModelTests
     }
 
     [Fact]
+    public async Task ServerInstallUsesSelectedParentDirectoryAndProject()
+    {
+        var installation = new RecordingInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+        var project = new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        };
+
+        await viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.Modpack),
+            ResourcesModInstallTargetItemViewModel.CreateServerInstall("server"),
+            new ResourcesModProjectItemViewModel(project));
+
+        var request = Assert.Single(installation.ExecutedRequests);
+        Assert.Equal(ResourceProjectInstallationTargetKind.NewServerDirectory, request.TargetKind);
+        Assert.Equal("target", request.TargetDirectory);
+        Assert.Same(project, request.Project);
+        Assert.Equal(DownloadTaskState.Completed, Assert.Single(tasks.Tasks).State);
+    }
+
+    [Fact]
+    public async Task CancelingServerParentDirectoryDoesNotCreateTask()
+    {
+        var installation = new RecordingInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(
+            installation,
+            tasks,
+            _ => { },
+            filePickerService: new StubFilePickerService(null));
+
+        await viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.Modpack),
+            ResourcesModInstallTargetItemViewModel.CreateServerInstall("server"),
+            new ResourcesModProjectItemViewModel(new ResourceProject
+            {
+                Kind = ResourceProjectKind.Modpack,
+                Source = ResourceProjectSource.Modrinth,
+                ProjectId = "project"
+            }));
+
+        Assert.Empty(installation.ExecutedRequests);
+        Assert.Empty(tasks.Tasks);
+    }
+
+    [Fact]
+    public async Task ExistingServerDirectoryShowsResolvedPathAndDoesNotCreateTask()
+    {
+        var installation = new RecordingInstallationService
+        {
+            TargetExists = true,
+            TargetPath = "target\\Sanitized-Pack"
+        };
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+
+        await viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.Modpack),
+            ResourcesModInstallTargetItemViewModel.CreateServerInstall("server"),
+            new ResourcesModProjectItemViewModel(new ResourceProject
+            {
+                Kind = ResourceProjectKind.Modpack,
+                Source = ResourceProjectSource.Modrinth,
+                ProjectId = "project"
+            }));
+
+        Assert.True(viewModel.IsFileExistsDialogOpen);
+        Assert.Contains("Sanitized-Pack", viewModel.FileExistsDialogMessage, StringComparison.Ordinal);
+        Assert.Empty(installation.ExecutedRequests);
+        Assert.Empty(tasks.Tasks);
+    }
+
+    [Fact]
     public async Task CancelingOneConcurrentModpackInstallDoesNotCancelTheOther()
     {
         var installation = new ControllableInstallationService();
@@ -257,14 +366,15 @@ public sealed class ResourcesProjectInstallViewModelTests
         IResourceProjectInstallationService installation,
         DownloadTasksPageViewModel tasks,
         Action<string> reportStatus,
-        IFloatingMessageService? floatingMessageService = null)
+        IFloatingMessageService? floatingMessageService = null,
+        IFilePickerService? filePickerService = null)
     {
         var options = CreateOptions();
         return new ResourcesProjectInstallViewModel(
             options,
             installation,
             new ResourcesRequiredDependencyPlanner(null, options, null, reportStatus),
-            new StubFilePickerService(),
+            filePickerService ?? new StubFilePickerService(),
             floatingMessageService,
             tasks,
             ImmediateUiDispatcher.Instance,
@@ -342,13 +452,14 @@ public sealed class ResourcesProjectInstallViewModelTests
         public bool TargetExists { get; init; }
         public bool WaitForCancellation { get; init; }
         public bool IntegrityFailure { get; init; }
+        public string? TargetPath { get; init; }
         public TaskCompletionSource<bool> ExecuteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<ResourceProjectInstallationRequest> ExecutedRequests { get; } = [];
 
         public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
             ResourceProjectInstallationRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ResourceProjectInstallationPreparationResult(TargetExists));
+            Task.FromResult(new ResourceProjectInstallationPreparationResult(TargetExists, TargetPath));
 
         public async Task<ResourceProjectInstallationResult> ExecuteAsync(
             ResourceProjectInstallationRequest request,
@@ -368,6 +479,60 @@ public sealed class ResourcesProjectInstallViewModelTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new ResourceProjectInstallationResult();
         }
+    }
+
+    private sealed class RecordingCatalogService : IResourceCatalogService
+    {
+        public List<ResourceProjectVersionsRequest> Requests { get; } = [];
+
+        public Task<ResourceCatalogSearchResult> SearchModsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResourceCatalogSearchResult());
+
+        public Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
+            ResourceProjectVersionsRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        Kind = ResourceProjectKind.Modpack,
+                        VersionId = "server-version",
+                        Name = "Server Version",
+                        FileName = "server.zip"
+                    }
+                ]
+            });
+        }
+
+        public Task<string> InstallProjectVersionAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<string> DownloadProjectVersionAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class ControllableInstallationService : IResourceProjectInstallationService
@@ -478,7 +643,7 @@ public sealed class ResourcesProjectInstallViewModelTests
         }
     }
 
-    private sealed class StubFilePickerService : IFilePickerService
+    private sealed class StubFilePickerService(string? folder = "target") : IFilePickerService
     {
         public string? PickMinecraftSkin() => null;
         public string? PickJavaExecutable() => null;
@@ -489,6 +654,6 @@ public sealed class ResourcesProjectInstallViewModelTests
         public string? PickShaderPackArchive() => null;
         public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind) => null;
         public string? PickLaunchDiagnosticExportArchive(string instanceName) => null;
-        public string? PickFolder(string title, string? initialDirectory = null) => "target";
+        public string? PickFolder(string title, string? initialDirectory = null) => folder;
     }
 }

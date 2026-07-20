@@ -108,6 +108,7 @@ public sealed class ResourcesModpacksPageViewModel : ResourcesModPageViewModel
                 new("exploration", Strings.Resources_ModpackFilterTypeExploration, ResourceProjectCategory.Exploration)
             ],
             InstallTargetMode: ResourcesOnlineProjectInstallTargetMode.NewInstance,
-            InstallTargetNewInstanceText: Strings.Resources_ModpackInstallTargetNewInstance);
+            InstallTargetNewInstanceText: Strings.Resources_ModpackInstallTargetNewInstance,
+            InstallTargetServerText: Strings.Resources_ModpackInstallTargetServer);
     }
 }

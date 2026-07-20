@@ -298,6 +298,7 @@ public static class Strings
     public static string Resources_ModpackDetailsInfoSection => Get(nameof(Resources_ModpackDetailsInfoSection));
     public static string Resources_ModpackInstallTargetSection => Get(nameof(Resources_ModpackInstallTargetSection));
     public static string Resources_ModpackInstallTargetNewInstance => Get(nameof(Resources_ModpackInstallTargetNewInstance));
+    public static string Resources_ModpackInstallTargetServer => Get(nameof(Resources_ModpackInstallTargetServer));
     public static string Resources_ModpackInstallTargetLocal => Get(nameof(Resources_ModpackInstallTargetLocal));
     public static string Resources_ModpackInstallTargetsLoading => Get(nameof(Resources_ModpackInstallTargetsLoading));
     public static string Resources_ModpackInstallTargetsLoadError => Get(nameof(Resources_ModpackInstallTargetsLoadError));
@@ -1134,6 +1135,11 @@ public static class Strings
     public static string Status_ModrinthExportUnsupported => Get(nameof(Status_ModrinthExportUnsupported));
     public static string Status_ModpackInstalling => Get(nameof(Status_ModpackInstalling));
     public static string Status_ModpackImportFailed => Get(nameof(Status_ModpackImportFailed));
+    public static string Status_ServerDeploying => Get(nameof(Status_ServerDeploying));
+    public static string Status_ServerDeployedFormat => Get(nameof(Status_ServerDeployedFormat));
+    public static string Status_ServerDeployFailed => Get(nameof(Status_ServerDeployFailed));
+    public static string Status_ServerDirectoryExistsFormat => Get(nameof(Status_ServerDirectoryExistsFormat));
+    public static string Status_ServerDistributionRestricted => Get(nameof(Status_ServerDistributionRestricted));
     public static string Status_OpenModpackManualDownloadsFileFailed => Get(nameof(Status_OpenModpackManualDownloadsFileFailed));
     public static string Status_LoaderInstallPending => Get(nameof(Status_LoaderInstallPending));
     public static string Status_FabricLoaderVersionsLoadFailed => Get(nameof(Status_FabricLoaderVersionsLoadFailed));
@@ -1204,6 +1210,7 @@ public static class Strings
     public static string FilePicker_ShaderPackDownloadDirectoryTitle => Get(nameof(FilePicker_ShaderPackDownloadDirectoryTitle));
     public static string FilePicker_WorldDownloadDirectoryTitle => Get(nameof(FilePicker_WorldDownloadDirectoryTitle));
     public static string FilePicker_ModpackDownloadDirectoryTitle => Get(nameof(FilePicker_ModpackDownloadDirectoryTitle));
+    public static string FilePicker_ServerInstallDirectoryTitle => Get(nameof(FilePicker_ServerInstallDirectoryTitle));
     public static string FilePicker_ModpackExportArchiveTitle => Get(nameof(FilePicker_ModpackExportArchiveTitle));
     public static string FilePicker_ModpackExportArchiveFilter => Get(nameof(FilePicker_ModpackExportArchiveFilter));
     public static string FilePicker_LaunchDiagnosticExportTitle => Get(nameof(FilePicker_LaunchDiagnosticExportTitle));

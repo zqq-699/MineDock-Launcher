@@ -20,6 +20,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -242,7 +243,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         RaiseStateChanged();
         try
         {
-            var page = await LoadNextPageAsync(project.Project, cancellationToken).ConfigureAwait(false);
+            var page = await LoadNextPageAsync(project.Project, SelectedTarget, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             uiDispatcher.Invoke(() => ApplyMore(page, cancellationToken));
         }
@@ -359,6 +360,8 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
             [
                 ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall(
                     options.InstallTargetNewInstanceText ?? options.InstallTargetSectionText),
+                ResourcesModInstallTargetItemViewModel.CreateServerInstall(
+                    options.InstallTargetServerText ?? Strings.Resources_ModpackInstallTargetServer),
                 ResourcesModInstallTargetItemViewModel.CreateLocalDownload(options.InstallTargetLocalText)
             ];
         }
@@ -407,13 +410,13 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
             var project = currentProject;
             if (resourceCatalogService is null || project is null
                 || !ReferenceEquals(target, SelectedTarget)
-                || !target.IsLocalDownload && !target.IsNewInstanceInstall && target.Instance is null)
+                || !target.IsLocalDownload && !target.IsNewInstanceInstall && !target.IsServerInstall && target.Instance is null)
             {
                 uiDispatcher.Invoke(() => ApplyInitial(new AvailableVersionPage(new ResourceProjectVersionsResult(), []), options.VersionsLoadErrorText, cancellationToken));
                 return;
             }
 
-            var page = await LoadNextPageAsync(project.Project, cancellationToken).ConfigureAwait(false);
+            var page = await LoadNextPageAsync(project.Project, target, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var error = page.Result.IsCurseForgeUnavailable ? options.VersionsLoadErrorText : string.Empty;
             uiDispatcher.Invoke(() => ApplyInitial(page, error, cancellationToken));
@@ -433,7 +436,10 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
     /// <summary>
     /// 请求下一页全部候选版本，并在进入页面状态前去除跨页重复项。
     /// </summary>
-    private async Task<AvailableVersionPage> LoadNextPageAsync(ResourceProject project, CancellationToken cancellationToken)
+    private async Task<AvailableVersionPage> LoadNextPageAsync(
+        ResourceProject project,
+        ResourcesModInstallTargetItemViewModel target,
+        CancellationToken cancellationToken)
     {
         // 先请求全部版本再在本地按目标筛选，用户切换筛选项无需重复访问网络。
         var request = new ResourceProjectVersionsRequest
@@ -445,6 +451,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
             MinecraftVersion = string.Empty,
             Loader = LoaderKind.Vanilla,
             IncludeAllVersions = true,
+            ForServerInstallation = target.IsServerInstall,
             Offset = NextPageOffset,
             PageSize = PageSize
         };

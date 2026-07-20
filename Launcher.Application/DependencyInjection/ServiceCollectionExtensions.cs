@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceDeletionCleanupService, InstanceDeletionCleanupService>();
         services.AddSingleton<IInstanceRenameRecoveryService, InstanceRenameRecoveryService>();
         services.AddSingleton<ILocalModpackImportService, LocalModpackImportService>();
+        services.AddSingleton<IServerModpackDeploymentService, ServerModpackDeploymentService>();
         services.AddSingleton<IResourceDependencyPlanningService, ResourceDependencyPlanningService>();
         return services;
     }

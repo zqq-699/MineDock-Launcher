@@ -333,6 +333,13 @@ internal sealed class ResourceProjectStorage
             throw new InvalidOperationException("Failed to create the resource project temporary file.", exception);
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+            when (exception.Failures.Count > 0
+                && exception.Failures.All(failure => failure is DownloadAttemptException
+                    { StatusCode: System.Net.HttpStatusCode.Forbidden }))
+        {
+            throw new ResourceProjectDistributionRestrictedException(version.VersionId, exception);
+        }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
         {
             throw new HttpRequestException("Resource project download candidate failed.", exception, exception.InnerException is DownloadAttemptException { StatusCode: { } status } ? status : null);
         }

@@ -134,6 +134,7 @@ internal static IReadOnlyList<string> NormalizeGameVersionCompatibilityValues(IR
         // 未知目标不能做严格兼容过滤，否则无法解析的旧实例会被错误显示为没有可用版本。
         return target?.IsLocalDownload is false
             && !target.IsNewInstanceInstall
+            && !target.IsServerInstall
             && string.IsNullOrWhiteSpace(target.Instance?.MinecraftVersion);
     }
 

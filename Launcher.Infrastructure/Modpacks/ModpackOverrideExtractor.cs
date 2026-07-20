@@ -26,14 +26,16 @@ namespace Launcher.Infrastructure.Modpacks;
 
 internal static class ModpackOverrideExtractor
 {
-    public static bool HasModrinthOverrides(ZipArchive archive)
+    public static bool HasModrinthOverrides(
+        ZipArchive archive,
+        ModpackInstallEnvironment environment = ModpackInstallEnvironment.Client)
     {
-        return ValidateOverrides(archive, includeClientOverrides: true);
+        return ValidateOverrides(archive, environment);
     }
 
     public static bool HasCurseForgeOverrides(ZipArchive archive)
     {
-        return ValidateOverrides(archive, includeClientOverrides: false);
+        return ValidateOverrides(archive, environment: null);
     }
 
     public static async Task CopyOverridesAsync(
@@ -45,7 +47,7 @@ internal static class ModpackOverrideExtractor
         {
             await using var stream = File.OpenRead(preparedModpack.SourceArchivePath);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
-            await ExtractOverridesAsync(archive, instanceDirectory, includeClientOverrides: false, cancellationToken)
+            await ExtractOverridesAsync(archive, instanceDirectory, environment: null, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -68,44 +70,49 @@ internal static class ModpackOverrideExtractor
                 ModpackArchiveUtility.MaxEmbeddedModpackBytes,
                 cancellationToken).ConfigureAwait(false);
             using var innerArchive = new ZipArchive(innerStream, ZipArchiveMode.Read, leaveOpen: false);
-            await ExtractOverridesAsync(innerArchive, instanceDirectory, includeClientOverrides: true, cancellationToken)
+            await ExtractOverridesAsync(innerArchive, instanceDirectory, preparedModpack.Environment, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
 
         await using var modrinthStream = File.OpenRead(preparedModpack.SourceArchivePath);
         using var modrinthArchive = new ZipArchive(modrinthStream, ZipArchiveMode.Read, leaveOpen: false);
-        await ExtractOverridesAsync(modrinthArchive, instanceDirectory, includeClientOverrides: true, cancellationToken)
+        await ExtractOverridesAsync(modrinthArchive, instanceDirectory, preparedModpack.Environment, cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private static bool ValidateOverrides(ZipArchive archive, bool includeClientOverrides)
+    private static bool ValidateOverrides(ZipArchive archive, ModpackInstallEnvironment? environment)
     {
         var foundAny = false;
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
         var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
+        foreach (var prefix in ResolveOverridePrefixes(environment))
         {
-            var relativePath = ResolveOverridePath(entry, includeClientOverrides);
-            if (string.IsNullOrWhiteSpace(relativePath))
-                continue;
-
-            if (entry.Length > ModpackArchiveUtility.MaxOverrideEntryBytes)
+            foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
             {
-                throw new ModpackImportException(
-                    ModpackImportFailureReason.InvalidManifest,
-                    $"Archive entry is too large: {entry.FullName}");
-            }
+                var relativePath = ModpackArchiveUtility.RemovePrefix(
+                    ModpackArchiveUtility.NormalizeArchivePath(entry.FullName),
+                    prefix);
+                if (string.IsNullOrWhiteSpace(relativePath))
+                    continue;
 
-            extractionBudget.Reserve(entry.Length);
-            var target = ModpackArchiveUtility.GetValidatedTargetPath(Path.GetTempPath(), relativePath);
-            if (!targets.Add(Path.GetFullPath(target)))
-            {
-                throw new ModpackImportException(
-                    ModpackImportFailureReason.InvalidManifest,
-                    $"Multiple override entries resolve to the same target path: {relativePath}");
+                if (entry.Length > ModpackArchiveUtility.MaxOverrideEntryBytes)
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"Archive entry is too large: {entry.FullName}");
+                }
+
+                extractionBudget.Reserve(entry.Length);
+                var target = ModpackArchiveUtility.GetValidatedTargetPath(Path.GetTempPath(), relativePath);
+                if (!targets.Add($"{prefix}:{Path.GetFullPath(target)}"))
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"Multiple override entries resolve to the same target path: {relativePath}");
+                }
+                foundAny = true;
             }
-            foundAny = true;
         }
 
         return foundAny;
@@ -114,41 +121,46 @@ internal static class ModpackOverrideExtractor
     private static async Task ExtractOverridesAsync(
         ZipArchive archive,
         string instanceDirectory,
-        bool includeClientOverrides,
+        ModpackInstallEnvironment? environment,
         CancellationToken cancellationToken)
     {
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
         var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
+        foreach (var prefix in ResolveOverridePrefixes(environment))
         {
-            var relativePath = ResolveOverridePath(entry, includeClientOverrides);
-            if (string.IsNullOrWhiteSpace(relativePath))
-                continue;
-
-            var target = ModpackArchiveUtility.GetValidatedTargetPath(instanceDirectory, relativePath);
-            if (!targets.Add(Path.GetFullPath(target)))
+            foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
             {
-                throw new ModpackImportException(
-                    ModpackImportFailureReason.InvalidManifest,
-                    $"Multiple override entries resolve to the same target path: {relativePath}");
-            }
+                var relativePath = ModpackArchiveUtility.RemovePrefix(
+                    ModpackArchiveUtility.NormalizeArchivePath(entry.FullName),
+                    prefix);
+                if (string.IsNullOrWhiteSpace(relativePath))
+                    continue;
 
-            await ModpackArchiveUtility.ExtractZipEntryAsync(
-                entry,
-                instanceDirectory,
-                relativePath,
-                extractionBudget,
-                cancellationToken).ConfigureAwait(false);
+                var target = ModpackArchiveUtility.GetValidatedTargetPath(instanceDirectory, relativePath);
+                if (!targets.Add($"{prefix}:{Path.GetFullPath(target)}"))
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"Multiple override entries resolve to the same target path: {relativePath}");
+                }
+
+                await ModpackArchiveUtility.ExtractZipEntryAsync(
+                    entry,
+                    instanceDirectory,
+                    relativePath,
+                    extractionBudget,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
-    private static string ResolveOverridePath(ZipArchiveEntry entry, bool includeClientOverrides)
+    private static IReadOnlyList<string> ResolveOverridePrefixes(ModpackInstallEnvironment? environment)
     {
-        var normalizedPath = ModpackArchiveUtility.NormalizeArchivePath(entry.FullName);
-        var relativePath = ModpackArchiveUtility.RemovePrefix(normalizedPath, "overrides");
-        if (!string.IsNullOrWhiteSpace(relativePath) || !includeClientOverrides)
-            return relativePath;
-
-        return ModpackArchiveUtility.RemovePrefix(normalizedPath, "client-overrides");
+        return environment switch
+        {
+            ModpackInstallEnvironment.Server => ["overrides", "server-overrides"],
+            ModpackInstallEnvironment.Client => ["overrides", "client-overrides"],
+            _ => ["overrides"]
+        };
     }
 }

@@ -36,6 +36,7 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
     private static readonly JsonSerializerOptions MarkerJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IResourceCatalogService resourceCatalogService;
     private readonly ILocalModpackImportService localModpackImportService;
+    private readonly IServerModpackDeploymentService serverModpackDeploymentService;
     private readonly IGameInstanceService gameInstanceService;
     private readonly ILogger<ResourceProjectInstallationService> logger;
 
@@ -44,9 +45,25 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         ILocalModpackImportService localModpackImportService,
         IGameInstanceService gameInstanceService,
         ILogger<ResourceProjectInstallationService> logger)
+        : this(
+            resourceCatalogService,
+            localModpackImportService,
+            new UnsupportedServerModpackDeploymentService(),
+            gameInstanceService,
+            logger)
+    {
+    }
+
+    public ResourceProjectInstallationService(
+        IResourceCatalogService resourceCatalogService,
+        ILocalModpackImportService localModpackImportService,
+        IServerModpackDeploymentService serverModpackDeploymentService,
+        IGameInstanceService gameInstanceService,
+        ILogger<ResourceProjectInstallationService> logger)
     {
         this.resourceCatalogService = resourceCatalogService;
         this.localModpackImportService = localModpackImportService;
+        this.serverModpackDeploymentService = serverModpackDeploymentService;
         this.gameInstanceService = gameInstanceService;
         this.logger = logger;
     }
@@ -55,6 +72,17 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         ResourceProjectInstallationRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (request.TargetKind is ResourceProjectInstallationTargetKind.NewServerDirectory)
+        {
+            var targetPath = serverModpackDeploymentService.ResolveTargetDirectory(
+                RequireTargetDirectory(request),
+                request.Version.FileName,
+                request.Version.VersionId);
+            return new ResourceProjectInstallationPreparationResult(
+                Directory.Exists(targetPath) || File.Exists(targetPath),
+                targetPath);
+        }
+
         var targetExists = request.TargetKind switch
         {
             ResourceProjectInstallationTargetKind.LocalDirectory =>
@@ -107,6 +135,9 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             }
             case ResourceProjectInstallationTargetKind.NewModpackInstance:
                 return await ImportModpackAsNewInstanceAsync(request, progress, cancellationToken)
+                    .ConfigureAwait(false);
+            case ResourceProjectInstallationTargetKind.NewServerDirectory:
+                return await DeployModpackServerAsync(request, progress, cancellationToken)
                     .ConfigureAwait(false);
             default:
                 throw new ArgumentOutOfRangeException(nameof(request));
@@ -195,6 +226,66 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
                     exception,
                     "Failed to clean resource project installation workspace. Workspace={Workspace}",
                     tempDirectory);
+            }
+        }
+    }
+
+    private async Task<ResourceProjectInstallationResult> DeployModpackServerAsync(
+        ResourceProjectInstallationRequest request,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var project = request.Project
+            ?? throw new ArgumentException("A source project is required for server deployment.", nameof(request));
+        var transactionId = Guid.NewGuid().ToString("N");
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"{WorkspacePrefix}server-{transactionId}");
+        Directory.CreateDirectory(tempDirectory);
+        await using var activeLock = new FileStream(
+            Path.Combine(tempDirectory, ActiveLockFileName),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        await AtomicJsonFileWriter.WriteAsync(
+                Path.Combine(tempDirectory, MarkerFileName),
+                new ResourceInstallWorkspaceMarker(1, transactionId),
+                MarkerJsonOptions,
+                cancellationToken)
+            .ConfigureAwait(false);
+        try
+        {
+            var archivePath = await DownloadProjectVersionAsync(
+                request.Version,
+                tempDirectory,
+                progress,
+                cancellationToken).ConfigureAwait(false);
+            var result = await serverModpackDeploymentService.DeployAsync(
+                new ServerModpackDeploymentRequest(
+                    archivePath,
+                    RequireTargetDirectory(request),
+                    request.Version.FileName,
+                    request.Version.VersionId,
+                    project.Source),
+                progress,
+                cancellationToken).ConfigureAwait(false);
+            progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 99));
+            return new ResourceProjectInstallationResult(InstalledPath: result.FinalDirectory);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    await activeLock.DisposeAsync().ConfigureAwait(false);
+                    DeleteOwnedWorkspace(tempDirectory, transactionId);
+                }
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Failed to clean server modpack download workspace. TransactionId={TransactionId}",
+                    transactionId);
             }
         }
     }
@@ -293,9 +384,12 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         {
             cancellationToken.ThrowIfCancellationRequested();
             var name = Path.GetFileName(directory);
-            var transactionId = name.StartsWith(WorkspacePrefix, StringComparison.OrdinalIgnoreCase)
+            var workspaceSuffix = name.StartsWith(WorkspacePrefix, StringComparison.OrdinalIgnoreCase)
                 ? name[WorkspacePrefix.Length..]
                 : string.Empty;
+            var transactionId = workspaceSuffix.StartsWith("server-", StringComparison.OrdinalIgnoreCase)
+                ? workspaceSuffix["server-".Length..]
+                : workspaceSuffix;
             if (!Guid.TryParseExact(transactionId, "N", out _)
                 || !TryReadValidMarker(directory, transactionId))
             {
@@ -408,6 +502,20 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
     }
 
     private sealed record ResourceInstallWorkspaceMarker(int SchemaVersion, string TransactionId);
+
+    private sealed class UnsupportedServerModpackDeploymentService : IServerModpackDeploymentService
+    {
+        public string ResolveTargetDirectory(string parentDirectory, string archiveFileName, string versionId) =>
+            Path.Combine(
+                Path.GetFullPath(parentDirectory),
+                Path.GetFileNameWithoutExtension(archiveFileName));
+
+        public Task<ServerModpackDeploymentResult> DeployAsync(
+            ServerModpackDeploymentRequest request,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Server modpack deployment is not configured.");
+    }
 
     private static string RequireTargetDirectory(ResourceProjectInstallationRequest request)
     {

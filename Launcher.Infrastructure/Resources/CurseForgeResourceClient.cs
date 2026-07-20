@@ -169,6 +169,28 @@ internal sealed class CurseForgeResourceClient(
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<FilesResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
         var files = payload?.Data ?? [];
+        var sourceFileCount = files.Count;
+        IReadOnlyDictionary<long, CurseForgeFile> compatibilitySources = new Dictionary<long, CurseForgeFile>();
+        if (request.ForServerInstallation && request.Kind is ResourceProjectKind.Modpack)
+        {
+            var linkedClientFiles = files
+                .Where(file => file.IsServerPack is not true && file.ServerPackFileId is > 0)
+                .GroupBy(file => file.ServerPackFileId!.Value)
+                .ToList();
+            var serverPackIds = linkedClientFiles.Select(group => group.Key).ToList();
+            var serverFiles = serverPackIds.Count == 0
+                ? []
+                : await LoadFilesAsync(serverPackIds, apiKey, cancellationToken).ConfigureAwait(false);
+            var serverFilesById = serverFiles
+                .Where(file => file.IsAvailable is true && file.IsServerPack is true)
+                .GroupBy(file => file.Id)
+                .ToDictionary(group => group.Key, group => group.First());
+            compatibilitySources = linkedClientFiles.ToDictionary(group => group.Key, group => group.First());
+            files = serverPackIds
+                .Where(serverFilesById.ContainsKey)
+                .Select(id => serverFilesById[id])
+                .ToList();
+        }
         var excludedIds = CreateCurrentIds(request.ProjectId, request.Slug, projectId.ToString());
         var dependencyProjects = request.Kind is ResourceProjectKind.Mod
             ? await LoadDependencyProjectsAsync(CollectRequiredProjectIds(files, excludedIds), apiKey, cancellationToken).ConfigureAwait(false)
@@ -178,11 +200,18 @@ internal sealed class CurseForgeResourceClient(
         {
             Versions = files
                 .Where(file => file.Id > 0 && (!string.IsNullOrWhiteSpace(file.FileName) || !string.IsNullOrWhiteSpace(file.DownloadUrl)))
-                .Select(file => MapVersion(file, request.Kind, dependencyProjects, excludedIds))
+                .Select(file => MapVersion(
+                    file,
+                    request.Kind,
+                    dependencyProjects,
+                    excludedIds,
+                    compatibilitySources.TryGetValue(file.Id, out var compatibilitySource)
+                        ? compatibilitySource
+                        : null))
                 .ToList(),
             HasMore = payload?.Pagination?.TotalCount is { } total
-                ? offset + files.Count < total
-                : files.Count >= pageSize
+                ? offset + sourceFileCount < total
+                : sourceFileCount >= pageSize
         };
     }
 
@@ -317,6 +346,19 @@ internal sealed class CurseForgeResourceClient(
         return (await response.Content.ReadFromJsonAsync<CategoriesResponse>(cancellationToken: cancellationToken).ConfigureAwait(false))?.Data ?? [];
     }
 
+    private async Task<IReadOnlyList<CurseForgeFile>> LoadFilesAsync(
+        IReadOnlyList<long> fileIds,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Post, $"{BaseUrl}/mods/files", apiKey);
+        request.Content = JsonContent.Create(new CurseForgeFileIdsRequest { FileIds = fileIds });
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<FilesResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false))?.Data ?? [];
+    }
+
     private static HttpRequestMessage CreateRequest(HttpMethod method, string url, string apiKey)
     {
         var request = new HttpRequestMessage(method, url);
@@ -329,7 +371,8 @@ internal sealed class CurseForgeResourceClient(
         CurseForgeFile file,
         ResourceProjectKind kind,
         IReadOnlyDictionary<string, ResourceProject> projects,
-        ISet<string> excludedIds)
+        ISet<string> excludedIds,
+        CurseForgeFile? compatibilitySource = null)
     {
         // 下载 URL 提供主地址和可推导 CDN 候选，执行器可在区域或镜像故障时按序回退。
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -352,9 +395,13 @@ internal sealed class CurseForgeResourceClient(
                 .ToList(),
             Downloads = file.DownloadCount,
             PublishedAt = file.FileDate,
-            GameVersions = NormalizeDistinct(file.GameVersions),
+            GameVersions = NormalizeDistinct(file.GameVersions.Count > 0
+                ? file.GameVersions
+                : compatibilitySource?.GameVersions ?? []),
             Loaders = HasLoaderFacet(kind)
-                ? NormalizeDistinct(file.SortableGameVersions.Select(version => TryMapLoader(version.ModLoader)))
+                ? NormalizeDistinct((file.SortableGameVersions.Count > 0
+                    ? file.SortableGameVersions
+                    : compatibilitySource?.SortableGameVersions ?? []).Select(version => TryMapLoader(version.ModLoader)))
                 : [],
             RequiredDependencies = file.Dependencies
                 .Where(value => value.RelationType == 3 && value.ModId > 0)
@@ -527,6 +574,9 @@ internal sealed class CurseForgeResourceClient(
         [JsonPropertyName("releaseType")] public int ReleaseType { get; init; }
         [JsonPropertyName("downloadCount")] public long DownloadCount { get; init; }
         [JsonPropertyName("fileDate")] public DateTimeOffset? FileDate { get; init; }
+        [JsonPropertyName("isAvailable")] public bool? IsAvailable { get; init; }
+        [JsonPropertyName("isServerPack")] public bool? IsServerPack { get; init; }
+        [JsonPropertyName("serverPackFileId")] public long? ServerPackFileId { get; init; }
         [JsonPropertyName("gameVersions")] public List<string> GameVersions { get; init; } = [];
         [JsonPropertyName("sortableGameVersions")] public List<SortableVersion> SortableGameVersions { get; init; } = [];
         [JsonPropertyName("dependencies")] public List<FileDependency> Dependencies { get; init; } = [];
@@ -535,6 +585,10 @@ internal sealed class CurseForgeResourceClient(
     {
         [JsonPropertyName("value")] public string Value { get; init; } = string.Empty;
         [JsonPropertyName("algo")] public int Algorithm { get; init; }
+    }
+    private sealed class CurseForgeFileIdsRequest
+    {
+        [JsonPropertyName("fileIds")] public IReadOnlyList<long> FileIds { get; init; } = [];
     }
     private sealed class SortableVersion { [JsonPropertyName("modLoader")] public int? ModLoader { get; init; } }
     private sealed class FileDependency

@@ -65,4 +65,5 @@ public sealed record ResourcesOnlineProjectPageOptions(
     IReadOnlyList<ResourcesOnlineProjectTypeOption> TypeOptions,
     IReadOnlyList<ResourcesFilterOptionItem>? SourceOptions = null,
     ResourcesOnlineProjectInstallTargetMode InstallTargetMode = ResourcesOnlineProjectInstallTargetMode.ExistingInstance,
-    string? InstallTargetNewInstanceText = null);
+    string? InstallTargetNewInstanceText = null,
+    string? InstallTargetServerText = null);

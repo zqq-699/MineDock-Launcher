@@ -252,18 +252,24 @@ public sealed class ResourceProjectInstallationServiceTests
             new FakeGameInstanceService(),
             NullLogger<ResourceProjectInstallationService>.Instance);
         var staleId = Guid.NewGuid().ToString("N");
+        var staleServerId = Guid.NewGuid().ToString("N");
         var activeId = Guid.NewGuid().ToString("N");
         var invalidId = Guid.NewGuid().ToString("N");
         var tempRoot = Path.GetTempPath();
         var stale = Path.Combine(tempRoot, $"launcher-modpack-install-{staleId}");
+        var staleServer = Path.Combine(tempRoot, $"launcher-modpack-install-server-{staleServerId}");
         var active = Path.Combine(tempRoot, $"launcher-modpack-install-{activeId}");
         var invalid = Path.Combine(tempRoot, $"launcher-modpack-install-{invalidId}");
         Directory.CreateDirectory(stale);
+        Directory.CreateDirectory(staleServer);
         Directory.CreateDirectory(active);
         Directory.CreateDirectory(invalid);
         await File.WriteAllTextAsync(
             Path.Combine(stale, ".launcher-resource-install.json"),
             JsonSerializer.Serialize(new { schemaVersion = 1, transactionId = staleId }));
+        await File.WriteAllTextAsync(
+            Path.Combine(staleServer, ".launcher-resource-install.json"),
+            JsonSerializer.Serialize(new { schemaVersion = 1, transactionId = staleServerId }));
         await File.WriteAllTextAsync(
             Path.Combine(active, ".launcher-resource-install.json"),
             JsonSerializer.Serialize(new { schemaVersion = 1, transactionId = activeId }));
@@ -278,6 +284,7 @@ public sealed class ResourceProjectInstallationServiceTests
             await service.CleanupStaleWorkspacesAsync();
 
             Assert.False(Directory.Exists(stale));
+            Assert.False(Directory.Exists(staleServer));
             Assert.True(Directory.Exists(active));
             Assert.True(Directory.Exists(invalid));
         }
@@ -290,6 +297,8 @@ public sealed class ResourceProjectInstallationServiceTests
                 Directory.Delete(invalid, recursive: true);
             if (Directory.Exists(stale))
                 Directory.Delete(stale, recursive: true);
+            if (Directory.Exists(staleServer))
+                Directory.Delete(staleServer, recursive: true);
         }
     }
 

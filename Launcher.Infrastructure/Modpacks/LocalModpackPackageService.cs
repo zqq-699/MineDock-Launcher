@@ -99,6 +99,19 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         CancellationToken cancellationToken = default,
         IProgress<LauncherProgress>? progress = null)
     {
+        return await PrepareAsync(
+            archivePath,
+            ModpackInstallEnvironment.Client,
+            cancellationToken,
+            progress).ConfigureAwait(false);
+    }
+
+    public async Task<PreparedModpack> PrepareAsync(
+        string archivePath,
+        ModpackInstallEnvironment environment,
+        CancellationToken cancellationToken = default,
+        IProgress<LauncherProgress>? progress = null)
+    {
         var normalizedPath = Path.GetFullPath(archivePath);
         if (!File.Exists(normalizedPath))
         {
@@ -109,8 +122,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         logger.LogDebug("Preparing local modpack archive. ArchivePath={ArchivePath}", normalizedPath);
         return Path.GetExtension(normalizedPath).ToLowerInvariant() switch
         {
-            ".mrpack" => await PrepareModrinthAsync(normalizedPath, cancellationToken).ConfigureAwait(false),
-            ".zip" => await PrepareZipAsync(normalizedPath, cancellationToken, progress).ConfigureAwait(false),
+            ".mrpack" => await PrepareModrinthAsync(normalizedPath, environment, cancellationToken).ConfigureAwait(false),
+            ".zip" => await PrepareZipAsync(normalizedPath, environment, cancellationToken, progress).ConfigureAwait(false),
             _ => throw new ModpackImportException(
                 ModpackImportFailureReason.UnsupportedArchive,
                 $"Unsupported modpack archive type: {normalizedPath}")
@@ -241,6 +254,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
     private async Task<PreparedModpack> PrepareModrinthAsync(
         string archivePath,
+        ModpackInstallEnvironment environment,
         CancellationToken cancellationToken)
     {
         using var stream = File.OpenRead(archivePath);
@@ -249,11 +263,13 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             archive,
             archivePath,
             embeddedEntryName: null,
+            environment,
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PreparedModpack> PrepareZipAsync(
         string archivePath,
+        ModpackInstallEnvironment environment,
         CancellationToken cancellationToken,
         IProgress<LauncherProgress>? progress)
     {
@@ -273,7 +289,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 "Falling back to embedded Modrinth archive inside zip wrapper. ArchivePath={ArchivePath} EmbeddedEntry={EmbeddedEntry}",
                 archivePath,
                 embedded[0].FullName);
-            return await PrepareEmbeddedModrinthAsync(embedded[0], archivePath, cancellationToken)
+            return await PrepareEmbeddedModrinthAsync(embedded[0], archivePath, environment, cancellationToken)
                 .ConfigureAwait(false);
         }
         if (embedded.Count > 1)
@@ -295,6 +311,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private async Task<PreparedModpack> PrepareEmbeddedModrinthAsync(
         ZipArchiveEntry entry,
         string sourceArchivePath,
+        ModpackInstallEnvironment environment,
         CancellationToken cancellationToken)
     {
         await using var stream = await ModpackArchiveUtility.CopyZipEntryToMemoryAsync(
@@ -306,6 +323,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             archive,
             sourceArchivePath,
             entry.FullName,
+            environment,
             cancellationToken).ConfigureAwait(false);
     }
 

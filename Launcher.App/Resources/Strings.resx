@@ -246,6 +246,7 @@
   <data name="Resources_ModpackDetailsInfoSection" xml:space="preserve"><value>整合包信息</value></data>
   <data name="Resources_ModpackInstallTargetSection" xml:space="preserve"><value>选择安装方式</value></data>
   <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve"><value>安装为新游戏</value></data>
+  <data name="Resources_ModpackInstallTargetServer" xml:space="preserve"><value>安装为服务端</value></data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve"><value>另存为</value></data>
   <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve"><value>正在准备安装方式...</value></data>
   <data name="Resources_ModpackInstallTargetsLoadError" xml:space="preserve"><value>安装方式加载失败</value></data>
@@ -1241,4 +1242,10 @@
   <data name="Dialog_MultiplayerLeaveJoinedLobbyConfirmButton" xml:space="preserve"><value>离开房间</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedTitle" xml:space="preserve"><value>无法切换联机模式</value></data>
   <data name="Dialog_MultiplayerLobbySectionSwitchBlockedMessage" xml:space="preserve"><value>当前在房间内，请先退出房间。</value></data>
+  <data name="Status_ServerDeploying" xml:space="preserve"><value>正在部署整合包服务端...</value></data>
+  <data name="Status_ServerDeployedFormat" xml:space="preserve"><value>服务端已部署到 {0}</value></data>
+  <data name="Status_ServerDeployFailed" xml:space="preserve"><value>整合包服务端部署失败</value></data>
+  <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>服务端目录“{0}”已存在，请选择其他位置。</value></data>
+  <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>选择服务端保存位置</value></data>
+  <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>作者限制了第三方下载，无法获取此服务端包。</value></data>
 </root>

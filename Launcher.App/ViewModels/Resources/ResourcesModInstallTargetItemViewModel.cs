@@ -33,7 +33,8 @@ public sealed class ResourcesModInstallTargetItemViewModel
         string? iconSource,
         string? iconKey,
         bool isLocalDownload,
-        bool isNewInstanceInstall)
+        bool isNewInstanceInstall,
+        bool isServerInstall)
     {
         Instance = instance;
         Title = title;
@@ -42,6 +43,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
         IconKey = iconKey;
         IsLocalDownload = isLocalDownload;
         IsNewInstanceInstall = isNewInstanceInstall;
+        IsServerInstall = isServerInstall;
     }
 
     public GameInstance? Instance { get; }
@@ -57,6 +59,8 @@ public sealed class ResourcesModInstallTargetItemViewModel
     public bool IsLocalDownload { get; }
 
     public bool IsNewInstanceInstall { get; }
+
+    public bool IsServerInstall { get; }
 
     public bool IsFirstVisible { get; private set; }
 
@@ -79,7 +83,8 @@ public sealed class ResourcesModInstallTargetItemViewModel
             MinecraftVersionIconResolver.Resolve(instance, instance.VersionType, instance.MinecraftVersion),
             iconKey: null,
             isLocalDownload: false,
-            isNewInstanceInstall: false);
+            isNewInstanceInstall: false,
+            isServerInstall: false);
     }
 
     public static ResourcesModInstallTargetItemViewModel CreateNewInstanceInstall(
@@ -92,7 +97,22 @@ public sealed class ResourcesModInstallTargetItemViewModel
             iconSource: null,
             iconKey: "main_menu_instance_download",
             isLocalDownload: false,
-            isNewInstanceInstall: true);
+            isNewInstanceInstall: true,
+            isServerInstall: false);
+    }
+
+    public static ResourcesModInstallTargetItemViewModel CreateServerInstall(
+        string title)
+    {
+        return new ResourcesModInstallTargetItemViewModel(
+            instance: null,
+            title,
+            subtitle: string.Empty,
+            iconSource: null,
+            iconKey: "server",
+            isLocalDownload: false,
+            isNewInstanceInstall: false,
+            isServerInstall: true);
     }
 
     public static ResourcesModInstallTargetItemViewModel CreateLocalDownload(
@@ -105,6 +125,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
             iconSource: null,
             iconKey: "save_as",
             isLocalDownload: true,
-            isNewInstanceInstall: false);
+            isNewInstanceInstall: false,
+            isServerInstall: false);
     }
 }

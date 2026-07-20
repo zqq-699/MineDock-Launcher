@@ -279,6 +279,43 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task CurseForgeServerVersionsUseOnlyLinkedServerPacks()
+    {
+        var batchRequested = false;
+        var handler = new StubHandler(request =>
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/v1/mods/files")
+            {
+                batchRequested = true;
+                return Json(
+                    """{"data":[{"id":99,"isAvailable":true,"isServerPack":true,"displayName":"Pack Server 1.0","fileName":"server.zip","downloadUrl":"https://download.test/server.zip","gameVersions":[],"sortableGameVersions":[]}]}""");
+            }
+
+            return Json(
+                """{"data":[{"id":7,"isAvailable":true,"isServerPack":false,"serverPackFileId":99,"displayName":"Pack Client 1.0","fileName":"client.zip","gameVersions":["1.20.1"],"sortableGameVersions":[{"modLoader":1}]},{"id":8,"isAvailable":true,"isServerPack":false,"displayName":"Pack Client 2.0","fileName":"client-2.zip"}],"pagination":{"totalCount":2}}""");
+        });
+        var service = CreateService(handler, "key");
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "42",
+            IncludeAllVersions = true,
+            ForServerInstallation = true,
+            PageSize = 100
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.True(batchRequested);
+        Assert.Equal("99", version.VersionId);
+        Assert.Equal("server.zip", version.FileName);
+        Assert.Equal(["1.20.1"], version.GameVersions);
+        Assert.Equal(["forge"], version.Loaders);
+        Assert.False(result.HasMore);
+    }
+
+    [Fact]
     public async Task DownloadFallsBackAfterPrimaryFailure()
     {
         var handler = new StubHandler(request => request.RequestUri!.AbsolutePath.Contains("fallback", StringComparison.Ordinal)
@@ -298,6 +335,29 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
 
         Assert.Equal("fallback", await File.ReadAllTextAsync(path));
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AllForbiddenCandidatesReportThirdPartyDistributionRestriction()
+    {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAsync<ResourceProjectDistributionRestrictedException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                Kind = ResourceProjectKind.Modpack,
+                VersionId = "server-pack",
+                FileName = "server.zip",
+                PrimaryDownloadUrl = "https://api.test/server.zip",
+                FallbackDownloadUrls =
+                [
+                    "https://edge.forgecdn.net/files/1/2/server.zip",
+                    "https://mediafilez.forgecdn.net/files/1/2/server.zip"
+                ]
+            }, TempRoot));
+
+        Assert.Equal(3, handler.Requests.Count);
     }
 
     [Fact]

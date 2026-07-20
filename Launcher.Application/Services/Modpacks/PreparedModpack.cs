@@ -31,6 +31,8 @@ public sealed class PreparedModpack
 {
     public ModpackPackageKind PackageKind { get; init; }
 
+    public ModpackInstallEnvironment Environment { get; init; } = ModpackInstallEnvironment.Client;
+
     public string SourceArchivePath { get; init; } = string.Empty;
 
     public string WorkingDirectory { get; init; } = string.Empty;

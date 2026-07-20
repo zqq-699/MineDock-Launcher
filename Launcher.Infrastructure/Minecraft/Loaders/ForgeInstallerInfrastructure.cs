@@ -37,6 +37,13 @@ namespace Launcher.Infrastructure.Minecraft;
 internal interface IForgeInstallerRunner
 {
     Task RunInstallerAsync(string javaExecutablePath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken);
+
+    Task RunServerInstallerAsync(
+        string javaExecutablePath,
+        string installerJarPath,
+        string serverDirectory,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Server installation is not supported by this installer runner.");
 }
 
 internal interface IFinalVersionInstaller
@@ -241,7 +248,36 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
         this.startProcess = startProcess ?? throw new ArgumentNullException(nameof(startProcess));
     }
 
-    public async Task RunInstallerAsync(string javaExecutablePath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
+    public Task RunInstallerAsync(
+        string javaExecutablePath,
+        string installerJarPath,
+        string minecraftDirectory,
+        CancellationToken cancellationToken) =>
+        RunInstallerCoreAsync(
+            javaExecutablePath,
+            installerJarPath,
+            minecraftDirectory,
+            "--installClient",
+            cancellationToken);
+
+    public Task RunServerInstallerAsync(
+        string javaExecutablePath,
+        string installerJarPath,
+        string serverDirectory,
+        CancellationToken cancellationToken) =>
+        RunInstallerCoreAsync(
+            javaExecutablePath,
+            installerJarPath,
+            serverDirectory,
+            "--installServer",
+            cancellationToken);
+
+    private async Task RunInstallerCoreAsync(
+        string javaExecutablePath,
+        string installerJarPath,
+        string minecraftDirectory,
+        string installArgument,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(javaExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(installerJarPath);
@@ -267,7 +303,7 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
             };
             startInfo.ArgumentList.Add("-jar");
             startInfo.ArgumentList.Add(installerJarPath);
-            startInfo.ArgumentList.Add("--installClient");
+            startInfo.ArgumentList.Add(installArgument);
             startInfo.ArgumentList.Add(minecraftDirectory);
 
             using var process = startProcess(startInfo)

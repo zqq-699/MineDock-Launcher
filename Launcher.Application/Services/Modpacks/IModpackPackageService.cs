@@ -32,6 +32,15 @@ public interface IModpackPackageService
         CancellationToken cancellationToken = default,
         IProgress<LauncherProgress>? progress = null);
 
+    Task<PreparedModpack> PrepareAsync(
+        string archivePath,
+        ModpackInstallEnvironment environment,
+        CancellationToken cancellationToken = default,
+        IProgress<LauncherProgress>? progress = null) =>
+        environment is ModpackInstallEnvironment.Client
+            ? PrepareAsync(archivePath, cancellationToken, progress)
+            : throw new NotSupportedException("Server modpack preparation is not supported by this package service.");
+
     Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(
         PreparedModpack preparedModpack,
         GameInstance instance,

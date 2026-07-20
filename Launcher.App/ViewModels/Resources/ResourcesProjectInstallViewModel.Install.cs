@@ -41,7 +41,7 @@ internal async Task InstallAsync(
         if (item is null || target is null || installationService is null)
             return;
 
-        if (!TryBeginInstall(target.IsNewInstanceInstall))
+        if (!TryBeginInstall(target.IsNewInstanceInstall || target.IsServerInstall))
             return;
         var context = new InstallOperationContext(item, target, selectedProject);
         try
@@ -50,6 +50,8 @@ internal async Task InstallAsync(
                 await DownloadToDirectoryAsync(context).ConfigureAwait(false);
             else if (target.IsNewInstanceInstall)
                 await InstallModpackAsNewInstanceAsync(context).ConfigureAwait(false);
+            else if (target.IsServerInstall)
+                await InstallModpackAsServerAsync(context).ConfigureAwait(false);
             else
                 await InstallIntoExistingInstanceAsync(context).ConfigureAwait(false);
         }
@@ -73,9 +75,28 @@ internal async Task InstallAsync(
                 exception.Reason,
                 exception.Algorithm);
         }
+        catch (ServerDeploymentDirectoryExistsException exception)
+        {
+            ShowServerDirectoryExists(exception.Directory);
+            logger?.LogInformation(
+                "Server modpack deployment target already exists. ProjectId={ProjectId} VersionId={VersionId}",
+                selectedProject?.Project.ProjectId,
+                item.Version.VersionId);
+        }
+        catch (ResourceProjectDistributionRestrictedException exception)
+        {
+            PresentFailure(context, Strings.Status_ServerDistributionRestricted);
+            logger?.LogWarning(
+                exception,
+                "Resource server pack distribution is restricted. ProjectId={ProjectId} VersionId={VersionId}",
+                selectedProject?.Project.ProjectId,
+                item.Version.VersionId);
+        }
         catch (Exception exception)
         {
-            var message = target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText;
+            var message = target.IsServerInstall
+                ? Strings.Status_ServerDeployFailed
+                : target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText;
             PresentFailure(context, message);
             logger?.LogError(
                 exception,
@@ -167,6 +188,44 @@ internal async Task InstallAsync(
             return;
         }
         PresentFailure(context, MapModpackImportFailureMessage(result.FailureReason));
+    }
+
+    private async Task InstallModpackAsServerAsync(InstallOperationContext context)
+    {
+        var parentDirectory = filePickerService?.PickFolder(Strings.FilePicker_ServerInstallDirectoryTitle);
+        if (string.IsNullOrWhiteSpace(parentDirectory))
+            return;
+        var request = new ResourceProjectInstallationRequest(
+            context.Item.Version,
+            ResourceProjectInstallationTargetKind.NewServerDirectory,
+            TargetDirectory: parentDirectory,
+            Project: context.Project?.Project);
+        var preparation = await installationService!.PrepareAsync(request).ConfigureAwait(false);
+        if (preparation.TargetExists)
+        {
+            ShowServerDirectoryExists(preparation.TargetPath ?? parentDirectory);
+            return;
+        }
+
+        BeginSession(context, parentDirectory);
+        floatingMessageService?.Show(Strings.Status_ServerDeploying);
+        reportStatus(Strings.Status_ServerDeploying);
+        context.Session!.BeginModpackImport();
+        var result = await installationService.ExecuteAsync(
+            request,
+            context.Session.Progress,
+            context.Session.CancellationToken).ConfigureAwait(false);
+        if (context.Session.CompleteCancellation())
+            return;
+        var installedPath = result.InstalledPath ?? parentDirectory;
+        var message = string.Format(Strings.Status_ServerDeployedFormat, installedPath);
+        context.Session.Complete(message);
+        reportStatus(message);
+        floatingMessageService?.Show(message);
+        logger?.LogInformation(
+            "Resource modpack deployed as server. ProjectId={ProjectId} VersionId={VersionId}",
+            context.Project?.Project.ProjectId,
+            context.Item.Version.VersionId);
     }
 
     private async Task InstallIntoExistingInstanceAsync(InstallOperationContext context)

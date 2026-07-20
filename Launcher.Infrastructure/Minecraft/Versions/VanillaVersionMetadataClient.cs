@@ -100,6 +100,11 @@ internal static class VanillaVersionMetadataClient
         return versionJson["downloads"]?["client"]?["url"]?.GetValue<string>();
     }
 
+    public static string? GetServerJarUrl(JsonObject versionJson)
+    {
+        return versionJson["downloads"]?["server"]?["url"]?.GetValue<string>();
+    }
+
     private static string? FindVersionUrl(JsonArray versionEntries, string minecraftVersion)
     {
         foreach (var entry in versionEntries.OfType<JsonObject>())
@@ -139,5 +144,15 @@ internal static class VanillaVersionMetadataClient
     public static long? GetClientJarSize(JsonObject versionJson)
     {
         return versionJson["downloads"]?["client"]?["size"]?.GetValue<long?>();
+    }
+
+    public static string? GetServerJarSha1(JsonObject versionJson)
+    {
+        return versionJson["downloads"]?["server"]?["sha1"]?.GetValue<string>();
+    }
+
+    public static long? GetServerJarSize(JsonObject versionJson)
+    {
+        return versionJson["downloads"]?["server"]?["size"]?.GetValue<long?>();
     }
 }

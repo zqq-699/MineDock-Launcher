@@ -114,6 +114,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CurseForgeApiClient>();
         services.AddSingleton<ModrinthApiClient>();
         services.AddSingleton<IModpackPackageService, LocalModpackPackageService>();
+        services.AddSingleton<IServerDeploymentTransactionService, ServerDeploymentTransactionService>();
+        services.AddSingleton<IServerPackExtractor, CurseForgeServerPackExtractor>();
+        services.AddSingleton<IServerRuntimeInstaller, ServerRuntimeInstaller>();
         services.AddSingleton<IModpackExportService, ModpackExportService>();
         services.AddSingleton<IModpackWorkspaceCleanupService, ModpackWorkspaceCleanupService>();
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();

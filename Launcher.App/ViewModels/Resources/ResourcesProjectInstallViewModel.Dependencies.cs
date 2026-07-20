@@ -18,6 +18,7 @@
  */
 
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -73,6 +74,17 @@ private async Task<bool> InstallDependenciesAsync(
         {
             var fileName = string.IsNullOrWhiteSpace(item.Version.FileName) ? item.Title : item.Version.FileName;
             FileExistsDialogMessage = string.Format(options.FileExistsMessageFormat, fileName);
+            IsFileExistsDialogOpen = true;
+        });
+    }
+
+    private void ShowServerDirectoryExists(string directory)
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            FileExistsDialogMessage = string.Format(
+                Strings.Status_ServerDirectoryExistsFormat,
+                Path.GetFileName(directory));
             IsFileExistsDialogOpen = true;
         });
     }
