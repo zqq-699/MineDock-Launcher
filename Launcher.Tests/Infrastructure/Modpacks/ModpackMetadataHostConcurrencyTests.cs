@@ -66,7 +66,38 @@ public sealed class ModpackMetadataHostConcurrencyTests
         var result = await client.GetFileDownloadAsync(123, 456, "test-key", CancellationToken.None);
 
         Assert.Equal("example.jar", result.FileName);
+        Assert.True(result.IsDistributionRestricted);
+        Assert.Equal("https://edge.forgecdn.net/files/0/456/example.jar", result.PrimaryUrl);
+        Assert.Equal(["https://mediafilez.forgecdn.net/files/0/456/example.jar"], result.FallbackUrls);
         Assert.Equal(64, controller.GetSnapshot("https://api.curseforge.com:443").CurrentTarget);
+    }
+
+    [Fact]
+    public async Task CurseForgeDirectDownloadDoesNotAddInferredCdnCandidates()
+    {
+        var controller = CreateController();
+        using var httpClient = new HttpClient(new CallbackHandler(request =>
+        {
+            var json = request.RequestUri!.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal)
+                ? """{"data":"https://download.example/example.jar"}"""
+                : """{"data":{"displayName":"Example","fileName":"example.jar","downloadUrl":"https://download.example/example.jar","hashes":[]}}""";
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(json)
+            };
+        }));
+        var client = new CurseForgeApiClient(
+            httpClient,
+            new ImportConcurrencyLimiter(),
+            logger: null,
+            controller);
+
+        var result = await client.GetFileDownloadAsync(123, 456, "test-key", CancellationToken.None);
+
+        Assert.False(result.IsDistributionRestricted);
+        Assert.Equal("https://download.example/example.jar", result.PrimaryUrl);
+        Assert.Empty(result.FallbackUrls);
     }
 
     private static DownloadHostConcurrencyController CreateController() => new(

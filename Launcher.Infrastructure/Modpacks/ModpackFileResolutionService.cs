@@ -18,6 +18,7 @@
  */
 
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Diagnostics;
@@ -363,23 +364,10 @@ internal sealed class ModpackFileResolutionService
                     resolved.ProjectId,
                     resolved.FileId,
                     resolved.Sha1,
-                    resolved.Sha512),
+                    resolved.Sha512,
+                    resolved.IsDistributionRestricted),
                 null,
                 null);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
-        {
-            // CurseForge 可能因授权限制不给下载地址，此类失败降级为手动下载而非终止整个导入。
-            logger.LogDebug(
-                exception,
-                "Failed to resolve CurseForge modpack file and will add it to the manual download list. ProjectId={ProjectId} FileId={FileId}",
-                file.ProjectId,
-                file.FileId);
-            return new PackFileResolution(null, CreateManualDownload(file, exception), exception);
         }
         finally
         {
@@ -408,6 +396,7 @@ internal sealed class ModpackFileResolutionService
             targetDirectory ?? context.Instance.InstanceDirectory,
             $"{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.download");
         var sourceUrls = BuildSourceUrls(file);
+        var sourceFailures = new List<Exception>();
         Exception? lastException = null;
         string? lastFailureSummary = null;
         var retainTemporaryFile = false;
@@ -440,6 +429,7 @@ internal sealed class ModpackFileResolutionService
                 }
                 catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
                 {
+                    sourceFailures.Add(exception);
                     lastException = exception;
                     lastFailureSummary = BuildFailureSummary(exception);
                     logger.LogDebug(
@@ -451,7 +441,12 @@ internal sealed class ModpackFileResolutionService
                         DownloadUriLogSanitizer.Sanitize(sourceUrl));
                 }
             }
-            if (context.Package.PackageKind is not ModpackPackageKind.CurseForge)
+            if (!file.IsCurseForgeDistributionRestricted)
+                throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
+            var nonTerminalFailure = sourceFailures.FirstOrDefault(exception => !IsConfirmedUnavailableDownload(exception));
+            if (nonTerminalFailure is not null)
+                throw nonTerminalFailure;
+            if (sourceFailures.Count != sourceUrls.Count)
                 throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
             return new PackFileDownloadResult(
                 null,
@@ -553,17 +548,8 @@ internal sealed class ModpackFileResolutionService
         file.ProjectId,
         file.FileId,
         file.Sha1,
-        file.Sha512);
-
-    private static ManualModpackDownload CreateManualDownload(PreparedModpackDownload file, Exception exception) => new()
-    {
-        ProjectId = file.ProjectId,
-        FileId = file.FileId,
-        FileName = string.IsNullOrWhiteSpace(file.FileName) ? $"project-{file.ProjectId}-file-{file.FileId}" : file.FileName,
-        DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? $"CurseForge {file.ProjectId}/{file.FileId}" : file.DisplayName,
-        SuggestedUrl = string.Empty,
-        FailureSummary = BuildFailureSummary(exception)
-    };
+        file.Sha512,
+        false);
 
     private static List<string> BuildSourceUrls(ResolvedPackDownload file)
     {
@@ -596,6 +582,29 @@ internal sealed class ModpackFileResolutionService
         if (exception is HttpRequestException { StatusCode: { } statusCode })
             return $"http_{(int)statusCode}";
         return exception.GetType().Name;
+    }
+
+    private static bool IsConfirmedUnavailableDownload(Exception exception)
+    {
+        if (exception is MinecraftDownloadRequestExecutor.DownloadSourceRequestException sourceException)
+        {
+            return sourceException.Failures.Count > 0
+                && sourceException.Failures.All(IsConfirmedUnavailableDownload);
+        }
+
+        if (exception is DownloadAttemptException
+            {
+                Reason: DownloadFailureReason.HttpStatus,
+                StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Gone
+            })
+        {
+            return true;
+        }
+
+        return exception is HttpRequestException
+        {
+            StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Gone
+        };
     }
 
     private sealed class DownloadBatchContext
@@ -799,5 +808,6 @@ internal sealed class ModpackFileResolutionService
         long? ProjectId,
         long? FileId,
         string? Sha1,
-        string? Sha512);
+        string? Sha512,
+        bool IsCurseForgeDistributionRestricted);
 }

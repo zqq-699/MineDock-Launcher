@@ -85,14 +85,17 @@ public sealed class CurseForgeApiClient
             primaryUrl = file.DownloadUrl;
         }
 
-        var edgeUrl = BuildCdnUrl("edge.forgecdn.net", fileId, file.FileName);
-        var mediafilezUrl = BuildCdnUrl("mediafilez.forgecdn.net", fileId, file.FileName);
-
-        if (string.IsNullOrWhiteSpace(primaryUrl))
-            primaryUrl = edgeUrl;
-
-        AddDistinctUrl(fallbackUrls, edgeUrl, primaryUrl);
-        AddDistinctUrl(fallbackUrls, mediafilezUrl, primaryUrl);
+        // A missing URL from both CurseForge endpoints confirms that automatic
+        // third-party distribution is unavailable. Only then infer CDN URLs.
+        var isDistributionRestricted = string.IsNullOrWhiteSpace(primaryUrl);
+        if (isDistributionRestricted)
+        {
+            primaryUrl = BuildCdnUrl("edge.forgecdn.net", fileId, file.FileName);
+            AddDistinctUrl(
+                fallbackUrls,
+                BuildCdnUrl("mediafilez.forgecdn.net", fileId, file.FileName),
+                primaryUrl);
+        }
 
         var hashes = ResolveHashes(file.Hashes);
         logger.LogDebug(
@@ -112,7 +115,8 @@ public sealed class CurseForgeApiClient
             primaryUrl,
             fallbackUrls,
             hashes.Sha1,
-            hashes.Sha512);
+            hashes.Sha512,
+            isDistributionRestricted);
     }
 
     internal async Task<IReadOnlyDictionary<long, CurseForgeFingerprintMatch>> GetFingerprintMatchesAsync(
@@ -429,7 +433,8 @@ public sealed class CurseForgeApiClient
         string PrimaryUrl,
         IReadOnlyList<string> FallbackUrls,
         string? Sha1,
-        string? Sha512);
+        string? Sha512,
+        bool IsDistributionRestricted);
 
     internal sealed record CurseForgeFingerprintMatch(long ProjectId, long FileId);
 

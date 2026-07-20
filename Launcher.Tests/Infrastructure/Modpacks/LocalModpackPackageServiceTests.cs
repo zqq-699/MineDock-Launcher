@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using Launcher.Application.Services;
 using Launcher.Infrastructure;
 using Launcher.Infrastructure.CurseForge;
+using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
 using Microsoft.Extensions.Logging;
 
@@ -291,22 +292,94 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task CurseForgeManualDownloadsKeepManifestOrderWhenResolutionCompletesOutOfOrder()
+    public async Task CurseForgeMetadataFailureStopsInstallationInsteadOfCreatingManualDownloads()
     {
         var service = CreateService(new HttpClient(new FailingCurseForgeResolutionHandler()), apiKey: "test-key");
         var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
         var prepared = CreateCurseForgePreparedModpack();
         var progress = new ThreadSafeProgress();
 
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress);
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            service.DownloadFilesAsync(prepared, instance, progress));
 
-        Assert.Equal([1L, 2L], manualDownloads.Select(download => download.ProjectId).ToArray());
         Assert.DoesNotContain(
             progress.Snapshot(),
             report => report.Stage == ImportProgressStages.DownloadingPackFiles);
-        Assert.Contains(
-            progress.Snapshot(),
-            report => report.Stage == ImportProgressStages.ProcessingPackFiles && report.Percent == 100);
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "first.jar")));
+    }
+
+    [Fact]
+    public async Task CurseForgeRestrictedFileUsesConstructedCdnFallbackBeforeManualList()
+    {
+        var handler = new RestrictedCurseForgeHandler(
+            edgeStatus: HttpStatusCode.Forbidden,
+            mediafilezStatus: HttpStatusCode.OK);
+        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = CreateSingleCurseForgePreparedModpack();
+
+        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+        Assert.Empty(manualDownloads);
+        Assert.Equal("downloaded", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
+        Assert.Contains("edge.forgecdn.net", handler.DownloadHosts);
+        Assert.Contains("mediafilez.forgecdn.net", handler.DownloadHosts);
+    }
+
+    [Fact]
+    public async Task CurseForgeRestrictedFileCreatesManualListOnlyAfterAllCdnCandidatesAreUnavailable()
+    {
+        var handler = new RestrictedCurseForgeHandler(
+            edgeStatus: HttpStatusCode.Forbidden,
+            mediafilezStatus: HttpStatusCode.NotFound);
+        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = CreateSingleCurseForgePreparedModpack();
+
+        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+        var manualDownload = Assert.Single(manualDownloads);
+        Assert.Equal(1L, manualDownload.ProjectId);
+        Assert.Equal(101L, manualDownload.FileId);
+        Assert.Equal("restricted.jar", manualDownload.FileName);
+        Assert.Equal("https://edge.forgecdn.net/files/0/101/restricted.jar", manualDownload.SuggestedUrl);
+        Assert.Contains("edge.forgecdn.net", handler.DownloadHosts);
+        Assert.Contains("mediafilez.forgecdn.net", handler.DownloadHosts);
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
+    }
+
+    [Fact]
+    public async Task CurseForgeRestrictedFileTransientCdnFailureStopsInsteadOfCreatingManualList()
+    {
+        var handler = new RestrictedCurseForgeHandler(
+            edgeStatus: HttpStatusCode.InternalServerError,
+            mediafilezStatus: HttpStatusCode.NotFound);
+        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = CreateSingleCurseForgePreparedModpack();
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(() =>
+            service.DownloadFilesAsync(prepared, instance, progress: null));
+
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
+    }
+
+    [Fact]
+    public async Task CurseForgeRestrictedFileHashMismatchStopsInsteadOfCreatingManualList()
+    {
+        var handler = new RestrictedCurseForgeHandler(
+            edgeStatus: HttpStatusCode.OK,
+            mediafilezStatus: HttpStatusCode.OK,
+            sha1: new string('0', 40));
+        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = CreateSingleCurseForgePreparedModpack();
+
+        var exception = await Assert.ThrowsAsync<ModpackImportException>(() =>
+            service.DownloadFilesAsync(prepared, instance, progress: null));
+
+        Assert.Equal(ModpackImportFailureReason.HashMismatch, exception.FailureReason);
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
     }
 
     [Fact]
@@ -427,6 +500,14 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         ]
     };
 
+    private static PreparedModpack CreateSingleCurseForgePreparedModpack() => new()
+    {
+        PackageKind = ModpackPackageKind.CurseForge,
+        PackageName = "Pack",
+        MinecraftVersion = "1.20.1",
+        Files = [new PreparedModpackDownload { ProjectId = 1, FileId = 101, TargetDirectory = "mods" }]
+    };
+
     private static async Task WaitForConditionAsync(Func<bool> condition)
     {
         var timeoutAt = DateTime.UtcNow.AddSeconds(5);
@@ -541,6 +622,45 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             if (request.RequestUri!.AbsolutePath.Contains("/mods/1/", StringComparison.Ordinal))
                 await Task.Delay(80, cancellationToken);
             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        }
+    }
+
+    private sealed class RestrictedCurseForgeHandler(
+        HttpStatusCode edgeStatus,
+        HttpStatusCode mediafilezStatus,
+        string? sha1 = null) : HttpMessageHandler
+    {
+        private readonly ConcurrentQueue<string> downloadHosts = [];
+
+        public string[] DownloadHosts => downloadHosts.ToArray();
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var uri = request.RequestUri!;
+            if (string.Equals(uri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase))
+            {
+                if (uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+                var hashes = sha1 is null
+                    ? "[]"
+                    : $"[{{\"algo\":1,\"value\":\"{sha1}\"}}]";
+                return Task.FromResult(JsonResponse(
+                    $"{{\"data\":{{\"displayName\":\"Restricted\",\"fileName\":\"restricted.jar\",\"downloadUrl\":null,\"hashes\":{hashes}}}}}"));
+            }
+
+            downloadHosts.Enqueue(uri.Host);
+            var status = string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase)
+                ? edgeStatus
+                : mediafilezStatus;
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = status == HttpStatusCode.OK
+                    ? new StringContent("downloaded")
+                    : new ByteArrayContent([])
+            });
         }
     }
 
