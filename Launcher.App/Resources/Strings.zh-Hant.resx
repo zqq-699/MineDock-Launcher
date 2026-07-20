@@ -904,8 +904,14 @@
   <data name="Settings_BackgroundSection" xml:space="preserve">
     <value>啟動器背景</value>
   </data>
-  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve">
-    <value>停用背景模糊效果</value>
+  <data name="Settings_BackgroundEffectNoneTitle" xml:space="preserve">
+    <value>無</value>
+  </data>
+  <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve">
+    <value>壓克力</value>
+  </data>
+  <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve">
+    <value>圖片</value>
   </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
     <value>啟動器背景不透明度</value>

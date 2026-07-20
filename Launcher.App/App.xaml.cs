@@ -176,7 +176,7 @@ public partial class App : System.Windows.Application
                 mainViewModel.Settings.Theme,
                 mainViewModel.Settings.ThemeFollowSystem,
                 mainViewModel.Settings.LauncherBackgroundOpacityPercent,
-                mainViewModel.Settings.DisableBackgroundBlur);
+                !LauncherBackgroundEffects.IsAcrylic(mainViewModel.Settings.LauncherBackgroundEffect));
             serviceProvider.GetRequiredService<IThemeService>().ApplyAccent(mainViewModel.Settings.AccentColor);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();

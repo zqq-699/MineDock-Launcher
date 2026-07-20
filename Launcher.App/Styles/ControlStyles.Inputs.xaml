@@ -34,9 +34,10 @@
         <Setter Property="Padding" Value="8,0" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Input.TextBox.Background}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card.Border}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="TextWrapping" Value="NoWrap" />
@@ -51,6 +52,10 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">
                         <Grid>
+                            <Border x:Name="HoverBackground"
+                                    Background="{DynamicResource Brush.Button.Secondary.Hover}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
                             <TextBlock x:Name="PlaceholderText"
                                        Margin="9,0,0,0"
                                        Text="{Binding Path=(behaviors:TextBoxPlaceholder.Text), RelativeSource={RelativeSource TemplatedParent}}"
@@ -70,19 +75,51 @@
                                 </TextBlock.Style>
                             </TextBlock>
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.BorderFocused}" />
-                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Input.TextBox.BackgroundFocused}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True">
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DialogPasswordBoxStyle" TargetType="PasswordBox">
@@ -90,9 +127,10 @@
         <Setter Property="Padding" Value="8,0" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Input.TextBox.Background}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card.Border}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -104,20 +142,59 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">
-                        <Grid Margin="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        <Grid>
+                            <Border x:Name="HoverBackground"
+                                    Background="{DynamicResource Brush.Button.Secondary.Hover}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <Grid Margin="{TemplateBinding Padding}">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Grid>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.BorderFocused}" />
-                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Input.TextBox.BackgroundFocused}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True">
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="LauncherComboBoxItemStyle" TargetType="ComboBoxItem">
@@ -163,7 +240,7 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="HoverBackground"
-                                    Background="{DynamicResource Brush.Input.ComboBox.Hover}"
+                                    Background="{DynamicResource Brush.Button.Secondary.Hover}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
@@ -179,12 +256,36 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
-                        </Trigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Input.ComboBox.BorderExpanded}" />
-                            <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.165A5A5A}" />
@@ -317,9 +418,10 @@
         <Setter Property="Padding" Value="12,0,34,0" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Input.ComboBox.Background}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Input.ComboBox.Border}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
         <Setter Property="MaxDropDownHeight" Value="260" />
         <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
         <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
@@ -777,6 +879,11 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True">
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="LauncherSliderTrackButtonStyle" TargetType="RepeatButton">

@@ -423,7 +423,9 @@ public static class Strings
     public static string Settings_AccentSection => Get(nameof(Settings_AccentSection));
     public static string Settings_AccentSelectionLabel => Get(nameof(Settings_AccentSelectionLabel));
     public static string Settings_BackgroundSection => Get(nameof(Settings_BackgroundSection));
-    public static string Settings_DisableBackgroundBlurLabel => Get(nameof(Settings_DisableBackgroundBlurLabel));
+    public static string Settings_BackgroundEffectNoneTitle => Get(nameof(Settings_BackgroundEffectNoneTitle));
+    public static string Settings_BackgroundEffectAcrylicTitle => Get(nameof(Settings_BackgroundEffectAcrylicTitle));
+    public static string Settings_BackgroundEffectImageTitle => Get(nameof(Settings_BackgroundEffectImageTitle));
     public static string Settings_BackgroundOpacityLabel => Get(nameof(Settings_BackgroundOpacityLabel));
     public static string Settings_ThemeDarkTitle => Get(nameof(Settings_ThemeDarkTitle));
     public static string Settings_ThemeLightTitle => Get(nameof(Settings_ThemeLightTitle));

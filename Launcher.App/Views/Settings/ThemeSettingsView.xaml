@@ -106,18 +106,22 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="220" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{x:Static res:Strings.Settings_DisableBackgroundBlurLabel}"
+                        <TextBlock Text="{x:Static res:Strings.Settings_BackgroundSection}"
                                    Style="{StaticResource SettingsOptionTextStyle}" />
-                        <CheckBox Grid.Column="1"
-                                  Margin="16,0,0,0"
-                                  IsChecked="{Binding DisableBackgroundBlur, Mode=TwoWay}"
-                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                        <controls:AnimatedComboBox Grid.Column="1"
+                                                   ItemsSource="{Binding BackgroundEffectOptions}"
+                                                   SelectedItem="{Binding SelectedBackgroundEffectOption, Mode=TwoWay}"
+                                                   ItemTemplate="{StaticResource BackgroundEffectOptionTemplate}"
+                                                   SelectionItemTemplate="{StaticResource BackgroundEffectOptionTemplate}"
+                                                   Style="{StaticResource LauncherComboBoxStyle}" />
                     </Grid>
 
-                    <Grid Margin="0,18,0,0">
+                    <Grid Margin="0,18,0,0"
+                          animation:AnimatedCollapse.IsExpanded="{Binding IsBackgroundOpacityVisible}"
+                          animation:AnimatedCollapse.Duration="0:0:0.18">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="162" />

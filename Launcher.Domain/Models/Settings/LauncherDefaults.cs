@@ -25,6 +25,7 @@ public static class LauncherDefaults
     public const string DefaultTheme = "Dark";
     public const string DefaultAccentColor = LauncherAccentColors.Blue;
     public const string DefaultLauncherLanguage = LauncherLanguages.SimplifiedChinese;
+    public const string DefaultLauncherBackgroundEffect = LauncherBackgroundEffects.Acrylic;
     public const int DefaultLauncherBackgroundOpacityPercent = 85;
     public const int MinimumDownloadConcurrency = 1;
     public const int DefaultMaximumDownloadConcurrency = 64;

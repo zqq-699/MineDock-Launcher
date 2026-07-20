@@ -38,6 +38,7 @@ public sealed class RequiredSelectionPersistenceTests
             SelectedJavaExecutablePath = @"C:\Java\bin\java.exe",
             Theme = "Light",
             AccentColor = LauncherAccentColors.Purple,
+            LauncherBackgroundEffect = LauncherBackgroundEffects.None,
             UpdateChannel = LauncherUpdateChannel.Beta
         };
         var settingsService = new TestSettingsService(settings);
@@ -50,6 +51,7 @@ public sealed class RequiredSelectionPersistenceTests
         var javaMode = viewModel.Java.Editor.SelectedJavaSelectionOption;
         var theme = viewModel.Theme.SelectedThemeOption;
         var accent = viewModel.Theme.SelectedAccentColorOption;
+        var backgroundEffect = viewModel.Theme.SelectedBackgroundEffectOption;
         var updateChannel = viewModel.Info.SelectedUpdateChannelOption;
 
         viewModel.Download.SelectedDownloadSourceOption = null;
@@ -58,6 +60,7 @@ public sealed class RequiredSelectionPersistenceTests
         viewModel.Java.Editor.SelectedJavaSelectionOption = null;
         viewModel.Theme.SelectedThemeOption = null;
         viewModel.Theme.SelectedAccentColorOption = null;
+        viewModel.Theme.SelectedBackgroundEffectOption = null;
         viewModel.Info.SelectedUpdateChannelOption = null;
         await viewModel.FlushPendingSettingsAsync();
 
@@ -67,6 +70,8 @@ public sealed class RequiredSelectionPersistenceTests
         Assert.Same(javaMode, viewModel.Java.Editor.SelectedJavaSelectionOption);
         Assert.Same(theme, viewModel.Theme.SelectedThemeOption);
         Assert.Same(accent, viewModel.Theme.SelectedAccentColorOption);
+        Assert.Same(backgroundEffect, viewModel.Theme.SelectedBackgroundEffectOption);
+        Assert.False(viewModel.Theme.IsBackgroundOpacityVisible);
         Assert.Same(updateChannel, viewModel.Info.SelectedUpdateChannelOption);
         Assert.Equal(DownloadSourcePreference.Official, settings.DownloadSourcePreference);
         Assert.Equal(LauncherLanguages.English, settings.LauncherLanguage);
@@ -74,6 +79,7 @@ public sealed class RequiredSelectionPersistenceTests
         Assert.Equal(JavaSelectionMode.Manual, settings.JavaSelectionMode);
         Assert.Equal("Light", settings.Theme);
         Assert.Equal(LauncherAccentColors.Purple, settings.AccentColor);
+        Assert.Equal(LauncherBackgroundEffects.None, settings.LauncherBackgroundEffect);
         Assert.Equal(LauncherUpdateChannel.Beta, settings.UpdateChannel);
         Assert.Equal(0, settingsService.SaveCount);
     }
@@ -90,6 +96,7 @@ public sealed class RequiredSelectionPersistenceTests
             SelectedJavaExecutablePath = @"C:\Java\bin\java.exe",
             Theme = "Light",
             AccentColor = LauncherAccentColors.Purple,
+            LauncherBackgroundEffect = LauncherBackgroundEffects.None,
             UpdateChannel = LauncherUpdateChannel.Beta
         };
         var settingsService = new TestSettingsService(settings);
@@ -108,6 +115,9 @@ public sealed class RequiredSelectionPersistenceTests
             option.Id == LauncherDefaults.DefaultTheme);
         viewModel.Theme.SelectedAccentColorOption = viewModel.Theme.AccentColorOptions.Single(option =>
             option.Id == LauncherDefaults.DefaultAccentColor);
+        viewModel.Theme.SelectedBackgroundEffectOption = viewModel.Theme.BackgroundEffectOptions.Single(option =>
+            option.IsAcrylicEnabled);
+        Assert.True(viewModel.Theme.IsBackgroundOpacityVisible);
         viewModel.Info.SelectedUpdateChannelOption = viewModel.Info.UpdateChannelOptions.Single(option =>
             option.Channel == LauncherDefaults.DefaultUpdateChannel);
         await viewModel.FlushPendingSettingsAsync();
@@ -118,8 +128,28 @@ public sealed class RequiredSelectionPersistenceTests
         Assert.Equal(JavaSelectionMode.Auto, settings.JavaSelectionMode);
         Assert.Equal(LauncherDefaults.DefaultTheme, settings.Theme);
         Assert.Equal(LauncherDefaults.DefaultAccentColor, settings.AccentColor);
+        Assert.Equal(LauncherBackgroundEffects.Acrylic, settings.LauncherBackgroundEffect);
         Assert.Equal(LauncherDefaults.DefaultUpdateChannel, settings.UpdateChannel);
         Assert.True(settingsService.SaveCount > 0);
+    }
+
+    [Fact]
+    public async Task BackgroundImageSelectionPersistsAsDistinctEffect()
+    {
+        var settings = new LauncherSettings
+        {
+            LauncherBackgroundEffect = LauncherBackgroundEffects.Acrylic
+        };
+        var settingsService = new TestSettingsService(settings);
+        using var viewModel = CreateSettingsPage(settingsService);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.Theme.SelectedBackgroundEffectOption = viewModel.Theme.BackgroundEffectOptions.Single(option =>
+            option.Id == LauncherBackgroundEffects.Image);
+        await viewModel.FlushPendingSettingsAsync();
+
+        Assert.Equal(LauncherBackgroundEffects.Image, settings.LauncherBackgroundEffect);
+        Assert.False(viewModel.Theme.IsBackgroundOpacityVisible);
     }
 
     [Fact]

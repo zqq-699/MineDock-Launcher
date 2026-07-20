@@ -36,7 +36,7 @@ public sealed class LauncherSettings
     public bool HasAcceptedUserAgreement { get; set; }
     public bool AutoSetGameLanguageToLauncherLanguage { get; set; } = true;
     public bool ThemeFollowSystem { get; set; } = true;
-    public bool DisableBackgroundBlur { get; set; }
+    public string LauncherBackgroundEffect { get; set; } = LauncherDefaults.DefaultLauncherBackgroundEffect;
     public int LauncherBackgroundOpacityPercent { get; set; } = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
     public LauncherUpdateChannel UpdateChannel { get; set; } = LauncherDefaults.DefaultUpdateChannel;
     public string DataDirectory { get; set; } = string.Empty;

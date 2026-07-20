@@ -267,9 +267,9 @@
     <SolidColorBrush x:Key="Brush.Surface.NavigationBorder" Color="{StaticResource Color.284E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.WindowBorder" Color="{StaticResource Color.344E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.DialogOverlay" Color="{StaticResource Color.99000000}" />
-    <Color x:Key="Color.Page.Background">#ECEEF1</Color>
+    <Color x:Key="Color.Page.Background">#EEEEF0</Color>
     <sys:Double x:Key="Opacity.Page.Background">0.85</sys:Double>
-    <Color x:Key="Color.Card.Surface">#80FFFFFF</Color>
+    <Color x:Key="Color.Card.Surface">#B3FFFFFF</Color>
     <Color x:Key="Color.Card.Border">#08000000</Color>
     <Color x:Key="Color.Field.ReadOnly.Surface">#12000000</Color>
     <Color x:Key="Color.Field.ReadOnly.Border">#16000000</Color>
@@ -329,6 +329,13 @@
 
     <Color x:Key="Color.Shadow">#000000</Color>
     <Color x:Key="Color.Shadow.Soft">#20000000</Color>
+    <DropShadowEffect x:Key="Effect.Card.Surface"
+                      x:Shared="False"
+                      BlurRadius="15"
+                      Color="{StaticResource Color.Shadow}"
+                      Direction="270"
+                      Opacity="0.15"
+                      ShadowDepth="2" />
     <Color x:Key="Color.Accent.Primary">#2196F3</Color>
 </ResourceDictionary>
 

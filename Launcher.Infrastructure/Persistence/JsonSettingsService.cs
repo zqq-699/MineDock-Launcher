@@ -289,6 +289,17 @@ public sealed class JsonSettingsService : ISettingsService
         }
 
         settings.AccentColor = normalizedAccentColor;
+        var backgroundEffect = LauncherBackgroundEffects.Normalize(settings.LauncherBackgroundEffect);
+        if (!string.IsNullOrWhiteSpace(settings.LauncherBackgroundEffect)
+            && !string.Equals(settings.LauncherBackgroundEffect, backgroundEffect, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Invalid launcher background effect encountered in settings. BackgroundEffect={BackgroundEffect} FallingBackTo={FallbackBackgroundEffect}",
+                settings.LauncherBackgroundEffect,
+                backgroundEffect);
+        }
+
+        settings.LauncherBackgroundEffect = backgroundEffect;
         settings.LauncherBackgroundOpacityPercent = Math.Clamp(
             settings.LauncherBackgroundOpacityPercent,
             0,

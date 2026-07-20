@@ -55,7 +55,7 @@
     <Style x:Key="DialogSurfaceStyle" TargetType="Border">
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Surface.Flyout}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Page.Background}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.24FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="16" />
@@ -298,8 +298,9 @@
         <Setter Property="Height" Value="{StaticResource LauncherCompactControlHeight}" />
         <Setter Property="Padding" Value="18,0" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Button.Secondary.Background}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
@@ -369,6 +370,11 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True">
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="PrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">

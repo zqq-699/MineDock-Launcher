@@ -316,7 +316,9 @@
   <data name="Settings_ThemeFollowSystemLabel" xml:space="preserve"><value>跟随系统设置</value></data>
   <data name="Settings_ThemeSelectionLabel" xml:space="preserve"><value>外观设置</value></data>
   <data name="Settings_BackgroundSection" xml:space="preserve"><value>启动器背景</value></data>
-  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve"><value>禁用背景模糊效果</value></data>
+  <data name="Settings_BackgroundEffectNoneTitle" xml:space="preserve"><value>无</value></data>
+  <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve"><value>亚克力</value></data>
+  <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve"><value>图片</value></data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve"><value>启动器背景不透明度</value></data>
   <data name="Settings_ThemeDarkTitle" xml:space="preserve"><value>深色</value></data>
   <data name="Settings_ThemeLightTitle" xml:space="preserve"><value>浅色</value></data>

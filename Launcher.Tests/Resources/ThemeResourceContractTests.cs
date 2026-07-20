@@ -24,17 +24,53 @@ public sealed class ThemeResourceContractTests
         Assert.Contains("Color.Page.Background", dark);
     }
 
+    [Fact]
+    public void LightThemeUsesRequiredPageAndCardBackgroundColors()
+    {
+        var document = Load("Light.xaml");
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var pageBackground = Assert.Single(document.Descendants()
+            .Where(element => element.Attribute(xaml + "Key")?.Value == "Color.Page.Background"));
+        var cardSurface = Assert.Single(document.Descendants()
+            .Where(element => element.Attribute(xaml + "Key")?.Value == "Color.Card.Surface"));
+
+        Assert.Equal("#EEEEF0", pageBackground.Value);
+        Assert.Equal("#B3FFFFFF", cardSurface.Value);
+    }
+
+    [Theory]
+    [InlineData("Dark.xaml")]
+    [InlineData("Light.xaml")]
+    public void ThemeDefinesSharedCardSurfaceShadow(string fileName)
+    {
+        var document = Load(fileName);
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var shadow = Assert.Single(document.Descendants()
+            .Where(element => element.Name.LocalName == "DropShadowEffect"
+                && element.Attribute(xaml + "Key")?.Value == "Effect.Card.Surface"));
+
+        Assert.Equal("15", shadow.Attribute("BlurRadius")?.Value);
+        Assert.Equal("270", shadow.Attribute("Direction")?.Value);
+        Assert.Equal("0.15", shadow.Attribute("Opacity")?.Value);
+        Assert.Equal("2", shadow.Attribute("ShadowDepth")?.Value);
+    }
+
     private static HashSet<string> LoadKeys(string fileName)
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root.GetFiles("Launcher.sln").Length == 0)
-            root = root.Parent ?? throw new DirectoryNotFoundException("Could not locate repository root.");
-        var document = XDocument.Load(Path.Combine(root.FullName, "Launcher.App", "Resources", "Themes", fileName));
+        var document = Load(fileName);
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         return document.Descendants()
             .Select(element => element.Attribute(x + "Key")?.Value)
             .Where(key => !string.IsNullOrWhiteSpace(key))
             .Cast<string>()
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static XDocument Load(string fileName)
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root.GetFiles("Launcher.sln").Length == 0)
+            root = root.Parent ?? throw new DirectoryNotFoundException("Could not locate repository root.");
+        return XDocument.Load(Path.Combine(root.FullName, "Launcher.App", "Resources", "Themes", fileName));
     }
 }

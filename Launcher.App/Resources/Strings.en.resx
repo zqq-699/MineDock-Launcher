@@ -904,8 +904,14 @@
   <data name="Settings_BackgroundSection" xml:space="preserve">
     <value>Launcher Background</value>
   </data>
-  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve">
-    <value>Disable Background Blur</value>
+  <data name="Settings_BackgroundEffectNoneTitle" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve">
+    <value>Acrylic</value>
+  </data>
+  <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve">
+    <value>Image</value>
   </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
     <value>Launcher Background Opacity</value>

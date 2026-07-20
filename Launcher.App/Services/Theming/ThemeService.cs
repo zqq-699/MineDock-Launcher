@@ -53,7 +53,7 @@ public sealed class ThemeService : IThemeService, IDisposable
     private bool hasAppliedTheme;
     private bool isDisposed;
     private ProgressiveBlurCapabilitySnapshot? lastLoggedProgressiveBlurCapability;
-    private (bool Disabled, bool Active)? lastLoggedProgressiveBlurState;
+    private bool? lastLoggedProgressiveBlurState;
 
     public ThemeService(IUiDispatcher uiDispatcher, ILogger<ThemeService>? logger = null)
         : this(uiDispatcher, logger, new WpfProgressiveBlurSupport())
@@ -118,14 +118,16 @@ public sealed class ThemeService : IThemeService, IDisposable
     public void ApplyBackgroundOpacity(int opacityPercent)
     {
         backgroundOpacityPercent = NormalizeBackgroundOpacity(opacityPercent);
-        uiDispatcher.Invoke(() => ApplyBackgroundOpacityCore(backgroundOpacityPercent));
+        uiDispatcher.Invoke(() => ApplyBackgroundOpacityCore(
+            ResolveEffectiveBackgroundOpacityPercent(backgroundOpacityPercent, disableBackgroundBlur)));
     }
 
     public void ApplyBackgroundBlurDisabled(bool disabled)
     {
         var changed = disableBackgroundBlur != disabled;
         disableBackgroundBlur = disabled;
-        uiDispatcher.Invoke(() => ApplyBackgroundBlurDisabledCore(disableBackgroundBlur));
+        uiDispatcher.Invoke(() => ApplyBackgroundOpacityCore(
+            ResolveEffectiveBackgroundOpacityPercent(backgroundOpacityPercent, disableBackgroundBlur)));
         if (changed)
             BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(disableBackgroundBlur));
     }
@@ -179,8 +181,9 @@ public sealed class ThemeService : IThemeService, IDisposable
         {
             Source = new Uri(GetThemeSource(nextTheme), UriKind.Absolute)
         });
-        ApplyBackgroundOpacityCore(backgroundOpacityPercent);
-        ApplyBackgroundBlurDisabledCore(disableBackgroundBlur);
+        ApplyBackgroundOpacityCore(
+            ResolveEffectiveBackgroundOpacityPercent(backgroundOpacityPercent, disableBackgroundBlur));
+        ApplyProgressiveBlurAvailabilityCore();
         ApplyAccentCore(preferredAccentColor);
 
         var oldTheme = EffectiveTheme;
@@ -236,6 +239,15 @@ public sealed class ThemeService : IThemeService, IDisposable
         return Math.Clamp(opacityPercent, 0, 100);
     }
 
+    internal static int ResolveEffectiveBackgroundOpacityPercent(
+        int preferredOpacityPercent,
+        bool backgroundBlurDisabled)
+    {
+        return backgroundBlurDisabled
+            ? 100
+            : NormalizeBackgroundOpacity(preferredOpacityPercent);
+    }
+
     private static void ApplyBackgroundOpacityCore(int opacityPercent)
     {
         // 透明度通过共享动态资源传播，页面和控件不各自计算 Brush alpha。
@@ -246,26 +258,24 @@ public sealed class ThemeService : IThemeService, IDisposable
         application.Resources["Opacity.Page.Background"] = NormalizeBackgroundOpacity(opacityPercent) / 100d;
     }
 
-    private void ApplyBackgroundBlurDisabledCore(bool disabled)
+    private void ApplyProgressiveBlurAvailabilityCore()
     {
-        // 用户开关与运行时 Shader 能力共同决定实际状态，能力恢复时可自动重新启用。
+        // 应用内列表渐进模糊只由运行时 Shader 能力决定，与窗口背景效果偏好相互独立。
         var application = global::System.Windows.Application.Current;
         if (application is null)
             return;
 
         var capability = progressiveBlurSupport.Current;
-        var progressiveBlurActive = !disabled && capability.IsAvailable;
+        var progressiveBlurActive = capability.IsAvailable;
         application.Resources[ProgressiveBlurResourceKeys.IsEnabled] = progressiveBlurActive;
 
         LogProgressiveBlurCapability(capability);
-        var nextState = (Disabled: disabled, Active: progressiveBlurActive);
-        if (lastLoggedProgressiveBlurState != nextState)
+        if (lastLoggedProgressiveBlurState != progressiveBlurActive)
         {
             logger.LogDebug(
-                "Background blur preference applied. Disabled={Disabled} ProgressiveBlurActive={ProgressiveBlurActive}",
-                disabled,
+                "Progressive blur availability applied. ProgressiveBlurActive={ProgressiveBlurActive}",
                 progressiveBlurActive);
-            lastLoggedProgressiveBlurState = nextState;
+            lastLoggedProgressiveBlurState = progressiveBlurActive;
         }
     }
 
@@ -307,7 +317,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         if (isDisposed)
             return;
 
-        uiDispatcher.Invoke(() => ApplyBackgroundBlurDisabledCore(disableBackgroundBlur));
+        uiDispatcher.Invoke(ApplyProgressiveBlurAvailabilityCore);
     }
 
     private void ApplyAccentCore(string accentColor)

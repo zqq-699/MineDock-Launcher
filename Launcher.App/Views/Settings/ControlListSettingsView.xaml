@@ -134,9 +134,8 @@
                     <TextBlock Margin="0,18,0,8"
                                Text="{x:Static res:Strings.Settings_ControlDemoSearchBoxLabel}"
                                Style="{StaticResource SettingsFieldLabelStyle}" />
-                    <TextBox Margin="0"
-                             Text="{Binding ControlDemoSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource ListPageSearchBoxStyle}" />
+                    <controls:SearchTextBox Margin="0"
+                                            Text="{Binding ControlDemoSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                     <TextBlock Margin="0,18,0,8"
                                Text="{x:Static res:Strings.Settings_ControlDemoReadOnlyFieldLabel}"

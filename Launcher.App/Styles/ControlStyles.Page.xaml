@@ -405,6 +405,14 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card.Border}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Effect" Value="{DynamicResource Effect.Card.Surface}" />
+        <Setter Property="behaviors:SurfaceShadow.SuppressChildShadows" Value="True" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Border}}, Path=(behaviors:SurfaceShadow.SuppressChildShadows)}"
+                         Value="True">
+                <Setter Property="Effect" Value="{x:Null}" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ReadOnlyFieldSurfaceStyle"
@@ -412,8 +420,8 @@
            BasedOn="{StaticResource SectionFieldSurfaceStyle}">
         <Setter Property="MinHeight" Value="{StaticResource LauncherCompactControlHeight}" />
         <Setter Property="Padding" Value="14,7" />
-        <Setter Property="Background" Value="{DynamicResource Brush.Field.ReadOnly.Surface}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Field.ReadOnly.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card.Border}" />
     </Style>
 
     <Style x:Key="ReadOnlyFieldTextStyle" TargetType="TextBlock">

@@ -904,8 +904,14 @@
   <data name="Settings_BackgroundSection" xml:space="preserve">
     <value>ランチャー背景</value>
   </data>
-  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve">
-    <value>背景ぼかし効果を無効化</value>
+  <data name="Settings_BackgroundEffectNoneTitle" xml:space="preserve">
+    <value>なし</value>
+  </data>
+  <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve">
+    <value>アクリル</value>
+  </data>
+  <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve">
+    <value>画像</value>
   </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
     <value>ランチャー背景の不透明度</value>

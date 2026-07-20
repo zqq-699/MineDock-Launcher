@@ -62,13 +62,6 @@ public partial class ListPageFrame : UserControl
     public static readonly DependencyProperty IsSearchVisibleProperty =
         DependencyProperty.Register(nameof(IsSearchVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
-    public static readonly DependencyProperty SearchBoxCornerRadiusProperty =
-        DependencyProperty.Register(
-            nameof(SearchBoxCornerRadius),
-            typeof(CornerRadius),
-            typeof(ListPageFrame),
-            new PropertyMetadata(new CornerRadius(8)));
-
     public static readonly DependencyProperty SearchLeadingContentProperty =
         DependencyProperty.Register(nameof(SearchLeadingContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
 
@@ -200,12 +193,6 @@ public partial class ListPageFrame : UserControl
     {
         get => (bool)GetValue(IsSearchVisibleProperty);
         set => SetValue(IsSearchVisibleProperty, value);
-    }
-
-    public CornerRadius SearchBoxCornerRadius
-    {
-        get => (CornerRadius)GetValue(SearchBoxCornerRadiusProperty);
-        set => SetValue(SearchBoxCornerRadiusProperty, value);
     }
 
     public object? SearchLeadingContent

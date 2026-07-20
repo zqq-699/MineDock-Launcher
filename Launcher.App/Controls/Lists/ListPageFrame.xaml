@@ -264,7 +264,7 @@
                     </ContentPresenter.Style>
                 </ContentPresenter>
 
-                <Grid Height="32"
+                <Grid Height="{StaticResource LauncherCompactControlHeight}"
                       VerticalAlignment="Top">
                     <Grid.Style>
                         <Style TargetType="Grid">
@@ -310,16 +310,9 @@
                         </ContentPresenter.Style>
                     </ContentPresenter>
 
-                    <TextBox Grid.Column="1"
-                             Tag="{Binding ElementName=PART_ListLayer}"
-                             Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource ListPageSearchBoxStyle}">
-                                <Setter Property="Margin" Value="0" />
-                                <Setter Property="VerticalAlignment" Value="Stretch" />
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
+                    <controls:SearchTextBox Grid.Column="1"
+                                            Tag="{Binding ElementName=PART_ListLayer}"
+                                            Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                     <ContentPresenter Grid.Column="2"
                                       Content="{Binding SearchTrailingContent, ElementName=Root}"

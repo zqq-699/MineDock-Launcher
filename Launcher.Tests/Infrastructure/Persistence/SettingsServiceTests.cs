@@ -133,6 +133,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         settings.Theme = "Light";
         settings.ThemeFollowSystem = false;
         settings.AccentColor = "Purple";
+        settings.LauncherBackgroundEffect = LauncherBackgroundEffects.Image;
         settings.LauncherLanguage = "ja-JP";
         settings.EnableDiagnosticLogging = true;
         settings.UpdateChannel = LauncherUpdateChannel.Beta;
@@ -149,6 +150,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal("Light", loaded.Theme);
         Assert.False(loaded.ThemeFollowSystem);
         Assert.Equal("Purple", loaded.AccentColor);
+        Assert.Equal(LauncherBackgroundEffects.Image, loaded.LauncherBackgroundEffect);
         Assert.Equal("ja-JP", loaded.LauncherLanguage);
         Assert.True(loaded.EnableDiagnosticLogging);
         Assert.Equal(LauncherUpdateChannel.Beta, loaded.UpdateChannel);
@@ -190,6 +192,23 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
 
         Assert.Equal(expected, loaded.DownloadSourcePreference);
+    }
+
+    [Theory]
+    [InlineData("{}", LauncherBackgroundEffects.Acrylic)]
+    [InlineData("{\"LauncherBackgroundEffect\":\"None\"}", LauncherBackgroundEffects.None)]
+    [InlineData("{\"LauncherBackgroundEffect\":\"Image\"}", LauncherBackgroundEffects.Image)]
+    [InlineData("{\"LauncherBackgroundEffect\":\"Unknown\"}", LauncherBackgroundEffects.Acrylic)]
+    public async Task LauncherBackgroundEffectLoadsWithDefaultAndNormalization(
+        string json,
+        string expected)
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"), json);
+
+        var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
+
+        Assert.Equal(expected, loaded.LauncherBackgroundEffect);
     }
 
     [Fact]
@@ -269,14 +288,14 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var secondProcess = new JsonSettingsService(TempRoot);
         var firstSnapshot = await firstProcess.LoadAsync();
         var secondSnapshot = await secondProcess.LoadAsync();
-        firstSnapshot.DisableBackgroundBlur = true;
+        firstSnapshot.LauncherBackgroundEffect = LauncherBackgroundEffects.None;
         secondSnapshot.DefaultInstanceId = "new-default";
 
         await firstProcess.SaveAsync(firstSnapshot);
         await secondProcess.SaveAsync(secondSnapshot);
 
         var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
-        Assert.True(loaded.DisableBackgroundBlur);
+        Assert.Equal(LauncherBackgroundEffects.None, loaded.LauncherBackgroundEffect);
         Assert.Equal("new-default", loaded.DefaultInstanceId);
     }
 
@@ -288,11 +307,11 @@ public sealed class SettingsServiceTests : TestTempDirectory
         _ = await firstProcess.LoadAsync();
 
         await Task.WhenAll(
-            firstProcess.UpdateAsync(settings => settings.DisableBackgroundBlur = true),
+            firstProcess.UpdateAsync(settings => settings.LauncherBackgroundEffect = LauncherBackgroundEffects.None),
             secondProcess.UpdateAsync(settings => settings.HasAcceptedUserAgreement = true));
 
         var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
-        Assert.True(loaded.DisableBackgroundBlur);
+        Assert.Equal(LauncherBackgroundEffects.None, loaded.LauncherBackgroundEffect);
         Assert.True(loaded.HasAcceptedUserAgreement);
     }
 
@@ -302,7 +321,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var owner = new JsonSettingsService(TempRoot);
         var foreignSaver = new JsonSettingsService(TempRoot);
         var stale = await owner.LoadAsync();
-        await owner.UpdateAsync(settings => settings.DisableBackgroundBlur = true);
+        await owner.UpdateAsync(settings => settings.LauncherBackgroundEffect = LauncherBackgroundEffects.None);
         stale.DefaultInstanceId = "stale-default";
 
         var exception = await Assert.ThrowsAsync<SettingsConcurrencyException>(
@@ -310,7 +329,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
 
         Assert.True(exception.ActualRevision > exception.ExpectedRevision);
         var loaded = await owner.LoadAsync();
-        Assert.True(loaded.DisableBackgroundBlur);
+        Assert.Equal(LauncherBackgroundEffects.None, loaded.LauncherBackgroundEffect);
         Assert.NotEqual("stale-default", loaded.DefaultInstanceId);
     }
 

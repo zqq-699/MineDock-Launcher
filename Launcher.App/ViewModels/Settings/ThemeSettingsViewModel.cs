@@ -49,20 +49,29 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
             new(LauncherAccentColors.Orange, Strings.Settings_AccentColorOrangeTitle),
             new(LauncherAccentColors.Amber, Strings.Settings_AccentColorAmberTitle)
         ];
+        BackgroundEffectOptions =
+        [
+            new(LauncherBackgroundEffects.None, Strings.Settings_BackgroundEffectNoneTitle),
+            new(LauncherBackgroundEffects.Acrylic, Strings.Settings_BackgroundEffectAcrylicTitle),
+            new(LauncherBackgroundEffects.Image, Strings.Settings_BackgroundEffectImageTitle)
+        ];
         selectedThemeOption = ThemeOptions[0];
         selectedAccentColorOption = AccentColorOptions[0];
+        selectedBackgroundEffectOption = BackgroundEffectOptions[1];
     }
 
     public ObservableCollection<SettingsThemeOption> ThemeOptions { get; }
     public ObservableCollection<SettingsAccentColorOption> AccentColorOptions { get; }
+    public ObservableCollection<SettingsBackgroundEffectOption> BackgroundEffectOptions { get; }
 
     [ObservableProperty] private SettingsThemeOption? selectedThemeOption;
     [ObservableProperty] private SettingsAccentColorOption? selectedAccentColorOption;
+    [ObservableProperty] private SettingsBackgroundEffectOption? selectedBackgroundEffectOption;
     [ObservableProperty] private bool followSystemTheme = true;
     [ObservableProperty] private int launcherBackgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
-    [ObservableProperty] private bool disableBackgroundBlur;
 
     public bool IsThemeSelectionVisible => !FollowSystemTheme;
+    public bool IsBackgroundOpacityVisible => SelectedBackgroundEffectOption?.IsAcrylicEnabled ?? true;
     public string LauncherBackgroundOpacityText => $"{LauncherBackgroundOpacityPercent}%";
 
     public void Load(LauncherSettings settings)
@@ -74,7 +83,9 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
                 string.Equals(option.Id, settings.Theme, StringComparison.OrdinalIgnoreCase)) ?? ThemeOptions[0];
             SelectedAccentColorOption = AccentColorOptions.FirstOrDefault(option =>
                 string.Equals(option.Id, settings.AccentColor, StringComparison.OrdinalIgnoreCase)) ?? AccentColorOptions[0];
-            DisableBackgroundBlur = settings.DisableBackgroundBlur;
+            var backgroundEffect = LauncherBackgroundEffects.Normalize(settings.LauncherBackgroundEffect);
+            SelectedBackgroundEffectOption = BackgroundEffectOptions.First(option =>
+                string.Equals(option.Id, backgroundEffect, StringComparison.Ordinal));
             LauncherBackgroundOpacityPercent = Math.Clamp(settings.LauncherBackgroundOpacityPercent, 0, 100);
         });
     }
@@ -128,12 +139,25 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         Persist(settings => settings.LauncherBackgroundOpacityPercent = normalized);
     }
 
-    partial void OnDisableBackgroundBlurChanged(bool value)
+    partial void OnSelectedBackgroundEffectOptionChanged(
+        SettingsBackgroundEffectOption? oldValue,
+        SettingsBackgroundEffectOption? newValue)
     {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedBackgroundEffectOption = oldValue ?? BackgroundEffectOptions[1]);
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsBackgroundOpacityVisible));
         if (!CanPersist)
             return;
-        themeService.ApplyBackgroundBlurDisabled(value);
-        Persist(settings => settings.DisableBackgroundBlur = value);
+        var disableBackgroundBlur = !newValue.IsAcrylicEnabled;
+        themeService.ApplyBackgroundBlurDisabled(disableBackgroundBlur);
+        Persist(settings =>
+        {
+            settings.LauncherBackgroundEffect = newValue.Id;
+        });
     }
 
     private void ApplyPreferenceAndPersist()
@@ -141,7 +165,8 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         if (!CanPersist || SelectedThemeOption is null)
             return;
         var theme = SelectedThemeOption.Id;
-        themeService.ApplyPreference(theme, FollowSystemTheme, LauncherBackgroundOpacityPercent, DisableBackgroundBlur);
+        var disableBackgroundBlur = !(SelectedBackgroundEffectOption?.IsAcrylicEnabled ?? true);
+        themeService.ApplyPreference(theme, FollowSystemTheme, LauncherBackgroundOpacityPercent, disableBackgroundBlur);
         Persist(settings =>
         {
             settings.Theme = theme;

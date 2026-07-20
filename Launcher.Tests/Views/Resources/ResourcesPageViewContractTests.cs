@@ -15,11 +15,10 @@ public sealed class ResourcesPageViewContractTests
     public void ListPageFramePlacesOptionalLeadingContentBeforeSearchBox()
     {
         Assert.Equal(typeof(object), ListPageFrame.SearchLeadingContentProperty.PropertyType);
-        Assert.Equal(new System.Windows.CornerRadius(8), ListPageFrame.SearchBoxCornerRadiusProperty.DefaultMetadata.DefaultValue);
 
         var searchBox = Assert.Single(LoadListPageFrame()
             .Descendants()
-            .Where(element => element.Name.LocalName == "TextBox")
+            .Where(element => element.Name.LocalName == "SearchTextBox")
             .Where(element => element.Attribute("Text")?.Value.Contains("SearchText", StringComparison.Ordinal) == true));
         var searchRow = Assert.IsType<XElement>(searchBox.Parent);
         var children = searchRow.Elements().ToList();
@@ -30,6 +29,32 @@ public sealed class ResourcesPageViewContractTests
         Assert.True(children.IndexOf(leadingContent) < children.IndexOf(searchBox));
         Assert.Equal("0", leadingContent.Attribute("Grid.Column")?.Value);
         Assert.Equal("1", searchBox.Attribute("Grid.Column")?.Value);
+    }
+
+    [Fact]
+    public void SearchBoxRetainsGuidanceAndUsesSharedInputStyle()
+    {
+        var view = LoadSearchTextBox();
+        var input = Assert.Single(view.Descendants().Where(element => element.Name.LocalName == "TextBox"));
+        var icon = Assert.Single(view.Descendants().Where(element => element.Name.LocalName == "SvgIcon"));
+        var placeholder = Assert.Single(view.Descendants()
+            .Where(element => element.Name.LocalName == "TextBlock")
+            .Where(element => element.Attribute("Text")?.Value.Contains("Search_Placeholder", StringComparison.Ordinal) == true));
+
+        Assert.Equal("{StaticResource LauncherDialogTextBoxStyle}", input.Attribute("Style")?.Value);
+        Assert.Equal("general/general_search", icon.Attribute("IconKey")?.Value);
+        Assert.Equal("False", icon.Attribute("IsHitTestVisible")?.Value);
+        Assert.Equal("False", placeholder.Attribute("IsHitTestVisible")?.Value);
+        Assert.Equal(
+            input.Attribute("Padding")?.Value.Split(',')[0],
+            placeholder.Attribute("Margin")?.Value.Split(',')[0]);
+
+        var listStyles = LoadView("Launcher.App", "Styles", "ControlStyles.Lists.xaml");
+        Assert.DoesNotContain(listStyles.Descendants(), element =>
+            element.Name.LocalName == "Style"
+            && element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Key"
+                && attribute.Value.Contains("SearchBoxStyle", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -73,6 +98,8 @@ public sealed class ResourcesPageViewContractTests
     private static XDocument LoadVersionFilter() => LoadView("Launcher.App", "Views", "Resources", "ResourcesModVersionFilterView.xaml");
 
     private static XDocument LoadListPageFrame() => LoadView("Launcher.App", "Controls", "Lists", "ListPageFrame.xaml");
+
+    private static XDocument LoadSearchTextBox() => LoadView("Launcher.App", "Controls", "Inputs", "SearchTextBox.xaml");
 
     private static XDocument LoadView(params string[] pathParts) => XDocument.Load(Path.Combine(
         [FindRepositoryRoot().FullName, .. pathParts]));

@@ -187,92 +187,6 @@
            TargetType="Border"
            BasedOn="{StaticResource ListPageHeaderSpacerStyle}" />
 
-    <Style x:Key="ListPageSearchBoxStyle" TargetType="TextBox">
-        <Setter Property="Height" Value="32" />
-        <Setter Property="Margin" Value="0,58,12,0" />
-        <Setter Property="Padding" Value="14,0,7,0" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Foreground" Value="{DynamicResource Brush.F2FFFFFF}" />
-        <Setter Property="CaretBrush" Value="{DynamicResource Brush.F2FFFFFF}" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="SelectionBrush" Value="{DynamicResource Brush.660891FE}" />
-        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="Root"
-                            Background="Transparent"
-                            CornerRadius="{Binding SearchBoxCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="12"
-                                              Color="{DynamicResource Color.000000}"
-                                              Opacity="0.16"
-                                              ShadowDepth="0" />
-                        </Border.Effect>
-                        <Grid>
-                            <Border x:Name="SearchBlurSurface"
-                                    Background="{DynamicResource Brush.SecondaryMenu.Panel}"
-                                    Opacity="1"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{Binding SearchBoxCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}"
-                                    ClipToBounds="True"
-                                    behaviors:RoundedClip.Radius="{Binding SearchBoxCornerRadius.TopLeft, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageFrame}}}" />
-                            <controls:SvgIcon Width="15"
-                                              Height="15"
-                                              Margin="8,0,0,0"
-                                              IconKey="general/general_search"
-                                              Foreground="{DynamicResource Brush.70FFFFFF}"
-                                              HorizontalAlignment="Left"
-                                              VerticalAlignment="Center"
-                                              IsHitTestVisible="False" />
-                            <TextBlock x:Name="SearchPlaceholderText"
-                                       Margin="25,0,0,0"
-                                           Text="{x:Static res:Strings.Search_Placeholder}"
-                                           Foreground="{DynamicResource Brush.70FFFFFF}"
-                                           FontSize="13"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       IsHitTestVisible="False"
-                                       Visibility="Collapsed" />
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center">
-                                <ScrollViewer.RenderTransform>
-                                    <TranslateTransform Y="-1" />
-                                </ScrollViewer.RenderTransform>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <MultiTrigger>
-                            <MultiTrigger.Conditions>
-                                <Condition Property="Text" Value="" />
-                                <Condition Property="IsKeyboardFocusWithin" Value="False" />
-                            </MultiTrigger.Conditions>
-                            <Setter TargetName="SearchPlaceholderText" Property="Visibility" Value="Visible" />
-                        </MultiTrigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.20FFFFFF}" />
-                        </Trigger>
-                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.42FFFFFF}" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style x:Key="DownloadVersionSearchBoxStyle"
-           TargetType="TextBox"
-           BasedOn="{StaticResource ListPageSearchBoxStyle}" />
-
     <Style x:Key="ListPageBottomSpacerStyle" TargetType="Border">
         <Setter Property="Height" Value="64" />
         <Setter Property="IsHitTestVisible" Value="False" />
@@ -395,7 +309,7 @@
         <Setter Property="Margin" Value="0,0,12,12" />
         <Setter Property="Height" Value="144" />
         <Setter Property="Padding" Value="18" />
-        <Setter Property="Background" Value="{DynamicResource Brush.1CFFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
