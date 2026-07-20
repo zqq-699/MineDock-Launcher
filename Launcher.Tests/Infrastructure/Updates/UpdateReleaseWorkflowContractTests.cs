@@ -5,19 +5,25 @@ public sealed class UpdateReleaseWorkflowContractTests
     [Theory]
     [InlineData("release.yml")]
     [InlineData("beta.yml")]
-    public void WorkflowPublishesOneSignedManifestPairWithoutChecksumSidecar(string fileName)
+    public void WorkflowPublishesUnsignedManifestAndRemovesLegacySignatureSidecars(string fileName)
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root.FullName, ".github", "workflows", fileName));
 
-        Assert.Contains("environment: release-signing", workflow, StringComparison.Ordinal);
-        Assert.Equal(1, Count(workflow, "${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_BASE64 }}"));
-        Assert.Contains("derive-public --private-pem .local-secrets/update-signing-private.pem", workflow, StringComparison.Ordinal);
-        Assert.Contains("--signature $env:GENERATED_SIGNATURE_PATH", workflow, StringComparison.Ordinal);
         Assert.Contains(".Replace(\"`r`n\", \"`n\")", workflow, StringComparison.Ordinal);
-        Assert.Contains("latest.json.sig", workflow, StringComparison.Ordinal);
-        Assert.Contains("Verify published signed manifests are byte-identical", workflow, StringComparison.Ordinal);
-        Assert.Contains("if: always()", workflow, StringComparison.Ordinal);
+        Assert.Contains("Verify published manifests are byte-identical", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "Receive-VerifiedCopy \"GitHub\" \"latest.json\" \"$githubBase/latest.json\"",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            Count(workflow, "Remove-Item \"update/release/latest.json.sig\", \"update/beta/latest.json.sig\""));
+        Assert.DoesNotContain("environment: release-signing", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("UPDATE_SIGNING", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Launcher.UpdateSigning", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("GENERATED_SIGNATURE", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("signed-latest", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SHA_PATH", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("$assetName.sha256", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Ensure-ChannelManifest", workflow, StringComparison.Ordinal);

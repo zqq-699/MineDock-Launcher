@@ -1,12 +1,6 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
-using System.IO;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Signers;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.X509;
 
 namespace Launcher.Infrastructure.Updates;
 
@@ -135,95 +129,4 @@ internal static class OfficialUpdateHttp
     private static bool IsRedirect(HttpStatusCode statusCode) => statusCode is
         HttpStatusCode.MovedPermanently or HttpStatusCode.Redirect or HttpStatusCode.RedirectMethod
         or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
-}
-
-internal interface IUpdateManifestSignatureVerifier
-{
-    string KeyId { get; }
-    bool Verify(ReadOnlySpan<byte> manifestBytes, ReadOnlySpan<byte> signatureBytes);
-}
-
-internal sealed class EmbeddedUpdateManifestSignatureVerifier : IUpdateManifestSignatureVerifier
-{
-    private const string ResourceName = "Launcher.Infrastructure.Updates.update-signing-public.pem";
-    private readonly Ed25519PublicKeyParameters publicKey;
-
-    public EmbeddedUpdateManifestSignatureVerifier()
-    {
-        using var stream = typeof(EmbeddedUpdateManifestSignatureVerifier).Assembly.GetManifestResourceStream(ResourceName)
-            ?? throw new UpdateSecurityException("The update signing public key is unavailable.");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        publicKey = ReadPublicKey(reader.ReadToEnd());
-        var spki = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey).GetDerEncoded();
-        KeyId = Convert.ToHexString(SHA256.HashData(spki)).ToLowerInvariant();
-    }
-
-    internal EmbeddedUpdateManifestSignatureVerifier(Ed25519PublicKeyParameters publicKey)
-    {
-        this.publicKey = publicKey;
-        var spki = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey).GetDerEncoded();
-        KeyId = Convert.ToHexString(SHA256.HashData(spki)).ToLowerInvariant();
-    }
-
-    public string KeyId { get; }
-
-    public bool Verify(ReadOnlySpan<byte> manifestBytes, ReadOnlySpan<byte> signatureBytes)
-    {
-        if (signatureBytes.Length != 64)
-            return false;
-        var verifier = new Ed25519Signer();
-        verifier.Init(false, publicKey);
-        var message = manifestBytes.ToArray();
-        verifier.BlockUpdate(message, 0, message.Length);
-        return verifier.VerifySignature(signatureBytes.ToArray());
-    }
-
-    internal static byte[] DecodeSignature(ReadOnlySpan<byte> signatureFileBytes)
-    {
-        if (signatureFileBytes.Length == 0 || signatureFileBytes.Length > 4096)
-            throw new UpdateSecurityException("The update signature file is invalid.");
-        try
-        {
-            if (signatureFileBytes.Contains((byte)'\r') || signatureFileBytes.Contains((byte)'\n')
-                || ContainsNonAscii(signatureFileBytes))
-                throw new UpdateSecurityException("The update signature file must be canonical Base64 without whitespace.");
-            var text = Encoding.ASCII.GetString(signatureFileBytes);
-            var signature = Convert.FromBase64String(text);
-            if (signature.Length != 64 || !string.Equals(Convert.ToBase64String(signature), text, StringComparison.Ordinal))
-                throw new UpdateSecurityException("The update signature file is not canonical Base64.");
-            return signature;
-        }
-        catch (FormatException exception)
-        {
-            throw new UpdateSecurityException("The update signature is not valid Base64.", exception);
-        }
-    }
-
-    private static bool ContainsNonAscii(ReadOnlySpan<byte> bytes)
-    {
-        foreach (var value in bytes)
-            if (value > 0x7f) return true;
-        return false;
-    }
-
-    private static Ed25519PublicKeyParameters ReadPublicKey(string pem)
-    {
-        const string begin = "-----BEGIN PUBLIC KEY-----";
-        const string end = "-----END PUBLIC KEY-----";
-        var startIndex = pem.IndexOf(begin, StringComparison.Ordinal);
-        var endIndex = pem.IndexOf(end, StringComparison.Ordinal);
-        if (startIndex < 0 || endIndex <= startIndex)
-            throw new UpdateSecurityException("The embedded update public key PEM is invalid.");
-        startIndex += begin.Length;
-        try
-        {
-            var der = Convert.FromBase64String(pem[startIndex..endIndex]);
-            return PublicKeyFactory.CreateKey(der) as Ed25519PublicKeyParameters
-                ?? throw new UpdateSecurityException("The embedded update public key is not Ed25519.");
-        }
-        catch (FormatException exception)
-        {
-            throw new UpdateSecurityException("The embedded update public key PEM is invalid.", exception);
-        }
-    }
 }

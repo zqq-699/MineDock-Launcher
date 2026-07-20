@@ -13,18 +13,16 @@ namespace Launcher.Infrastructure.Updates;
 public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
 {
     private const int MaximumManifestBytes = 1024 * 1024;
-    private const int MaximumSignatureFileBytes = 4 * 1024;
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly HttpClient httpClient;
     private readonly ILogger<RemoteManifestLauncherUpdateService>? logger;
     private readonly IReadOnlyList<LauncherUpdateManifestSource> manifestSources;
-    private readonly IUpdateManifestSignatureVerifier? signatureVerifier;
 
     public RemoteManifestLauncherUpdateService(
         HttpClient? httpClient = null,
         ILogger<RemoteManifestLauncherUpdateService>? logger = null)
-        : this(httpClient, logger, LauncherUpdateManifestSource.DefaultSources, signatureVerifier: null)
+        : this(httpClient, logger, LauncherUpdateManifestSource.DefaultSources)
     {
     }
 
@@ -32,20 +30,10 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         HttpClient? httpClient,
         ILogger<RemoteManifestLauncherUpdateService>? logger,
         IReadOnlyList<LauncherUpdateManifestSource> manifestSources)
-        : this(httpClient, logger, manifestSources, signatureVerifier: null)
-    {
-    }
-
-    internal RemoteManifestLauncherUpdateService(
-        HttpClient? httpClient,
-        ILogger<RemoteManifestLauncherUpdateService>? logger,
-        IReadOnlyList<LauncherUpdateManifestSource> manifestSources,
-        IUpdateManifestSignatureVerifier? signatureVerifier)
     {
         this.httpClient = httpClient ?? OfficialUpdateHttp.CreateClient(DefaultRequestTimeout);
         this.logger = logger;
         this.manifestSources = manifestSources.OrderBy(source => source.Priority).ToArray();
-        this.signatureVerifier = signatureVerifier ?? TryCreateEmbeddedVerifier(logger);
         EnsureDefaultHeaders(this.httpClient);
     }
 
@@ -54,8 +42,6 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         LauncherUpdateChannel channel,
         CancellationToken cancellationToken = default)
     {
-        if (signatureVerifier is null)
-            return LauncherUpdateCheckResult.Failed(currentVersion, "Signed launcher updates are unavailable in this build.");
         if (!TryCalculateVersionCode(currentVersion, out var currentVersionCode))
             return LauncherUpdateCheckResult.Failed(currentVersion, "The current launcher version is invalid.");
 
@@ -67,16 +53,15 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
                 continue;
             var manifest = result.Manifest!;
             logger?.LogInformation(
-                "Verified launcher update manifest. Source={Source} Channel={Channel} KeyId={KeyId} VersionCode={VersionCode}",
+                "Validated launcher update manifest. Source={Source} Channel={Channel} VersionCode={VersionCode}",
                 result.Source.Name,
                 channelText,
-                manifest.KeyId,
                 manifest.VersionCode);
             return CreateResult(currentVersion, currentVersionCode, manifest);
         }
 
         logger?.LogWarning("All launcher update manifest sources failed or were unavailable. Channel={Channel}", channelText);
-        return LauncherUpdateCheckResult.Failed(currentVersion, "All signed update manifest sources failed or were unavailable.");
+        return LauncherUpdateCheckResult.Failed(currentVersion, "All update manifest sources failed or were unavailable.");
     }
 
     private async Task<ManifestSourceResult> LoadSourceAsync(
@@ -88,36 +73,11 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         {
             if (!Uri.TryCreate(source.CreateManifestUrl(expectedChannel), UriKind.Absolute, out var manifestUri))
                 throw new UpdateSecurityException("The update manifest URL is invalid.");
-            var signatureUri = new Uri(manifestUri.AbsoluteUri + ".sig", UriKind.Absolute);
-            var manifestTask = DownloadBytesAsync(manifestUri, MaximumManifestBytes, cancellationToken);
-            var signatureTask = DownloadBytesAsync(signatureUri, MaximumSignatureFileBytes, cancellationToken);
-            try
-            {
-                await Task.WhenAll(manifestTask, signatureTask).ConfigureAwait(false);
-            }
-            catch when (!cancellationToken.IsCancellationRequested)
-            {
-                var failures = new[] { manifestTask.Exception, signatureTask.Exception }
-                    .Where(exception => exception is not null)
-                    .SelectMany(exception => exception!.Flatten().InnerExceptions)
-                    .ToArray();
-                var securityFailure = failures.FirstOrDefault(exception => exception is UpdateSecurityException);
-                if (securityFailure is not null)
-                    throw new UpdateSecurityException("An update manifest response failed security validation.", securityFailure);
-                var unavailableFailure = failures.FirstOrDefault(exception => exception is UpdateSourceUnavailableException);
-                if (unavailableFailure is not null)
-                    throw new UpdateSourceUnavailableException("An update manifest response was unavailable.", unavailableFailure);
-                throw;
-            }
-            var manifestBytes = await manifestTask.ConfigureAwait(false);
-            var signatureFileBytes = await signatureTask.ConfigureAwait(false);
-            var signatureBytes = EmbeddedUpdateManifestSignatureVerifier.DecodeSignature(signatureFileBytes);
-            if (!signatureVerifier!.Verify(manifestBytes, signatureBytes))
-                throw new UpdateSecurityException("The update manifest signature is invalid.");
-
+            var manifestBytes = await DownloadBytesAsync(manifestUri, MaximumManifestBytes, cancellationToken)
+                .ConfigureAwait(false);
             var manifest = JsonSerializer.Deserialize<RemoteUpdateManifestDto>(manifestBytes, JsonOptions)
                 ?? throw new UpdateSecurityException("The update manifest JSON is empty.");
-            ValidateManifest(manifest, expectedChannel, signatureVerifier.KeyId);
+            ValidateManifest(manifest, expectedChannel);
             return ManifestSourceResult.Valid(source, manifest);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -178,7 +138,6 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
             LauncherUpdateAssetKind.WindowsX64Executable,
             asset.Size,
             asset.Sha256.Trim().ToLowerInvariant(),
-            manifest.KeyId.Trim().ToLowerInvariant(),
             VersionCode: manifest.VersionCode,
             IsMandatory: manifest.Mandatory || currentVersionCode < manifest.MinSupportedVersionCode,
             MinSupportedVersionCode: manifest.MinSupportedVersionCode,
@@ -186,18 +145,16 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
             DownloadUrls: urls));
     }
 
-    private static void ValidateManifest(RemoteUpdateManifestDto manifest, string expectedChannel, string trustedKeyId)
+    private static void ValidateManifest(RemoteUpdateManifestDto manifest, string expectedChannel)
     {
         if (manifest.SchemaVersion != 1
             || !string.Equals(manifest.AppId?.Trim(), "BlockHelm-Launcher", StringComparison.Ordinal)
             || !string.Equals(manifest.Channel?.Trim(), expectedChannel, StringComparison.OrdinalIgnoreCase)
             || manifest.VersionCode < 0
             || string.IsNullOrWhiteSpace(manifest.VersionName)
-            || !IsHex64(manifest.KeyId)
-            || !string.Equals(manifest.KeyId.Trim(), trustedKeyId, StringComparison.Ordinal)
             || manifest.Assets.Count != 1)
         {
-            throw new UpdateSecurityException("The signed update manifest metadata is invalid.");
+            throw new UpdateSecurityException("The update manifest metadata is invalid.");
         }
 
         var asset = manifest.Assets[0];
@@ -211,33 +168,19 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
             || !asset.FileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             || asset.Urls.Count == 0)
         {
-            throw new UpdateSecurityException("The signed update executable metadata is invalid.");
+            throw new UpdateSecurityException("The update executable metadata is invalid.");
         }
 
         foreach (var url in asset.Urls)
         {
             if (string.IsNullOrWhiteSpace(url.Name)
                 || !Uri.TryCreate(url.Url, UriKind.Absolute, out var uri))
-                throw new UpdateSecurityException("The signed update download URL is invalid.");
+                throw new UpdateSecurityException("The update download URL is invalid.");
             OfficialUpdateHttp.ValidateInitialUri(uri, OfficialUpdateUriKind.Executable);
         }
     }
 
     private static bool IsHex64(string? value) => value?.Trim() is { Length: 64 } text && text.All(Uri.IsHexDigit);
-
-    private static IUpdateManifestSignatureVerifier? TryCreateEmbeddedVerifier(
-        ILogger<RemoteManifestLauncherUpdateService>? logger)
-    {
-        try
-        {
-            return new EmbeddedUpdateManifestSignatureVerifier();
-        }
-        catch (UpdateSecurityException exception)
-        {
-            logger?.LogWarning(exception, "The update signing public key is unavailable; remote updates are disabled.");
-            return null;
-        }
-    }
 
     private static void EnsureDefaultHeaders(HttpClient client)
     {
@@ -280,7 +223,6 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
     {
         [JsonPropertyName("schemaVersion")] public int SchemaVersion { get; init; }
         [JsonPropertyName("appId")] public string? AppId { get; init; }
-        [JsonPropertyName("keyId")] public string KeyId { get; init; } = string.Empty;
         [JsonPropertyName("channel")] public string? Channel { get; init; }
         [JsonPropertyName("versionName")] public string VersionName { get; init; } = string.Empty;
         [JsonPropertyName("versionCode")] public int VersionCode { get; init; }

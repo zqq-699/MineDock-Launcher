@@ -13,8 +13,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Launcher.Application", "Lau
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Launcher.Infrastructure", "Launcher.Infrastructure\Launcher.Infrastructure.csproj", "{557F35A1-EFBF-4088-AB91-6177D1991755}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Launcher.UpdateSigning", "Launcher.UpdateSigning\Launcher.UpdateSigning.csproj", "{B30E6F40-44BC-45CB-A6FD-45B7CC4F35F3}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,9 +42,5 @@ Global
 		{557F35A1-EFBF-4088-AB91-6177D1991755}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{557F35A1-EFBF-4088-AB91-6177D1991755}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{557F35A1-EFBF-4088-AB91-6177D1991755}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B30E6F40-44BC-45CB-A6FD-45B7CC4F35F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B30E6F40-44BC-45CB-A6FD-45B7CC4F35F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B30E6F40-44BC-45CB-A6FD-45B7CC4F35F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B30E6F40-44BC-45CB-A6FD-45B7CC4F35F3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

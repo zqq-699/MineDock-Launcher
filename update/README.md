@@ -16,27 +16,11 @@ Live channel manifests are written by the release workflows to the
 `update-manifests` branch in both GitHub and Gitee:
 
 - `update/release/latest.json`: stable release channel for normal users.
-- `update/release/latest.json.sig`: Ed25519 signature for the exact manifest bytes.
 - `update/beta/latest.json`: beta channel for test builds and early validation.
-- `update/beta/latest.json.sig`: Ed25519 signature for the exact manifest bytes.
 
-## Signing key
-
-`latest.json` is written with LF line endings as UTF-8 without a BOM and is signed byte-for-byte with
-an Ed25519 PKCS#8 private key. `latest.json.sig` is the 64-byte signature encoded
-as canonical Base64 without a BOM or trailing newline. `keyId` is the lowercase
-SHA-256 of the public key's SubjectPublicKeyInfo DER bytes.
-
-Local signing material lives only in `.local-secrets/update-signing-private.pem`
-and `.local-secrets/update-signing-public.pem`. GitHub Actions uses the
-`release-signing` Environment secret `UPDATE_SIGNING_PRIVATE_KEY_BASE64`; its
-value is the Base64 encoding of the private PEM file's exact UTF-8 bytes. The
-workflow derives and embeds only the public key and removes the private key in
-an `always()` cleanup step.
-
-This first version trusts one public key. Key rotation requires first releasing
-a transition client that trusts both the old and new keys; replacing the key in
-the workflow alone would make existing clients reject future manifests.
+Update manifests are not signed. The workflows publish the exact same manifest
+bytes to both providers and remove legacy `latest.json.sig` files from the
+manifest branches. Historical release attachments and notes remain unchanged.
 
 ## Release Checklist
 
@@ -60,7 +44,6 @@ final remote manifest to `update/{channel}/latest.json` on the
 `update-manifests` branch in GitHub and Gitee:
 
 - `versionName`: user-facing version, for example `1.2.3`.
-- `keyId`: signing public-key identifier described above.
 - `versionCode`: numeric version used for comparisons, for example `1020399`.
 - `publishedAt`: publish time in ISO 8601 format.
 - `mandatory`: whether this update is mandatory.
@@ -74,13 +57,20 @@ final remote manifest to `update/{channel}/latest.json` on the
 
 Final manifests contain only `gitee` and `github` download URLs. Gitee is the
 first update manifest source and the first download mirror; GitHub is the
-fallback. The client verifies each source independently and stops at the first
-valid signed manifest; any network or validation failure falls through to the
-next source. Initial update URLs must use the configured official GitHub or
-Gitee HTTPS hosts; redirects may use any HTTPS host, remain limited to five
-hops, and can never downgrade to HTTP. The Gitee repository is not a source-code mirror; its
-`update-manifests` branch only stores `update/release/latest.json`,
-`update/beta/latest.json`, their `.sig` files, lightweight tags, and Release
-attachments. Both providers receive the same local manifest and signature
-files; the workflow reads them back with cache-busting URLs and fails unless
-both copies are byte-identical.
+fallback. The client validates each manifest independently and stops at the
+first structurally valid source; any network or validation failure falls
+through to the next source. Initial update URLs must use the configured official
+GitHub or Gitee HTTPS hosts; redirects may use any HTTPS host, remain limited to
+five hops, and can never downgrade to HTTP. Executable downloads must match the
+manifest's exact byte size and SHA-256 hash before installation.
+
+Because the manifest is unsigned, its size and SHA-256 values protect against
+corrupt or mismatched executable downloads but do not provide an independent
+authenticity guarantee if a manifest publishing account or approved host is
+compromised.
+
+The Gitee repository is not a source-code mirror; its `update-manifests` branch
+only stores `update/release/latest.json`, `update/beta/latest.json`, lightweight
+tags, and Release attachments. Both providers receive the same local manifest;
+the workflow reads each copy back with cache-busting URLs and fails unless both
+copies are byte-identical.

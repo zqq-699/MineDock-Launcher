@@ -60,7 +60,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         CancellationToken cancellationToken = default)
     {
         if (!update.CanAutoInstall)
-            return LauncherSelfUpdateStartResult.Failed("The signed update asset metadata is incomplete.");
+            return LauncherSelfUpdateStartResult.Failed("The update asset metadata is incomplete.");
         if (string.IsNullOrWhiteSpace(currentExecutablePath))
             return LauncherSelfUpdateStartResult.Failed("Current launcher executable path is unavailable.");
 
@@ -95,8 +95,8 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
                 return LauncherSelfUpdateStartResult.Failed("Failed to start update apply mode.");
             }
             logger?.LogInformation(
-                "Verified launcher update apply mode started. Version={Version} KeyId={KeyId}",
-                update.Version, update.KeyId);
+                "Launcher update apply mode started. Version={Version}",
+                update.Version);
             return LauncherSelfUpdateStartResult.Success(downloadPath);
         }
         catch (OperationCanceledException)
@@ -123,7 +123,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         foreach (var source in downloadUrls.OrderBy(url => url.Priority))
         {
             if (!TryValidateDownloadUrl(source.Url, update.DownloadFileName, out var uri, out var fileName))
-                throw new UpdateSecurityException("The signed update contains an invalid download URL.");
+                throw new UpdateSecurityException("The update contains an invalid download URL.");
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -165,7 +165,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
             using var response = await OfficialUpdateHttp.SendAsync(
                 httpClient, uri, OfficialUpdateUriKind.Executable, cancellationToken).ConfigureAwait(false);
             if (response.Content.Headers.ContentLength is { } contentLength && contentLength != update.SizeBytes)
-                throw new UpdateSecurityException("The update executable Content-Length does not match the signed manifest.");
+                throw new UpdateSecurityException("The update executable Content-Length does not match the manifest.");
 
             await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             await using var output = new FileStream(
@@ -187,17 +187,17 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
                 }
                 if (read == 0) break;
                 totalBytes += read;
-                if (totalBytes > update.SizeBytes)
-                    throw new UpdateSecurityException("The update executable exceeded the signed size.");
+            if (totalBytes > update.SizeBytes)
+                    throw new UpdateSecurityException("The update executable exceeded the declared size.");
                 hash.AppendData(buffer, 0, read);
                 await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             }
             await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             if (totalBytes != update.SizeBytes)
-                throw new UpdateSecurityException("The update executable size does not match the signed manifest.");
+                throw new UpdateSecurityException("The update executable size does not match the manifest.");
             var actualHash = Convert.ToHexString(hash.GetHashAndReset());
             if (!string.Equals(actualHash, update.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new UpdateSecurityException("The update executable SHA-256 does not match the signed manifest.");
+                throw new UpdateSecurityException("The update executable SHA-256 does not match the manifest.");
 
             await output.DisposeAsync().ConfigureAwait(false);
             File.Move(temporaryPath, downloadPath, overwrite: true);

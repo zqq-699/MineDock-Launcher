@@ -34,7 +34,6 @@ public sealed record LauncherUpdateInfo(
     LauncherUpdateAssetKind AssetKind,
     long SizeBytes,
     string Sha256,
-    string KeyId,
     int VersionCode = 0,
     bool IsMandatory = false,
     int MinSupportedVersionCode = 0,
@@ -45,8 +44,6 @@ public sealed record LauncherUpdateInfo(
         && SizeBytes > 0
         && Sha256.Length == 64
         && Sha256.All(Uri.IsHexDigit)
-        && KeyId.Length == 64
-        && KeyId.All(Uri.IsHexDigit)
         && EffectiveDownloadUrls.Count > 0;
 
     public IReadOnlyList<LauncherUpdateDownloadUrl> EffectiveDownloadUrls =>

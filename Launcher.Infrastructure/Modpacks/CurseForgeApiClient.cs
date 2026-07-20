@@ -38,10 +38,13 @@ public sealed class CurseForgeApiClient
 {
     // API key 仅进入请求头，异常和返回模型都不保留凭据。
     private const string BaseUrl = "https://api.curseforge.com/v1";
+    private const int MaxMetadataAttempts = 3;
+    private static readonly TimeSpan MaximumMetadataRetryAfter = TimeSpan.FromSeconds(60);
     private readonly HttpClient httpClient;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly ILogger logger;
     private readonly DownloadHostConcurrencyController hostConcurrencyController;
+    private readonly Func<TimeSpan, CancellationToken, Task> metadataDelayAsync;
 
     public CurseForgeApiClient(
         HttpClient? httpClient = null,
@@ -55,12 +58,14 @@ public sealed class CurseForgeApiClient
         HttpClient? httpClient,
         IImportConcurrencyLimiter? limiter,
         ILogger<CurseForgeApiClient>? logger,
-        DownloadHostConcurrencyController hostConcurrencyController)
+        DownloadHostConcurrencyController hostConcurrencyController,
+        Func<TimeSpan, CancellationToken, Task>? metadataDelayAsync = null)
     {
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.logger = logger ?? NullLogger<CurseForgeApiClient>.Instance;
         this.hostConcurrencyController = hostConcurrencyController;
+        this.metadataDelayAsync = metadataDelayAsync ?? Task.Delay;
     }
 
     internal async Task<CurseForgeResolvedFileDownload> GetFileDownloadAsync(
@@ -86,16 +91,19 @@ public sealed class CurseForgeApiClient
         }
 
         // A missing URL from both CurseForge endpoints confirms that automatic
-        // third-party distribution is unavailable. Only then infer CDN URLs.
+        // third-party distribution is unavailable. This flag controls only whether
+        // final failure may become a manual item; inferred CDN URLs improve coverage
+        // for every successfully resolved CurseForge file.
         var isDistributionRestricted = string.IsNullOrWhiteSpace(primaryUrl);
+        var edgeUrl = BuildCdnUrl("edge.forgecdn.net", fileId, file.FileName);
         if (isDistributionRestricted)
-        {
-            primaryUrl = BuildCdnUrl("edge.forgecdn.net", fileId, file.FileName);
-            AddDistinctUrl(
-                fallbackUrls,
-                BuildCdnUrl("mediafilez.forgecdn.net", fileId, file.FileName),
-                primaryUrl);
-        }
+            primaryUrl = edgeUrl;
+        else
+            AddDistinctUrl(fallbackUrls, edgeUrl, primaryUrl);
+        AddDistinctUrl(
+            fallbackUrls,
+            BuildCdnUrl("mediafilez.forgecdn.net", fileId, file.FileName),
+            primaryUrl);
 
         var hashes = ResolveHashes(file.Hashes);
         logger.LogDebug(
@@ -128,12 +136,15 @@ public sealed class CurseForgeApiClient
         if (fingerprints.Count == 0)
             return new Dictionary<long, CurseForgeFingerprintMatch>();
 
-        using var request = CreateRequest(HttpMethod.Post, $"{BaseUrl}/fingerprints/432", apiKey);
-        request.Content = JsonContent.Create(
-            new CurseForgeFingerprintRequest(fingerprints.Distinct().ToArray()));
+        var fingerprintRequest = new CurseForgeFingerprintRequest(fingerprints.Distinct().ToArray());
 
         return await SendMetadataAsync(
-            request,
+            () =>
+            {
+                var request = CreateRequest(HttpMethod.Post, $"{BaseUrl}/fingerprints/432", apiKey);
+                request.Content = JsonContent.Create(fingerprintRequest);
+                return request;
+            },
             async (response, token) =>
             {
                 response.EnsureSuccessStatusCode();
@@ -149,9 +160,8 @@ public sealed class CurseForgeApiClient
         string apiKey,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}", apiKey);
         return await SendMetadataAsync(
-            request,
+            () => CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}", apiKey),
             async (response, token) =>
             {
                 if (response.StatusCode == HttpStatusCode.NotFound)
@@ -184,9 +194,8 @@ public sealed class CurseForgeApiClient
         CancellationToken cancellationToken)
     {
         // 403/404 可能表示作者禁用 API 下载，不等同于元数据请求失败，调用方仍可回退 CDN。
-        using var request = CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}/download-url", apiKey);
         return await SendMetadataAsync(
-            request,
+            () => CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}/download-url", apiKey),
             async (response, token) =>
             {
                 if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
@@ -208,6 +217,36 @@ public sealed class CurseForgeApiClient
     }
 
     private async Task<T> SendMetadataAsync<T>(
+        Func<HttpRequestMessage> createRequest,
+        Func<HttpResponseMessage, CancellationToken, Task<T>> readAsync,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaxMetadataAttempts; attempt++)
+        {
+            using var request = createRequest();
+            try
+            {
+                return await SendMetadataAttemptAsync(request, readAsync, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (
+                attempt < MaxMetadataAttempts
+                && IsTransientMetadataFailure(exception, cancellationToken))
+            {
+                var delay = GetMetadataRetryDelay(exception, attempt);
+                logger.LogDebug(
+                    exception,
+                    "CurseForge metadata request will be retried. Attempt={Attempt} MaxAttempts={MaxAttempts} DelayMs={DelayMs}",
+                    attempt,
+                    MaxMetadataAttempts,
+                    delay.TotalMilliseconds);
+                await metadataDelayAsync(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException("CurseForge metadata retry loop completed without a result.");
+    }
+
+    private async Task<T> SendMetadataAttemptAsync<T>(
         HttpRequestMessage request,
         Func<HttpResponseMessage, CancellationToken, Task<T>> readAsync,
         CancellationToken cancellationToken)
@@ -226,6 +265,12 @@ public sealed class CurseForgeApiClient
         {
             response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             statusCode = response.StatusCode;
+            if (IsTransientMetadataStatus(response.StatusCode))
+            {
+                throw new CurseForgeMetadataTransientException(
+                    response.StatusCode,
+                    ParseRetryAfter(response));
+            }
             var result = await readAsync(response, cancellationToken).ConfigureAwait(false);
             failureReason = response.IsSuccessStatusCode ? null : DownloadFailureReason.HttpStatus;
             recordResult = true;
@@ -270,6 +315,43 @@ public sealed class CurseForgeApiClient
             if (recordResult)
                 RecordHostResult(admission.Origin, failureReason, statusCode);
         }
+    }
+
+    private static bool IsTransientMetadataFailure(Exception exception, CancellationToken cancellationToken)
+    {
+        if (exception is OperationCanceledException)
+            return !cancellationToken.IsCancellationRequested;
+        if (exception is CurseForgeMetadataTransientException)
+            return true;
+        if (exception is HttpRequestException httpException)
+            return httpException.StatusCode is null || IsTransientMetadataStatus(httpException.StatusCode.Value);
+        return exception is IOException;
+    }
+
+    private static bool IsTransientMetadataStatus(HttpStatusCode statusCode)
+    {
+        var value = (int)statusCode;
+        return statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
+            || value is >= 500 and <= 599;
+    }
+
+    private static TimeSpan GetMetadataRetryDelay(Exception exception, int attempt)
+    {
+        if (exception is CurseForgeMetadataTransientException { RetryAfter: { } retryAfter })
+            return retryAfter > MaximumMetadataRetryAfter ? MaximumMetadataRetryAfter : retryAfter;
+
+        return TimeSpan.FromSeconds(Math.Pow(2, Math.Max(attempt - 1, 0)));
+    }
+
+    private static TimeSpan? ParseRetryAfter(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is { } delta)
+            return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
+        if (retryAfter?.Date is not { } date)
+            return null;
+        var delay = date - DateTimeOffset.UtcNow;
+        return delay > TimeSpan.Zero ? delay : TimeSpan.Zero;
     }
 
     private void RecordHostResult(
@@ -439,6 +521,17 @@ public sealed class CurseForgeApiClient
     internal sealed record CurseForgeFingerprintMatch(long ProjectId, long FileId);
 
     private sealed record DownloadUrlResult(HttpStatusCode StatusCode, string? DownloadUrl);
+
+    private sealed class CurseForgeMetadataTransientException : HttpRequestException
+    {
+        public CurseForgeMetadataTransientException(HttpStatusCode statusCode, TimeSpan? retryAfter)
+            : base($"CurseForge metadata endpoint returned HTTP {(int)statusCode} ({statusCode}).", null, statusCode)
+        {
+            RetryAfter = retryAfter;
+        }
+
+        public TimeSpan? RetryAfter { get; }
+    }
 
     private sealed record CurseForgeFingerprintRequest(
         [property: JsonPropertyName("fingerprints")] IReadOnlyList<long> Fingerprints);

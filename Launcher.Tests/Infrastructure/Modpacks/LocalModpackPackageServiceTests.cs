@@ -299,7 +299,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         var prepared = CreateCurseForgePreparedModpack();
         var progress = new ThreadSafeProgress();
 
-        await Assert.ThrowsAsync<HttpRequestException>(() =>
+        await Assert.ThrowsAnyAsync<HttpRequestException>(() =>
             service.DownloadFilesAsync(prepared, instance, progress));
 
         Assert.DoesNotContain(
@@ -324,6 +324,21 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("downloaded", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
         Assert.Contains("edge.forgecdn.net", handler.DownloadHosts);
         Assert.Contains("mediafilez.forgecdn.net", handler.DownloadHosts);
+    }
+
+    [Fact]
+    public async Task CurseForgeDirectFailureUsesConstructedCdnFallbackWithoutCreatingManualList()
+    {
+        var handler = new DirectCurseForgeFallbackHandler();
+        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        var prepared = CreateSingleCurseForgePreparedModpack();
+
+        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+        Assert.Empty(manualDownloads);
+        Assert.Equal("downloaded", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "direct.jar")));
+        Assert.Equal(["download.example", "edge.forgecdn.net"], handler.DownloadHosts);
     }
 
     [Fact]
@@ -661,6 +676,32 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
                     ? new StringContent("downloaded")
                     : new ByteArrayContent([])
             });
+        }
+    }
+
+    private sealed class DirectCurseForgeFallbackHandler : HttpMessageHandler
+    {
+        private readonly ConcurrentQueue<string> downloadHosts = [];
+
+        public string[] DownloadHosts => downloadHosts.ToArray();
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var uri = request.RequestUri!;
+            if (string.Equals(uri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase))
+            {
+                var json = uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal)
+                    ? """{"data":"https://download.example/direct.jar"}"""
+                    : """{"data":{"displayName":"Direct","fileName":"direct.jar","downloadUrl":"https://download.example/direct.jar","hashes":[]}}""";
+                return Task.FromResult(JsonResponse(json));
+            }
+
+            downloadHosts.Enqueue(uri.Host);
+            return Task.FromResult(string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase)
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("downloaded") }
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
         }
     }
 

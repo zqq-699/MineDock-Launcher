@@ -12,7 +12,6 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
 {
     private const string GiteeUrl = "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v1.0.1/BlockHelm_Launcher_x64.exe";
     private const string GitHubUrl = "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v1.0.1/BlockHelm_Launcher_x64.exe";
-    private const string KeyId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static readonly byte[] Payload = Encoding.UTF8.GetBytes("new launcher");
     private static readonly string PayloadHash = Convert.ToHexString(SHA256.HashData(Payload)).ToLowerInvariant();
     private readonly string tempRoot = Path.Combine(Path.GetTempPath(), "launcher-self-update-tests", Guid.NewGuid().ToString("N"));
@@ -91,12 +90,12 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     [Theory]
     [InlineData(1)]
     [InlineData(999)]
-    public async Task SizeMismatchNeverStartsAndDeletesTemporaryFile(long signedSize)
+    public async Task SizeMismatchNeverStartsAndDeletesTemporaryFile(long declaredSize)
     {
         var starts = 0;
         var handler = new DownloadHandler().Respond(GitHubUrl, HttpStatusCode.OK, Payload);
         var result = await CreateService(handler, _ => { starts++; return true; })
-            .StartUpdateAsync(CreateUpdate() with { SizeBytes = signedSize });
+            .StartUpdateAsync(CreateUpdate() with { SizeBytes = declaredSize });
 
         Assert.False(result.Succeeded);
         Assert.Equal(0, starts);
@@ -106,7 +105,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     [Theory]
     [InlineData(0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     [InlineData(12, "abcd")]
-    public async Task MissingSignedIntegrityMetadataNeverDownloads(long size, string sha256)
+    public async Task MissingIntegrityMetadataNeverDownloads(long size, string sha256)
     {
         var handler = new DownloadHandler().Respond(GitHubUrl, HttpStatusCode.OK, Payload);
         var update = CreateUpdate() with { SizeBytes = size, Sha256 = sha256 };
@@ -154,7 +153,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     private static LauncherUpdateInfo CreateUpdate(IReadOnlyList<LauncherUpdateDownloadUrl>? urls = null) => new(
         "1.0.1", "1.0.1", "https://github.com/zqq-699/BlockHelm-Launcher/releases/tag/v1.0.1",
         GitHubUrl, null, "BlockHelm_Launcher_x64.exe", LauncherUpdateAssetKind.WindowsX64Executable,
-        Payload.Length, PayloadHash, KeyId, DownloadUrls: urls);
+        Payload.Length, PayloadHash, DownloadUrls: urls);
 
     public void Dispose()
     {

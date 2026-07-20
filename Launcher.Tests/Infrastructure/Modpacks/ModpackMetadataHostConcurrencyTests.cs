@@ -73,7 +73,7 @@ public sealed class ModpackMetadataHostConcurrencyTests
     }
 
     [Fact]
-    public async Task CurseForgeDirectDownloadDoesNotAddInferredCdnCandidates()
+    public async Task CurseForgeDirectDownloadAddsCdnCandidatesWithoutMarkingDistributionRestricted()
     {
         var controller = CreateController();
         using var httpClient = new HttpClient(new CallbackHandler(request =>
@@ -97,7 +97,57 @@ public sealed class ModpackMetadataHostConcurrencyTests
 
         Assert.False(result.IsDistributionRestricted);
         Assert.Equal("https://download.example/example.jar", result.PrimaryUrl);
-        Assert.Empty(result.FallbackUrls);
+        Assert.Equal(
+            [
+                "https://edge.forgecdn.net/files/0/456/example.jar",
+                "https://mediafilez.forgecdn.net/files/0/456/example.jar"
+            ],
+            result.FallbackUrls);
+    }
+
+    [Fact]
+    public async Task CurseForgeTransientMetadataFailureRetriesThreeTimes()
+    {
+        var controller = CreateController();
+        var downloadUrlAttempts = 0;
+        var delays = new List<TimeSpan>();
+        using var httpClient = new HttpClient(new CallbackHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
+            {
+                downloadUrlAttempts++;
+                if (downloadUrlAttempts < 3)
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { RequestMessage = request };
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new StringContent("""{"data":"https://download.example/example.jar"}""")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(
+                    """{"data":{"displayName":"Example","fileName":"example.jar","downloadUrl":"https://download.example/example.jar","hashes":[]}}""")
+            };
+        }));
+        var client = new CurseForgeApiClient(
+            httpClient,
+            new ImportConcurrencyLimiter(),
+            logger: null,
+            controller,
+            (delay, _) =>
+            {
+                delays.Add(delay);
+                return Task.CompletedTask;
+            });
+
+        var result = await client.GetFileDownloadAsync(123, 456, "test-key", CancellationToken.None);
+
+        Assert.Equal("example.jar", result.FileName);
+        Assert.Equal(3, downloadUrlAttempts);
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], delays);
     }
 
     private static DownloadHostConcurrencyController CreateController() => new(
