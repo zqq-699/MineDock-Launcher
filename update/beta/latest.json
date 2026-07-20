@@ -1,31 +1,30 @@
 {
   "schemaVersion": 1,
   "appId": "BlockHelm-Launcher",
-  "keyId": "40a44dfdb94667529e614671a7fe557d124980877e0b25e1811beff9dd7a7f46",
   "channel": "beta",
-  "versionName": "0.9.5-beta.2",
-  "versionCode": 90502,
-  "publishedAt": "2026-07-13T12:15:22Z",
+  "versionName": "0.9.6-beta.1",
+  "versionCode": 90601,
+  "publishedAt": "2026-07-20T11:33:23Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.5-beta.2\r\n\r\n* Fix a nested sandbox publishing bug that skipped seeded prerequisite files, leaving the target installation sandbox missing required Forge/NeoForge libraries.",
+  "releaseNotes": "# Beta 0.9.6-beta.1\r\n\r\n* Add multiplayer lobby navigation, LAN world discovery, and Terracotta-backed lobby creation and joining.\r\n* Add server installation targets for supported modpacks, with safer loader provisioning and deployment rollback.\r\n* Improve Minecraft download scheduling, mirror fallback, integrity verification, repair coverage, and progress reporting.\r\n* Add strict Java compatibility selection and support split native directories required by newer Minecraft versions.\r\n* Improve resource browsing, local content management, download settings, diagnostics, backups, and launcher reliability.\r\n* Handle restricted CurseForge downloads with CDN fallbacks and improved concurrency control.\r\n* Remove update-manifest signing while retaining HTTPS source restrictions and executable size and SHA-256 validation. Older signed-manifest builds may require a manual update to this version.",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
-      "size": 14746688,
-      "sha256": "64c2fd85e21d96898ecc1913816bb8ed1140f853234b92027d7613e84647e050",
+      "size": 10715030,
+      "sha256": "c96d322e2b22b76dc279a671a8bc827180f66d981d86cd446eefc3eee0e6ab14",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.5-beta.2/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.6-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.5-beta.2/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.6-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
