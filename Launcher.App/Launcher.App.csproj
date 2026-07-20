@@ -27,12 +27,12 @@
     <AssemblyTitle>BlockHelm Launcher</AssemblyTitle>
     <Title>BlockHelm Launcher</Title>
     <Product>BlockHelm Launcher</Product>
-    <Version>0.9.5-beta.2</Version>
+    <Version>0.9.6-beta.1</Version>
     <LauncherBuildChannel>beta</LauncherBuildChannel>
-    <LauncherVersionCode>90502</LauncherVersionCode>
-    <AssemblyVersion>0.9.5.0</AssemblyVersion>
-    <FileVersion>0.9.5.0</FileVersion>
-    <InformationalVersion>0.9.5-beta.2</InformationalVersion>
+    <LauncherVersionCode>90601</LauncherVersionCode>
+    <AssemblyVersion>0.9.6.0</AssemblyVersion>
+    <FileVersion>0.9.6.0</FileVersion>
+    <InformationalVersion>0.9.6-beta.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>
