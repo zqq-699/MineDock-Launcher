@@ -26,6 +26,11 @@
                       LogicalName="Launcher.Infrastructure.Updates.update-signing-public.pem" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Modpacks\Log4Shell\*.xml"
+                      LogicalName="Launcher.Infrastructure.Modpacks.Log4Shell.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

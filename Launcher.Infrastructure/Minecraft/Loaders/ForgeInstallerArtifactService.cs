@@ -60,7 +60,13 @@ internal sealed partial class LoaderInstallerArtifactService
         this.logger = logger ?? NullLogger.Instance;
     }
 
-    public async Task<ForgeInstallerPlan> ReadPlanAsync(string installerJarPath, CancellationToken cancellationToken)
+    public Task<ForgeInstallerPlan> ReadPlanAsync(string installerJarPath, CancellationToken cancellationToken) =>
+        ReadPlanAsync(installerJarPath, ModpackInstallEnvironment.Client, cancellationToken);
+
+    public async Task<ForgeInstallerPlan> ReadPlanAsync(
+        string installerJarPath,
+        ModpackInstallEnvironment environment,
+        CancellationToken cancellationToken)
     {
         await using var installerStream = new FileStream(
             installerJarPath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024,
@@ -79,7 +85,7 @@ internal sealed partial class LoaderInstallerArtifactService
 
         var prerequisiteLibraries = new Dictionary<string, ForgeInstallerLibrary>(StringComparer.OrdinalIgnoreCase);
         AddLibraries(profile["libraries"] as JsonArray, embeddedEntries, prerequisiteLibraries);
-        var processorOutputs = ReadProcessorRequirements(profile, embeddedEntries, prerequisiteLibraries);
+        var processorOutputs = ReadProcessorRequirements(profile, embeddedEntries, prerequisiteLibraries, environment);
 
         var runtimeLibraries = new Dictionary<string, ForgeInstallerLibrary>(StringComparer.OrdinalIgnoreCase);
         var runtimeMetadata = installerVersion["libraries"] as JsonArray
@@ -438,21 +444,22 @@ internal sealed partial class LoaderInstallerArtifactService
     private static IReadOnlyList<ForgeProcessorOutput> ReadProcessorRequirements(
         JsonObject profile,
         IReadOnlyDictionary<string, string> embeddedEntries,
-        IDictionary<string, ForgeInstallerLibrary> prerequisites)
+        IDictionary<string, ForgeInstallerLibrary> prerequisites,
+        ModpackInstallEnvironment environment)
     {
         if (profile["processors"] is not JsonArray processors)
             return [];
-        var data = ReadClientData(profile["data"] as JsonObject);
+        var data = ReadSideData(profile["data"] as JsonObject, environment);
         var outputs = new Dictionary<string, ForgeProcessorOutput>(StringComparer.OrdinalIgnoreCase);
-        var clientProcessors = processors
+        var sideProcessors = processors
             .OfType<JsonObject>()
-            .Where(RunsOnClient)
+            .Where(processor => RunsOnSide(processor, environment))
             .ToArray();
 
         // Forge processor chains commonly feed an earlier generated Maven-shaped
         // output into a later processor. Resolve the complete output set first so
         // those values are not mistaken for remotely downloadable prerequisites.
-        foreach (var processor in clientProcessors)
+        foreach (var processor in sideProcessors)
         {
             AddCoordinate(processor["jar"]?.GetValue<string>(), embeddedEntries, prerequisites);
             if (processor["classpath"] is JsonArray classpath)
@@ -472,13 +479,13 @@ internal sealed partial class LoaderInstallerArtifactService
                 var argument = arguments[index]?.GetValue<string>();
                 if ((argument is "--output" or "--slim" or "--extra") && index + 1 < arguments.Count)
                 {
-                    AddOutput(outputs, arguments[index + 1]?.GetValue<string>(), hashExpression: null, data);
+                    TryAddArgumentOutput(outputs, arguments[index + 1]?.GetValue<string>(), data);
                     index++;
                 }
             }
         }
 
-        foreach (var processor in clientProcessors)
+        foreach (var processor in sideProcessors)
         {
             if (processor["args"] is not JsonArray arguments)
                 continue;
@@ -561,14 +568,19 @@ internal sealed partial class LoaderInstallerArtifactService
 
     private static bool Compatible(long? left, long? right) => left is null || right is null || left == right;
 
-    private static Dictionary<string, string> ReadClientData(JsonObject? data)
+    private static Dictionary<string, string> ReadSideData(
+        JsonObject? data,
+        ModpackInstallEnvironment environment)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (data is null)
             return values;
+        var sideName = environment is ModpackInstallEnvironment.Server ? "server" : "client";
         foreach (var pair in data)
         {
-            if (pair.Value is JsonObject sides && sides["client"] is JsonValue client && client.TryGetValue<string>(out var value)
+            if (pair.Value is JsonObject sides
+                && sides[sideName] is JsonValue side
+                && side.TryGetValue<string>(out var value)
                 && !string.IsNullOrWhiteSpace(value))
                 values[pair.Key] = value;
         }
@@ -596,6 +608,19 @@ internal sealed partial class LoaderInstallerArtifactService
         outputs[relativePath] = new ForgeProcessorOutput(relativePath, existing?.TrustedSha1 ?? resolvedHash);
     }
 
+    private static void TryAddArgumentOutput(
+        IDictionary<string, ForgeProcessorOutput> outputs,
+        string? pathExpression,
+        IReadOnlyDictionary<string, string> data)
+    {
+        if (string.IsNullOrWhiteSpace(pathExpression))
+            return;
+        var resolved = ResolveExpression(pathExpression, data).Trim();
+        if (resolved.Length < 2 || resolved[0] != '[' || resolved[^1] != ']')
+            return;
+        AddOutput(outputs, pathExpression, hashExpression: null, data);
+    }
+
     private static void RemoveLegacyManifest(JsonObject versionJson, string metadataKey)
     {
         if (versionJson["launcher"] is not JsonObject launcher)
@@ -620,9 +645,12 @@ internal sealed partial class LoaderInstallerArtifactService
             ?? throw new InvalidDataException($"Version metadata is empty: {versionJsonPath}");
     }
 
-    private static bool RunsOnClient(JsonObject processor) =>
-        processor["sides"] is not JsonArray sides || sides.Count == 0
-            || sides.Any(side => string.Equals(side?.GetValue<string>(), "client", StringComparison.OrdinalIgnoreCase));
+    private static bool RunsOnSide(JsonObject processor, ModpackInstallEnvironment environment)
+    {
+        var sideName = environment is ModpackInstallEnvironment.Server ? "server" : "client";
+        return processor["sides"] is not JsonArray sides || sides.Count == 0
+            || sides.Any(side => string.Equals(side?.GetValue<string>(), sideName, StringComparison.OrdinalIgnoreCase));
+    }
 
     private static readonly Regex PlaceholderRegex = new("\\{(?<name>[A-Z0-9_]+)\\}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 

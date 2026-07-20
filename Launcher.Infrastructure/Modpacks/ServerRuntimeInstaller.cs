@@ -10,12 +10,19 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Modpacks;
+
+internal sealed record ForgeLikeServerInstallerArtifact(
+    string Coordinate,
+    string ArtifactName,
+    string Url,
+    string Category);
 
 internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
 {
@@ -24,7 +31,7 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
     private readonly HttpClient httpClient;
     private readonly ISettingsService settingsService;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
-    private readonly LoaderInstallerJavaRuntimeResolver? javaRuntimeResolver;
+    private readonly ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver;
     private readonly IForgeInstallerRunner forgeInstallerRunner;
     private readonly ILogger<ServerRuntimeInstaller> logger;
 
@@ -46,7 +53,7 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
     internal ServerRuntimeInstaller(
         HttpClient httpClient,
         ISettingsService settingsService,
-        LoaderInstallerJavaRuntimeResolver? javaRuntimeResolver = null,
+        ILoaderInstallerJavaRuntimeResolver? javaRuntimeResolver = null,
         IForgeInstallerRunner? forgeInstallerRunner = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<ServerRuntimeInstaller>? logger = null)
@@ -139,7 +146,8 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
                     $"Unsupported server loader: {modpack.Loader}");
         }
 
-        WriteLaunchScriptsIfMissing(targetDirectory, launchJar);
+        var log4ShellArguments = ServerLog4ShellMitigation.Apply(versionJson, modpack.Loader, targetDirectory);
+        WriteLaunchScriptsIfMissing(targetDirectory, launchJar, log4ShellArguments, modpack);
     }
 
     private async Task DownloadServerJarAsync(
@@ -231,14 +239,26 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
 
         var launchJarName = isQuilt ? QuiltLauncherJar : FabricLauncherJar;
         var profileMainClass = TryGetString(profile, "mainClass");
-        CreateProfileLauncherJar(
-            Path.Combine(targetDirectory, launchJarName),
-            isQuilt
-                ? TryGetString(profile, "launcherMainClass")
-                    ?? "org.quiltmc.loader.impl.launch.server.QuiltServerLauncher"
-                : "net.fabricmc.loader.launch.server.FabricServerLauncher",
-            artifacts.Select(artifact => $"libraries/{artifact.RelativePath.Replace('\\', '/')}").ToArray(),
-            isQuilt ? null : profileMainClass);
+        if (isQuilt)
+        {
+            CreateProfileLauncherJar(
+                Path.Combine(targetDirectory, launchJarName),
+                TryGetString(profile, "launcherMainClass")
+                    ?? "org.quiltmc.loader.impl.launch.server.QuiltServerLauncher",
+                artifacts.Select(artifact => $"libraries/{artifact.RelativePath.Replace('\\', '/')}").ToArray(),
+                launchMainClass: null);
+        }
+        else
+        {
+            await FabricServerLauncherJarBuilder.CreateAsync(
+                Path.Combine(targetDirectory, launchJarName),
+                "net.fabricmc.loader.launch.server.FabricServerLauncher",
+                profileMainClass,
+                artifacts,
+                librariesRoot,
+                modpack.LoaderVersion,
+                cancellationToken).ConfigureAwait(false);
+        }
         var propertiesName = isQuilt
             ? "quilt-server-launcher.properties"
             : "fabric-server-launcher.properties";
@@ -286,30 +306,45 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
                 $"{modpack.Loader} loader version is missing.");
         }
         progress?.Report(new LauncherProgress(ImportProgressStages.InstallingLoader, string.Empty));
-        var coordinate = modpack.Loader is LoaderKind.Forge
-            ? $"{modpack.MinecraftVersion}-{modpack.LoaderVersion}"
-            : modpack.LoaderVersion;
-        var installerUrl = modpack.Loader is LoaderKind.Forge
-            ? $"https://maven.minecraftforge.net/net/minecraftforge/forge/{coordinate}/forge-{coordinate}-installer.jar"
-            : $"https://maven.neoforged.net/releases/net/neoforged/neoforge/{coordinate}/neoforge-{coordinate}-installer.jar";
+        var artifact = ResolveForgeLikeInstallerArtifact(modpack);
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"blockhelm-server-loader-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
         try
         {
             var installerPath = Path.Combine(tempDirectory, "installer.jar");
-            var sha1 = await TryDownloadTextAsync(installerUrl + ".sha1", preference, speedLimit, cancellationToken)
+            var sha1Text = await TryDownloadTextAsync(artifact.Url + ".sha1", preference, speedLimit, cancellationToken)
                 .ConfigureAwait(false);
+            var expectedSha1 = NormalizeSha1(sha1Text)
+                ?? throw new InvalidDataException($"{artifact.Category} installer checksum metadata is unavailable or invalid.");
             await DownloadArtifactAsync(
-                installerUrl,
+                artifact.Url,
                 installerPath,
-                NormalizeSha1(sha1),
+                expectedSha1,
                 expectedSize: null,
                 tempDirectory,
-                modpack.Loader is LoaderKind.Forge ? "Forge" : "NeoForge",
+                artifact.Category,
                 preference,
                 speedLimit,
                 progress,
                 cancellationToken).ConfigureAwait(false);
+
+            var artifactService = new LoaderInstallerArtifactService(
+                httpClient,
+                downloadSpeedLimitState: downloadSpeedLimitState,
+                logger: logger);
+            var installerPlan = await artifactService.ReadPlanAsync(
+                installerPath,
+                ModpackInstallEnvironment.Server,
+                cancellationToken).ConfigureAwait(false);
+            await artifactService.MaterializePrerequisitesAsync(
+                installerPath,
+                installerPlan,
+                targetDirectory,
+                preference,
+                speedLimit,
+                cancellationToken,
+                speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
+
             progress?.Report(new LauncherProgress(InstallProgressStages.CheckingJava, string.Empty));
             var resolver = javaRuntimeResolver
                 ?? throw new InvalidOperationException("The loader installer Java runtime resolver is not configured.");
@@ -330,7 +365,19 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
                 installerPath,
                 targetDirectory,
                 cancellationToken).ConfigureAwait(false);
-            ValidateForgeLikeInstall(targetDirectory);
+            await artifactService.MaterializeRuntimeLibrariesAsync(
+                installerPath,
+                installerPlan,
+                targetDirectory,
+                preference,
+                speedLimit,
+                cancellationToken,
+                speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
+            await artifactService.ValidatePublishedArtifactsAsync(
+                targetDirectory,
+                installerPlan,
+                cancellationToken).ConfigureAwait(false);
+            ValidateForgeLikeInstall(targetDirectory, modpack, artifact);
         }
         finally
         {
@@ -406,15 +453,163 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
         return candidate is { Length: 40 } && candidate.All(Uri.IsHexDigit) ? candidate : null;
     }
 
-    private static void ValidateForgeLikeInstall(string targetDirectory)
+    internal static ForgeLikeServerInstallerArtifact ResolveForgeLikeInstallerArtifact(PreparedModpack modpack)
     {
-        var hasRunScript = File.Exists(Path.Combine(targetDirectory, "run.bat"))
-            || File.Exists(Path.Combine(targetDirectory, "run.sh"));
-        var hasLauncherJar = Directory.EnumerateFiles(targetDirectory, "*.jar", SearchOption.TopDirectoryOnly)
-            .Any(path => Path.GetFileName(path).Contains("forge", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(Path.GetFileName(path), "server.jar", StringComparison.OrdinalIgnoreCase));
-        if (!hasRunScript && !hasLauncherJar)
-            throw new InvalidDataException("The server loader installer did not produce a runnable server.");
+        ArgumentNullException.ThrowIfNull(modpack);
+        var minecraftVersion = modpack.MinecraftVersion.Trim();
+        var loaderVersion = modpack.LoaderVersion?.Trim()
+            ?? throw new InvalidDataException("Loader version is missing.");
+        if (modpack.Loader is LoaderKind.Forge)
+        {
+            var coordinate = AddMinecraftVersionPrefix(minecraftVersion, loaderVersion);
+            return new ForgeLikeServerInstallerArtifact(
+                coordinate,
+                "forge",
+                $"https://maven.minecraftforge.net/net/minecraftforge/forge/{coordinate}/forge-{coordinate}-installer.jar",
+                "Forge");
+        }
+
+        if (modpack.Loader is not LoaderKind.NeoForge)
+            throw new InvalidDataException($"Unsupported Forge-like loader: {modpack.Loader}.");
+
+        if (string.Equals(minecraftVersion, "1.20.1", StringComparison.OrdinalIgnoreCase))
+        {
+            var coordinate = AddMinecraftVersionPrefix(minecraftVersion, loaderVersion);
+            return new ForgeLikeServerInstallerArtifact(
+                coordinate,
+                "forge",
+                $"https://maven.neoforged.net/releases/net/neoforged/forge/{coordinate}/forge-{coordinate}-installer.jar",
+                "NeoForge");
+        }
+
+        var neoForgeCoordinate = RemoveMinecraftVersionPrefix(minecraftVersion, loaderVersion);
+        return new ForgeLikeServerInstallerArtifact(
+            neoForgeCoordinate,
+            "neoforge",
+            $"https://maven.neoforged.net/releases/net/neoforged/neoforge/{neoForgeCoordinate}/neoforge-{neoForgeCoordinate}-installer.jar",
+            "NeoForge");
+    }
+
+    private static string AddMinecraftVersionPrefix(string minecraftVersion, string loaderVersion) =>
+        loaderVersion.StartsWith(minecraftVersion + "-", StringComparison.OrdinalIgnoreCase)
+            ? loaderVersion
+            : $"{minecraftVersion}-{loaderVersion}";
+
+    private static string RemoveMinecraftVersionPrefix(string minecraftVersion, string loaderVersion) =>
+        loaderVersion.StartsWith(minecraftVersion + "-", StringComparison.OrdinalIgnoreCase)
+            ? loaderVersion[(minecraftVersion.Length + 1)..]
+            : loaderVersion;
+
+    private static void ValidateForgeLikeInstall(
+        string targetDirectory,
+        PreparedModpack modpack,
+        ForgeLikeServerInstallerArtifact artifact)
+    {
+        if (LoaderProvidesLaunchScripts(modpack))
+        {
+            ValidateOfficialLaunchScript(targetDirectory, "run.bat", "win_args.txt");
+            ValidateOfficialLaunchScript(targetDirectory, "run.sh", "unix_args.txt");
+            return;
+        }
+
+        var candidates = new[]
+        {
+            $"{artifact.ArtifactName}-{artifact.Coordinate}.jar",
+            $"{artifact.ArtifactName}-{artifact.Coordinate}-universal.jar"
+        };
+        var launcherPath = candidates
+            .Select(name => Path.Combine(targetDirectory, name))
+            .FirstOrDefault(File.Exists)
+            ?? throw new InvalidDataException("The server loader installer did not produce the expected launcher JAR.");
+        ValidateJar(launcherPath);
+    }
+
+    private static void ValidateOfficialLaunchScript(
+        string targetDirectory,
+        string scriptName,
+        string expectedArgumentsFileName)
+    {
+        var scriptPath = Path.Combine(targetDirectory, scriptName);
+        if (!File.Exists(scriptPath) || new FileInfo(scriptPath).Length == 0)
+            throw new InvalidDataException($"The server loader installer did not produce {scriptName}.");
+
+        var javaCommand = string.Join(
+            Environment.NewLine,
+            File.ReadLines(scriptPath).Where(line => line.Contains("java", StringComparison.OrdinalIgnoreCase)));
+        var references = Regex.Matches(javaCommand, "@(?:\\\"(?<quoted>[^\\\"]+)\\\"|(?<plain>[^\\s\\\"]+))")
+            .Select(match => match.Groups["quoted"].Success
+                ? match.Groups["quoted"].Value
+                : match.Groups["plain"].Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+        if (!references.Any(reference => reference.EndsWith(expectedArgumentsFileName, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException($"The server loader script {scriptName} does not reference {expectedArgumentsFileName}.");
+
+        foreach (var reference in references)
+        {
+            if (Path.IsPathRooted(reference))
+                throw new InvalidDataException($"The server loader script {scriptName} contains an unsafe arguments path.");
+            var referencedPath = MinecraftPathGuard.EnsureWithin(
+                Path.Combine(targetDirectory, reference.Replace('/', Path.DirectorySeparatorChar)),
+                targetDirectory,
+                "Server loader arguments file");
+            MinecraftPathGuard.EnsureNoReparsePoints(targetDirectory, referencedPath, "Server loader arguments file");
+            if (!File.Exists(referencedPath))
+                throw new InvalidDataException($"The server loader script {scriptName} references a missing arguments file.");
+            if (reference.EndsWith(expectedArgumentsFileName, StringComparison.OrdinalIgnoreCase)
+                && new FileInfo(referencedPath).Length == 0)
+            {
+                throw new InvalidDataException($"The server loader arguments file {expectedArgumentsFileName} is empty.");
+            }
+            if (reference.EndsWith(expectedArgumentsFileName, StringComparison.OrdinalIgnoreCase))
+                ValidateArgumentsFileLibraries(targetDirectory, referencedPath, expectedArgumentsFileName);
+        }
+    }
+
+    private static void ValidateArgumentsFileLibraries(
+        string targetDirectory,
+        string argumentsPath,
+        string argumentsFileName)
+    {
+        var references = Regex.Matches(
+                File.ReadAllText(argumentsPath),
+                "(?<path>libraries[\\\\/][^\\s\\\"';:]+?\\.jar)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["path"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (references.Length == 0)
+            throw new InvalidDataException($"The server loader arguments file {argumentsFileName} contains no library JAR references.");
+
+        foreach (var reference in references)
+        {
+            var libraryPath = MinecraftPathGuard.EnsureWithin(
+                Path.Combine(
+                    targetDirectory,
+                    reference.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar)),
+                targetDirectory,
+                "Server loader library");
+            MinecraftPathGuard.EnsureNoReparsePoints(targetDirectory, libraryPath, "Server loader library");
+            if (!File.Exists(libraryPath))
+                throw new InvalidDataException($"The server loader arguments file {argumentsFileName} references a missing library JAR.");
+            ValidateJar(libraryPath, "server loader library JAR");
+        }
+    }
+
+    private static void ValidateJar(string path, string kind = "server loader launcher JAR")
+    {
+        if (new FileInfo(path).Length == 0)
+            throw new InvalidDataException($"The {kind} is empty.");
+        try
+        {
+            using var archive = ZipFile.OpenRead(path);
+            if (archive.Entries.Count == 0)
+                throw new InvalidDataException($"The {kind} has no entries.");
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidDataException($"The {kind} could not be read.", exception);
+        }
     }
 
     private static string ResolveForgeLikeLaunchJar(string targetDirectory, string fallback)
@@ -462,19 +657,45 @@ internal sealed class ServerRuntimeInstaller : IServerRuntimeInstaller
             writer.WriteLine(" " + line.Substring(index, Math.Min(maxLength - 1, line.Length - index)));
     }
 
-    private static void WriteLaunchScriptsIfMissing(string targetDirectory, string launchJar)
+    private static void WriteLaunchScriptsIfMissing(
+        string targetDirectory,
+        string launchJar,
+        string additionalJvmArguments,
+        PreparedModpack modpack)
     {
         var knownScripts = new[] { "run.bat", "run.sh", "LaunchServer.bat", "LaunchServer.sh", "start.bat", "start.sh" };
-        if (knownScripts.Any(name => File.Exists(Path.Combine(targetDirectory, name))))
+        var hasKnownScript = knownScripts.Any(name => File.Exists(Path.Combine(targetDirectory, name)));
+        var hasLoaderOwnedScript = LoaderProvidesLaunchScripts(modpack)
+            && (File.Exists(Path.Combine(targetDirectory, "run.bat"))
+                || File.Exists(Path.Combine(targetDirectory, "run.sh")));
+        if (hasKnownScript
+            && (string.IsNullOrWhiteSpace(additionalJvmArguments) || hasLoaderOwnedScript))
             return;
+        var arguments = string.IsNullOrWhiteSpace(additionalJvmArguments)
+            ? string.Empty
+            : additionalJvmArguments + " ";
         File.WriteAllText(
             Path.Combine(targetDirectory, "LaunchServer.bat"),
-            $"@echo off{Environment.NewLine}java -Xmx2G -jar \"{launchJar}\" nogui{Environment.NewLine}pause{Environment.NewLine}",
+            $"@echo off{Environment.NewLine}java -Xmx2G {arguments}-jar \"{launchJar}\" nogui{Environment.NewLine}pause{Environment.NewLine}",
             new UTF8Encoding(false));
         File.WriteAllText(
             Path.Combine(targetDirectory, "LaunchServer.sh"),
-            $"#!/bin/sh\ncd \"$(dirname \"$0\")\"\njava -Xmx2G -jar \"{launchJar}\" nogui\n",
+            $"#!/bin/sh\ncd \"$(dirname \"$0\")\"\njava -Xmx2G {arguments}-jar \"{launchJar}\" nogui\n",
             new UTF8Encoding(false));
+    }
+
+    private static bool LoaderProvidesLaunchScripts(PreparedModpack modpack)
+    {
+        if (modpack.Loader == LoaderKind.NeoForge)
+            return true;
+        if (modpack.Loader != LoaderKind.Forge || string.IsNullOrWhiteSpace(modpack.LoaderVersion))
+            return false;
+
+        var normalizedLoaderVersion = RemoveMinecraftVersionPrefix(
+            modpack.MinecraftVersion,
+            modpack.LoaderVersion.Trim());
+        var majorText = normalizedLoaderVersion.Split('.', 2)[0];
+        return int.TryParse(majorText, out var major) && major >= 37;
     }
 
     private static void TryDeleteDirectory(string directory)

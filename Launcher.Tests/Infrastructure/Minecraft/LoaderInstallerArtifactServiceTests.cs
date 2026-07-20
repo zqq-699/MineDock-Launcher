@@ -41,6 +41,32 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ServerPlanUsesOnlyServerAndUnsidedProcessors()
+    {
+        var installerPath = await WriteSideAwareInstallerAsync();
+        var service = new LoaderInstallerArtifactService(new HttpClient(new TestHandler("external")));
+
+        var plan = await service.ReadPlanAsync(
+            installerPath,
+            ModpackInstallEnvironment.Server,
+            CancellationToken.None);
+
+        Assert.Equal(
+            [
+                "com/example/common-processor/1.0/common-processor-1.0.jar",
+                "com/example/server-input/1.0/server-input-1.0.jar",
+                "com/example/server-processor/1.0/server-processor-1.0.jar"
+            ],
+            plan.PrerequisiteLibraries.Select(library => library.Artifact.RelativePath));
+        Assert.Equal(
+            "com/example/server-output/1.0/server-output-1.0.jar",
+            Assert.Single(plan.ProcessorOutputs).RelativePath);
+        Assert.DoesNotContain(
+            plan.PrerequisiteLibraries,
+            library => library.Artifact.RelativePath.Contains("client", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task DeclaredNonEmbeddedLibraryIsDownloaded()
     {
         var installerPath = await WriteInstallerAsync(includeEmbeddedExternal: false);
@@ -194,6 +220,47 @@ public sealed class LoaderInstallerArtifactServiceTests : TestTempDirectory
             """);
         if (includeEmbeddedExternal)
             WriteEntry(archive, "maven/com/example/profile/1.0/profile-1.0.jar", "external");
+        return installerPath;
+    }
+
+    private async Task<string> WriteSideAwareInstallerAsync()
+    {
+        Directory.CreateDirectory(TempRoot);
+        var installerPath = Path.Combine(TempRoot, $"side-aware-installer-{Guid.NewGuid():N}.jar");
+        await using var stream = new FileStream(installerPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
+        WriteEntry(archive, "install_profile.json", """
+            {
+              "data": {
+                "INPUT": {
+                  "client": "[com.example:client-input:1.0]",
+                  "server": "[com.example:server-input:1.0]"
+                },
+                "OUTPUT": {
+                  "client": "[com.example:client-output:1.0]",
+                  "server": "[com.example:server-output:1.0]"
+                },
+                "ROOT": { "client": "client-root", "server": "server-root" }
+              },
+              "processors": [
+                {
+                  "sides": ["client"],
+                  "jar": "com.example:client-processor:1.0",
+                  "args": ["--input", "{INPUT}", "--output", "{OUTPUT}"]
+                },
+                {
+                  "sides": ["server"],
+                  "jar": "com.example:server-processor:1.0",
+                  "args": ["--input", "{INPUT}", "--output", "{OUTPUT}", "--output", "{ROOT}/libraries/"]
+                },
+                {
+                  "jar": "com.example:common-processor:1.0",
+                  "args": []
+                }
+              ]
+            }
+            """);
+        WriteEntry(archive, "version.json", """{ "libraries": [] }""");
         return installerPath;
     }
 
