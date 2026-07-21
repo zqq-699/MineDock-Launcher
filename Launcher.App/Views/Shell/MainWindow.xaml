@@ -70,6 +70,11 @@
             BorderThickness="{DynamicResource Thickness.Surface.WindowBorder}"
             SnapsToDevicePixels="True">
         <Grid Background="Transparent">
+            <controls:BackdropBlurBorder x:Name="LauncherPreblurredBackdropSource"
+                                         SourceElement="{Binding ElementName=LauncherBackgroundVisualSource}"
+                                         IsHitTestVisible="False"
+                                         Style="{StaticResource SharedBackdropBlurSourceStyle}" />
+
             <Grid x:Name="LauncherBackgroundVisualSource"
                   IsHitTestVisible="False">
                 <Border>

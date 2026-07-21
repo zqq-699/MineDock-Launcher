@@ -123,15 +123,7 @@
     </Style>
 
     <Style x:Key="HomeForegroundNameShadowStyle" TargetType="TextBlock">
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="12"
-                                  Color="{DynamicResource Color.000000}"
-                                  Direction="270"
-                                  Opacity="0.92"
-                                  ShadowDepth="3" />
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Effect" Value="{DynamicResource Effect.Home.ForegroundTextShadow}" />
     </Style>
 
     <Style x:Key="HomeAccountNameTextStyle"
@@ -139,7 +131,7 @@
            BasedOn="{StaticResource HomeForegroundNameShadowStyle}">
         <Setter Property="Margin" Value="0,14,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Home.Name.Foreground}" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextAlignment" Value="Center" />
@@ -152,7 +144,7 @@
            BasedOn="{StaticResource HomeForegroundNameShadowStyle}">
         <Setter Property="Margin" Value="0,12,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Home.Name.Foreground}" />
         <Setter Property="FontSize" Value="17" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextAlignment" Value="Center" />
@@ -190,7 +182,7 @@
         <Setter Property="Margin" Value="0,2,0,0" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Padding" Value="8,0" />
-        <Setter Property="Foreground" Value="{DynamicResource Brush.9FFFFFFF}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Home.GameSettings.Foreground}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="13" />
@@ -206,10 +198,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.F0FFFFFF}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Home.GameSettings.ForegroundHover}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Home.GameSettings.ForegroundPressed}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

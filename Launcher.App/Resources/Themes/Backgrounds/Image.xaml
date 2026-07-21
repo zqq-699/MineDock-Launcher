@@ -12,19 +12,20 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
-    <!--
-      Independent style layer for image background mode. It inherits every shared font,
-      dimension, and control style. Future image-mode overrides belong in this dictionary
-      under the same resource keys so that other background modes remain unchanged.
-    -->
-    <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Shared.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.xaml" />
-    </ResourceDictionary.MergedDictionaries>
-
-    <SolidColorBrush x:Key="Brush.LauncherBackground.Image.DimOverlay" Color="#FF000000" />
+    <!-- Image mode is an override-only layer applied after theme and accent resources. -->
+    <SolidColorBrush x:Key="Brush.Home.Name.Foreground" Color="{DynamicResource Color.FFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.Foreground" Color="{DynamicResource Color.FFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.ForegroundHover" Color="{DynamicResource Color.FFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.ForegroundPressed" Color="{DynamicResource Color.FFFFFF}" />
+    <DropShadowEffect x:Key="Effect.Home.ForegroundTextShadow"
+                      x:Shared="False"
+                      BlurRadius="12"
+                      Color="{DynamicResource Color.000000}"
+                      Direction="270"
+                      Opacity="0.92"
+                      ShadowDepth="3" />
     <SolidColorBrush x:Key="Brush.Surface.WindowBorder" Color="Transparent" />
     <Thickness x:Key="Thickness.Surface.WindowBorder">0</Thickness>
     <sys:Double x:Key="Opacity.LauncherBackground.Image.NonHomeDim">0.40</sys:Double>
-    <sys:Boolean x:Key="Is.SecondaryMenu.BackdropBlur.Enabled">True</sys:Boolean>
+    <sys:Boolean x:Key="Is.ImageBackground.ControlTint.Enabled">True</sys:Boolean>
 </ResourceDictionary>

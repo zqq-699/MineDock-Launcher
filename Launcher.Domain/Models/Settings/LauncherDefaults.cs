@@ -27,6 +27,7 @@ public static class LauncherDefaults
     public const string DefaultLauncherLanguage = LauncherLanguages.SimplifiedChinese;
     public const string DefaultLauncherBackgroundEffect = LauncherBackgroundEffects.Acrylic;
     public const int DefaultLauncherBackgroundOpacityPercent = 85;
+    public const bool DefaultEnableImageBackgroundControlBlur = true;
     public const int MinimumDownloadConcurrency = 1;
     public const int DefaultMaximumDownloadConcurrency = 64;
     public const int MaximumDownloadConcurrency = 128;

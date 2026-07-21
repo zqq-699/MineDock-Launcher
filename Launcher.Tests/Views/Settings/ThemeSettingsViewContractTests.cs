@@ -44,7 +44,10 @@ public sealed class ThemeSettingsViewContractTests
             element.Name.LocalName == "Grid"
             && element.Attributes().Any(attribute =>
                 attribute.Name.LocalName.EndsWith(".IsExpanded", StringComparison.Ordinal)
-                && attribute.Value == "{Binding IsBackgroundImageSelectionVisible}")));
+                && attribute.Value == "{Binding IsBackgroundImageSelectionVisible}")
+            && element.Descendants().Any(descendant =>
+                descendant.Attribute("Command")?.Value ==
+                    "{Binding OpenLauncherBackgroundImageFolderCommand}")));
         var openFolderButton = Assert.Single(imageSelection.Descendants().Where(element =>
             element.Name.LocalName == "Button"
             && element.Attribute("Command")?.Value == "{Binding OpenLauncherBackgroundImageFolderCommand}"));
@@ -64,6 +67,19 @@ public sealed class ThemeSettingsViewContractTests
         Assert.Equal("{StaticResource LauncherDialogButtonStyle}", refreshButton.Attribute("Style")?.Value);
         Assert.Equal("3", clearButton.Attribute("Grid.Column")?.Value);
         Assert.Equal("{StaticResource LauncherDangerDialogButtonStyle}", clearButton.Attribute("Style")?.Value);
+
+        var controlBlurToggle = Assert.Single(document.Descendants().Where(element =>
+            element.Name.LocalName == "CheckBox"
+            && element.Attribute("IsChecked")?.Value ==
+                "{Binding EnableImageBackgroundControlBlur, Mode=TwoWay}"));
+        Assert.Contains(controlBlurToggle.Ancestors(), element =>
+            element.Name.LocalName == "Grid"
+            && element.Attributes().Any(attribute =>
+                attribute.Name.LocalName.EndsWith(".IsExpanded", StringComparison.Ordinal)
+                && attribute.Value == "{Binding IsBackgroundImageSelectionVisible}"));
+        Assert.Equal(
+            "{StaticResource LauncherSwitchToggleButtonStyle}",
+            controlBlurToggle.Attribute("Style")?.Value);
     }
 
     private static DirectoryInfo FindRepositoryRoot()

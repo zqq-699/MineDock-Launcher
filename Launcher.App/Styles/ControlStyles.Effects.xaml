@@ -25,8 +25,12 @@
            TargetType="{x:Type controls:BackdropBlurBorder}">
         <Setter Property="BaseBrush" Value="{DynamicResource Brush.Backdrop.Base}" />
         <Setter Property="TintBrush" Value="{DynamicResource Brush.Backdrop.Tint}" />
+        <Setter Property="SourceElement"
+                Value="{Binding LauncherPreblurredBackdropSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
         <Setter Property="BlurRadius" Value="42" />
         <Setter Property="BlurRenderingBias" Value="Performance" />
+        <Setter Property="IsSourcePreblurred" Value="True" />
+        <Setter Property="IsTintEnabled" Value="False" />
         <Setter Property="CornerRadius" Value="{StaticResource LauncherCornerRadiusMedium}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -84,6 +88,11 @@
                                               SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                         </Border>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSourcePreblurred" Value="True">
+                            <Setter TargetName="PART_BlurLayer" Property="Effect" Value="{x:Null}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -91,6 +100,25 @@
 
     <Style TargetType="{x:Type controls:BackdropBlurBorder}"
            BasedOn="{StaticResource BackdropBlurBorderStyle}" />
+
+    <Style x:Key="SharedBackdropBlurSourceStyle"
+           TargetType="{x:Type controls:BackdropBlurBorder}"
+           BasedOn="{StaticResource BackdropBlurBorderStyle}">
+        <Setter Property="IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
+        <Setter Property="IsSourcePreblurred" Value="False" />
+        <Setter Property="BaseBrush" Value="Transparent" />
+        <Setter Property="TintBrush" Value="Transparent" />
+        <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="CacheMode">
+            <Setter.Value>
+                <BitmapCache EnableClearType="False"
+                             RenderAtScale="0.4"
+                             SnapsToDevicePixels="True" />
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style x:Key="SurfaceBackdropBlurStyle"
            TargetType="{x:Type controls:BackdropBlurBorder}"
@@ -103,9 +131,10 @@
         </Setter>
         <Setter Property="TintBrush" Value="Transparent" />
         <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="IsTintEnabled" Value="{DynamicResource Is.ImageBackground.ControlTint.Enabled}" />
         <Setter Property="BorderThickness" Value="0" />
         <Style.Triggers>
-            <Trigger Property="IsBlurEnabled" Value="True">
+            <Trigger Property="IsTintEnabled" Value="True">
                 <Setter Property="BaseBrush" Value="Transparent" />
                 <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
                 <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
@@ -120,13 +149,14 @@
         <Setter Property="BaseBrush" Value="{DynamicResource Brush.SecondaryMenu.Panel}" />
         <Setter Property="TintBrush" Value="Transparent" />
         <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="IsTintEnabled" Value="{DynamicResource Is.ImageBackground.ControlTint.Enabled}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.SecondaryMenu.Border}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="14" />
         <Setter Property="ClipToBounds" Value="True" />
         <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
         <Style.Triggers>
-            <Trigger Property="IsBlurEnabled" Value="True">
+            <Trigger Property="IsTintEnabled" Value="True">
                 <Setter Property="BaseBrush" Value="Transparent" />
                 <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
                 <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
@@ -141,10 +171,11 @@
         <Setter Property="BaseBrush" Value="Transparent" />
         <Setter Property="TintBrush" Value="Transparent" />
         <Setter Property="OverlayBrush" Value="Transparent" />
+        <Setter Property="IsTintEnabled" Value="{DynamicResource Is.ImageBackground.ControlTint.Enabled}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="0" />
         <Style.Triggers>
-            <Trigger Property="IsBlurEnabled" Value="True">
+            <Trigger Property="IsTintEnabled" Value="True">
                 <Setter Property="TintBrush" Value="{DynamicResource Brush.SecondaryMenu.BackdropTint}" />
                 <Setter Property="OverlayBrush" Value="{DynamicResource Brush.SurfaceBackdrop.ContrastOverlay}" />
             </Trigger>

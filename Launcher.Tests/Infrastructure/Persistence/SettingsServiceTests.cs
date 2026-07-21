@@ -130,10 +130,12 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var service = new JsonSettingsService(TempRoot);
         var settings = await service.LoadAsync();
         Assert.False(settings.EnableDiagnosticLogging);
+        Assert.True(settings.EnableImageBackgroundControlBlur);
         settings.Theme = "Light";
         settings.ThemeFollowSystem = false;
         settings.AccentColor = "Purple";
         settings.LauncherBackgroundEffect = LauncherBackgroundEffects.Image;
+        settings.EnableImageBackgroundControlBlur = false;
         settings.LauncherLanguage = "ja-JP";
         settings.EnableDiagnosticLogging = true;
         settings.UpdateChannel = LauncherUpdateChannel.Beta;
@@ -151,6 +153,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.False(loaded.ThemeFollowSystem);
         Assert.Equal("Purple", loaded.AccentColor);
         Assert.Equal(LauncherBackgroundEffects.Image, loaded.LauncherBackgroundEffect);
+        Assert.False(loaded.EnableImageBackgroundControlBlur);
         Assert.Equal("ja-JP", loaded.LauncherLanguage);
         Assert.True(loaded.EnableDiagnosticLogging);
         Assert.Equal(LauncherUpdateChannel.Beta, loaded.UpdateChannel);

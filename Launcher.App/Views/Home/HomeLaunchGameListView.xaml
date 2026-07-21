@@ -73,7 +73,6 @@
             </Border.Effect>
 
             <controls:BackdropBlurBorder x:Name="HomeLaunchMenuPanel"
-                                         SourceElement="{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
                                          Style="{StaticResource SecondaryMenuBackdropStyle}">
                 <Grid x:Name="HomeLaunchMenuViewport"
                       VerticalAlignment="Top"

@@ -1,58 +1,37 @@
 /*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- *
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Shell;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.Services;
 
-public static class AcrylicWindow
+public static class LauncherWindowBackdrop
 {
-    public static void Enable(Window window, IThemeService themeService)
+    public static void Attach(Window window, IThemeService themeService)
     {
-        const NativeBackdrop.DwmSystemBackdropType backdropType = NativeBackdrop.DwmSystemBackdropType.TransientWindow;
-        window.SourceInitialized += (_, _) =>
-        {
-            Apply(window, themeService, backdropType);
-        };
+        const NativeBackdrop.DwmSystemBackdropType backdropType =
+            NativeBackdrop.DwmSystemBackdropType.TransientWindow;
+
+        window.SourceInitialized += (_, _) => Apply(window, themeService, backdropType);
         Apply(window, themeService, backdropType);
 
-        EventHandler<EffectiveThemeChangedEventArgs>? themeChangedHandler = null;
-        themeChangedHandler = (_, _) =>
-        {
-            Apply(window, themeService, backdropType);
-        };
-        EventHandler<BackgroundBlurDisabledChangedEventArgs>? blurDisabledChangedHandler = null;
-        blurDisabledChangedHandler = (_, _) =>
-        {
-            Apply(window, themeService, backdropType);
-        };
+        EventHandler<EffectiveThemeChangedEventArgs> themeChangedHandler =
+            (_, _) => Apply(window, themeService, backdropType);
+        EventHandler<BackgroundEffectChangedEventArgs> backgroundEffectChangedHandler =
+            (_, _) => Apply(window, themeService, backdropType);
 
         themeService.EffectiveThemeChanged += themeChangedHandler;
-        themeService.BackgroundBlurDisabledChanged += blurDisabledChangedHandler;
+        themeService.BackgroundEffectChanged += backgroundEffectChangedHandler;
         window.Closed += (_, _) =>
         {
-            if (themeChangedHandler is not null)
-                themeService.EffectiveThemeChanged -= themeChangedHandler;
-            if (blurDisabledChangedHandler is not null)
-                themeService.BackgroundBlurDisabledChanged -= blurDisabledChangedHandler;
+            themeService.EffectiveThemeChanged -= themeChangedHandler;
+            themeService.BackgroundEffectChanged -= backgroundEffectChangedHandler;
         };
     }
 
@@ -61,14 +40,18 @@ public static class AcrylicWindow
         IThemeService themeService,
         NativeBackdrop.DwmSystemBackdropType enabledBackdropType)
     {
-        var isBackdropEnabled = !themeService.BackgroundBlurDisabled;
+        var isBackdropEnabled = LauncherBackgroundEffects.IsAcrylic(themeService.BackgroundEffect);
         var backdropType = isBackdropEnabled
             ? enabledBackdropType
             : NativeBackdrop.DwmSystemBackdropType.None;
 
         if (!window.Dispatcher.CheckAccess())
         {
-            window.Dispatcher.Invoke(() => ApplyCore(window, backdropType, themeService.EffectiveTheme, isBackdropEnabled));
+            window.Dispatcher.Invoke(() => ApplyCore(
+                window,
+                backdropType,
+                themeService.EffectiveTheme,
+                isBackdropEnabled));
             return;
         }
 
@@ -97,7 +80,10 @@ public static class AcrylicWindow
             : new Thickness(0);
     }
 
-    private static void ApplyWindowBackground(Window window, EffectiveTheme theme, bool isBackdropEnabled)
+    private static void ApplyWindowBackground(
+        Window window,
+        EffectiveTheme theme,
+        bool isBackdropEnabled)
     {
         if (isBackdropEnabled)
         {

@@ -110,7 +110,11 @@
                     <Border x:Name="Root"
                             CornerRadius="10">
                         <Grid>
-                            <Border Background="{DynamicResource Brush.List.Item.Background}"
+                            <Border x:Name="BaseBackground"
+                                    Background="{DynamicResource Brush.List.Item.Background}"
+                                    behaviors:BackdropBlurHost.IsApplied="True"
+                                    behaviors:BackdropBlurHost.IsBlurEnabled="{DynamicResource Is.Surface.BackdropBlur.Enabled}"
+                                    behaviors:BackdropBlurHost.FallbackBrush="{DynamicResource Brush.List.Item.Background}"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
                                     Background="{DynamicResource Brush.List.Item.Selected}"
@@ -414,6 +418,9 @@
                                     CornerRadius="8"
                                     IsHitTestVisible="False"
                                     Opacity="0" />
+                            <Border x:Name="SemanticBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8" />
                             <Border x:Name="HoverBackground"
                                     Background="{DynamicResource Brush.047EDC}"
                                     CornerRadius="8"
@@ -470,6 +477,7 @@
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="SemanticBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -500,6 +508,9 @@
                                     CornerRadius="8"
                                     IsHitTestVisible="False"
                                     Opacity="0" />
+                            <Border x:Name="SemanticBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8" />
                             <Border x:Name="HoverBackground"
                                     Background="{DynamicResource Brush.B83232}"
                                     CornerRadius="8"
@@ -556,6 +567,7 @@
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="SemanticBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>

@@ -66,23 +66,8 @@ public sealed class ThemeResourceContractTests
         var document = Load(fileName);
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
-        var baseColor = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Color"
-            && element.Attribute(xaml + "Key")?.Value == "Color.Backdrop.Base"));
-        var tintColor = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Color"
-            && element.Attribute(xaml + "Key")?.Value == "Color.Backdrop.Tint"));
-        var baseBrush = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.Backdrop.Base"));
-        var tintBrush = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.Backdrop.Tint"));
-
-        Assert.Equal(expectedBase, baseColor.Value);
-        Assert.Equal(expectedTint, tintColor.Value);
-        Assert.Equal("{StaticResource Color.Backdrop.Base}", baseBrush.Attribute("Color")?.Value);
-        Assert.Equal("{StaticResource Color.Backdrop.Tint}", tintBrush.Attribute("Color")?.Value);
+        AssertColorAndBrush(document, xaml, "Backdrop.Base", expectedBase);
+        AssertColorAndBrush(document, xaml, "Backdrop.Tint", expectedTint);
     }
 
     [Theory]
@@ -92,17 +77,7 @@ public sealed class ThemeResourceContractTests
     {
         var document = Load(fileName);
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var tintColor = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Color"
-            && element.Attribute(xaml + "Key")?.Value == "Color.SecondaryMenu.BackdropTint"));
-        var tintBrush = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.SecondaryMenu.BackdropTint"));
-
-        Assert.Equal(expectedTint, tintColor.Value);
-        Assert.Equal(
-            "{StaticResource Color.SecondaryMenu.BackdropTint}",
-            tintBrush.Attribute("Color")?.Value);
+        AssertColorAndBrush(document, xaml, "SecondaryMenu.BackdropTint", expectedTint);
     }
 
     [Theory]
@@ -112,17 +87,7 @@ public sealed class ThemeResourceContractTests
     {
         var document = Load(fileName);
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var overlayColor = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Color"
-            && element.Attribute(xaml + "Key")?.Value == "Color.SurfaceBackdrop.ContrastOverlay"));
-        var overlayBrush = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.SurfaceBackdrop.ContrastOverlay"));
-
-        Assert.Equal(expectedOverlay, overlayColor.Value);
-        Assert.Equal(
-            "{StaticResource Color.SurfaceBackdrop.ContrastOverlay}",
-            overlayBrush.Attribute("Color")?.Value);
+        AssertColorAndBrush(document, xaml, "SurfaceBackdrop.ContrastOverlay", expectedOverlay);
     }
 
     [Theory]
@@ -132,107 +97,52 @@ public sealed class ThemeResourceContractTests
     {
         var document = Load(fileName);
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        AssertColorAndBrush(document, xaml, "Button.Secondary.Disabled", expectedColor);
+    }
+
+    private static void AssertColorAndBrush(
+        XDocument document,
+        XNamespace xaml,
+        string suffix,
+        string expectedColor)
+    {
+        var colorKey = $"Color.{suffix}";
+        var brushKey = $"Brush.{suffix}";
         var color = Assert.Single(document.Descendants().Where(element =>
             element.Name.LocalName == "Color"
-            && element.Attribute(xaml + "Key")?.Value == "Color.Button.Secondary.Disabled"));
+            && element.Attribute(xaml + "Key")?.Value == colorKey));
         var brush = Assert.Single(document.Descendants().Where(element =>
             element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.Button.Secondary.Disabled"));
+            && element.Attribute(xaml + "Key")?.Value == brushKey));
 
         Assert.Equal(expectedColor, color.Value);
-        Assert.Equal(
-            "{StaticResource Color.Button.Secondary.Disabled}",
-            brush.Attribute("Color")?.Value);
-    }
-
-    [Fact]
-    public void ImageBackgroundModeInheritsAllSharedAndControlStylesInOrder()
-    {
-        var document = Load(Path.Combine("Backgrounds", "Image.xaml"));
-        var sources = document.Descendants()
-            .Where(element => element.Name.LocalName == "ResourceDictionary")
-            .Select(element => element.Attribute("Source")?.Value)
-            .Where(source => !string.IsNullOrWhiteSpace(source))
-            .Cast<string>()
-            .ToArray();
-
-        Assert.Equal(
-            [
-                "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Shared.xaml",
-                "pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.xaml"
-            ],
-            sources);
-    }
-
-    [Fact]
-    public void ImageBackgroundModeDefinesNonHomeDimmingResources()
-    {
-        var document = Load(Path.Combine("Backgrounds", "Image.xaml"));
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var dimBrush = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.LauncherBackground.Image.DimOverlay"));
-        var dimOpacity = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Double"
-            && element.Attribute(xaml + "Key")?.Value == "Opacity.LauncherBackground.Image.NonHomeDim"));
-        var windowBorder = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && element.Attribute(xaml + "Key")?.Value == "Brush.Surface.WindowBorder"));
-        var windowBorderThickness = Assert.Single(document.Descendants().Where(element =>
-            element.Name.LocalName == "Thickness"
-            && element.Attribute(xaml + "Key")?.Value == "Thickness.Surface.WindowBorder"));
-
-        Assert.Equal("#FF000000", dimBrush.Attribute("Color")?.Value);
-        Assert.Equal("Transparent", windowBorder.Attribute("Color")?.Value);
-        Assert.Equal("0", windowBorderThickness.Value);
-        Assert.Equal("0.40", dimOpacity.Value);
-    }
-
-    [Fact]
-    public void ImageBackgroundModeAloneEnablesSecondaryMenuBackdropBlur()
-    {
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var shared = Load("Shared.xaml");
-        var image = Load(Path.Combine("Backgrounds", "Image.xaml"));
-        var sharedSwitch = Assert.Single(shared.Descendants().Where(element =>
-            element.Name.LocalName == "Boolean"
-            && element.Attribute(xaml + "Key")?.Value == "Is.SecondaryMenu.BackdropBlur.Enabled"));
-        var imageSwitch = Assert.Single(image.Descendants().Where(element =>
-            element.Name.LocalName == "Boolean"
-            && element.Attribute(xaml + "Key")?.Value == "Is.SecondaryMenu.BackdropBlur.Enabled"));
-
-        Assert.Equal("False", sharedSwitch.Value);
-        Assert.Equal("True", imageSwitch.Value);
-    }
-
-    [Fact]
-    public void SharedThemeDefaultsSurfaceBackdropBlurToDisabled()
-    {
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var shared = Load("Shared.xaml");
-        var surfaceSwitch = Assert.Single(shared.Descendants().Where(element =>
-            element.Name.LocalName == "Boolean"
-            && element.Attribute(xaml + "Key")?.Value == "Is.Surface.BackdropBlur.Enabled"));
-
-        Assert.Equal("False", surfaceSwitch.Value);
+        Assert.Equal($"{{StaticResource {colorKey}}}", brush.Attribute("Color")?.Value);
     }
 
     private static HashSet<string> LoadKeys(string fileName)
     {
         var document = Load(fileName);
-        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
         return document.Descendants()
-            .Select(element => element.Attribute(x + "Key")?.Value)
+            .Select(element => element.Attribute(xaml + "Key")?.Value)
             .Where(key => !string.IsNullOrWhiteSpace(key))
             .Cast<string>()
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    private static XDocument Load(string relativePath)
+    private static XDocument Load(string fileName) =>
+        XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Resources",
+            "Themes",
+            fileName));
+
+    private static DirectoryInfo FindRepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root.GetFiles("Launcher.sln").Length == 0)
             root = root.Parent ?? throw new DirectoryNotFoundException("Could not locate repository root.");
-        return XDocument.Load(Path.Combine(root.FullName, "Launcher.App", "Resources", "Themes", relativePath));
+        return root;
     }
 }

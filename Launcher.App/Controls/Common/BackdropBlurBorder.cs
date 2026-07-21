@@ -56,6 +56,20 @@ public sealed class BackdropBlurBorder : ContentControl
             typeof(BackdropBlurBorder),
             new FrameworkPropertyMetadata(true, OnBackdropPresentationChanged));
 
+    public static readonly DependencyProperty IsSourcePreblurredProperty =
+        DependencyProperty.Register(
+            nameof(IsSourcePreblurred),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new FrameworkPropertyMetadata(false, OnIsSourcePreblurredChanged));
+
+    public static readonly DependencyProperty IsTintEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsTintEnabled),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty BaseBrushProperty =
         DependencyProperty.Register(
             nameof(BaseBrush),
@@ -127,6 +141,18 @@ public sealed class BackdropBlurBorder : ContentControl
         set => SetValue(IsBlurEnabledProperty, value);
     }
 
+    public bool IsSourcePreblurred
+    {
+        get => (bool)GetValue(IsSourcePreblurredProperty);
+        set => SetValue(IsSourcePreblurredProperty, value);
+    }
+
+    public bool IsTintEnabled
+    {
+        get => (bool)GetValue(IsTintEnabledProperty);
+        set => SetValue(IsTintEnabledProperty, value);
+    }
+
     public Brush? BaseBrush
     {
         get => (Brush?)GetValue(BaseBrushProperty);
@@ -165,7 +191,9 @@ public sealed class BackdropBlurBorder : ContentControl
 
     internal bool IsRenderTrackingActive => isRenderTrackingActive;
 
-    internal double BlurOverscan => CalculateBlurOverscan(BlurRadius);
+    internal double BlurOverscan => IsSourcePreblurred
+        ? 0d
+        : CalculateBlurOverscan(BlurRadius);
 
     public override void OnApplyTemplate()
     {
@@ -309,6 +337,19 @@ public sealed class BackdropBlurBorder : ContentControl
     }
 
     private static void OnBlurRadiusChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs e)
+    {
+        if (dependencyObject is not BackdropBlurBorder border)
+            return;
+
+        border.UpdateBlurLayerOverscan();
+        border.lastViewbox = Rect.Empty;
+        border.lastViewport = Rect.Empty;
+        border.RefreshBackdrop();
+    }
+
+    private static void OnIsSourcePreblurredChanged(
         DependencyObject dependencyObject,
         DependencyPropertyChangedEventArgs e)
     {

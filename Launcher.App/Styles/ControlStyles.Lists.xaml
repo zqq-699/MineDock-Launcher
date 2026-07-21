@@ -310,6 +310,9 @@
         <Setter Property="Height" Value="144" />
         <Setter Property="Padding" Value="18" />
         <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
+        <Setter Property="behaviors:BackdropBlurHost.IsApplied" Value="True" />
+        <Setter Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
+        <Setter Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Card.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />

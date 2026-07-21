@@ -17,39 +17,26 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Windows.Media;
-
 namespace Launcher.App.Services;
 
 public interface IThemeService
 {
     EffectiveTheme EffectiveTheme { get; }
 
-    bool BackgroundBlurDisabled { get; }
-
-    bool ImageBackgroundStylesEnabled { get; }
+    string BackgroundEffect { get; }
 
     event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
-    event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
+    event EventHandler<BackgroundEffectChangedEventArgs>? BackgroundEffectChanged;
 
     void ApplyPreference(
         string? theme,
         bool followSystem,
-        int backgroundOpacityPercent,
-        bool disableBackgroundBlur);
+        int backgroundOpacityPercent);
 
     void ApplyAccent(string? accentColor);
 
     void ApplyBackgroundOpacity(int opacityPercent);
 
-    void ApplyBackgroundBlurDisabled(bool disabled);
-
-    void ApplyImageBackgroundStyles(bool enabled);
-
-    object? GetResource(object key);
-
-    Brush? GetBrush(object key);
-
-    Color? GetColor(object key);
+    void ApplyBackgroundEffect(string? backgroundEffect, bool enableImageControlBlur);
 }

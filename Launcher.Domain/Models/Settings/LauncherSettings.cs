@@ -38,6 +38,7 @@ public sealed class LauncherSettings
     public bool ThemeFollowSystem { get; set; } = true;
     public string LauncherBackgroundEffect { get; set; } = LauncherDefaults.DefaultLauncherBackgroundEffect;
     public int LauncherBackgroundOpacityPercent { get; set; } = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
+    public bool EnableImageBackgroundControlBlur { get; set; } = LauncherDefaults.DefaultEnableImageBackgroundControlBlur;
     public LauncherUpdateChannel UpdateChannel { get; set; } = LauncherDefaults.DefaultUpdateChannel;
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;

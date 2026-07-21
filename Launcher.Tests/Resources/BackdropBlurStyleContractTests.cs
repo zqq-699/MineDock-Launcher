@@ -27,7 +27,7 @@ public sealed class BackdropBlurStyleContractTests
     }
 
     [Fact]
-    public void BackdropBlurTemplateKeepsForegroundAboveGaussianBackdropLayers()
+    public void BackdropTemplateSamplesSharedPreblurredSourceAndKeepsForegroundLayers()
     {
         var document = LoadAppXaml("Styles", "ControlStyles.Effects.xaml");
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -35,6 +35,15 @@ public sealed class BackdropBlurStyleContractTests
             element.Name.LocalName == "Style"
             && element.Attribute(xaml + "Key")?.Value == "BackdropBlurBorderStyle"));
         Assert.Equal("{x:Type controls:BackdropBlurBorder}", namedStyle.Attribute("TargetType")?.Value);
+        Assert.Contains(namedStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "SourceElement"
+            && element.Attribute("Value")?.Value ==
+                "{Binding LauncherPreblurredBackdropSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}");
+        Assert.Contains(namedStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "IsSourcePreblurred"
+            && element.Attribute("Value")?.Value == "True");
 
         var template = Assert.Single(namedStyle.Descendants().Where(element =>
             element.Name.LocalName == "ControlTemplate"));
@@ -69,6 +78,44 @@ public sealed class BackdropBlurStyleContractTests
         Assert.Equal(
             "{Binding BlurRenderingBias, RelativeSource={RelativeSource TemplatedParent}}",
             effect.Attribute("RenderingBias")?.Value);
+
+        var noPerSurfaceBlurTrigger = Assert.Single(template.Descendants().Where(element =>
+            element.Name.LocalName == "Trigger"
+            && element.Attribute("Property")?.Value == "IsSourcePreblurred"
+            && element.Attribute("Value")?.Value == "True"));
+        Assert.Contains(noPerSurfaceBlurTrigger.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("TargetName")?.Value == "PART_BlurLayer"
+            && element.Attribute("Property")?.Value == "Effect"
+            && element.Attribute("Value")?.Value == "{x:Null}");
+    }
+
+    [Fact]
+    public void MainWindowCreatesOneCachedFullWindowBlurSource()
+    {
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var effects = LoadAppXaml("Styles", "ControlStyles.Effects.xaml");
+        var sourceStyle = Assert.Single(effects.Descendants().Where(element =>
+            element.Name.LocalName == "Style"
+            && element.Attribute(xaml + "Key")?.Value == "SharedBackdropBlurSourceStyle"));
+        Assert.Contains(sourceStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "IsSourcePreblurred"
+            && element.Attribute("Value")?.Value == "False");
+        var cache = Assert.Single(sourceStyle.Descendants().Where(element =>
+            element.Name.LocalName == "BitmapCache"));
+        Assert.Equal("0.4", cache.Attribute("RenderAtScale")?.Value);
+
+        var window = LoadAppXaml("Views", "Shell", "MainWindow.xaml");
+        var sharedSource = Assert.Single(window.Descendants().Where(element =>
+            element.Name.LocalName == "BackdropBlurBorder"
+            && element.Attribute(xaml + "Name")?.Value == "LauncherPreblurredBackdropSource"));
+        Assert.Equal(
+            "{Binding ElementName=LauncherBackgroundVisualSource}",
+            sharedSource.Attribute("SourceElement")?.Value);
+        Assert.Equal(
+            "{StaticResource SharedBackdropBlurSourceStyle}",
+            sharedSource.Attribute("Style")?.Value);
     }
 
     [Fact]
@@ -85,7 +132,7 @@ public sealed class BackdropBlurStyleContractTests
     }
 
     [Fact]
-    public void DarkImageSurfaceHostsUseTheSharedBackdropStyleAndSwitch()
+    public void ImageBackgroundSurfaceHostsUseTheSharedBackdropStyleAndSwitch()
     {
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
         var effects = LoadAppXaml("Styles", "ControlStyles.Effects.xaml");
@@ -94,8 +141,13 @@ public sealed class BackdropBlurStyleContractTests
             && element.Attribute(xaml + "Key")?.Value == "SurfaceBackdropBlurStyle"));
         var enabledTrigger = Assert.Single(surfaceStyle.Descendants().Where(element =>
             element.Name.LocalName == "Trigger"
-            && element.Attribute("Property")?.Value == "IsBlurEnabled"
+            && element.Attribute("Property")?.Value == "IsTintEnabled"
             && element.Attribute("Value")?.Value == "True"));
+        Assert.Contains(surfaceStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "IsTintEnabled"
+            && element.Attribute("Value")?.Value ==
+                "{DynamicResource Is.ImageBackground.ControlTint.Enabled}");
         Assert.Contains(enabledTrigger.Elements(), element =>
             element.Name.LocalName == "Setter"
             && element.Attribute("Property")?.Value == "TintBrush"
@@ -176,11 +228,16 @@ public sealed class BackdropBlurStyleContractTests
             var semanticBaseBackground = Assert.Single(semanticButtonStyle.Descendants().Where(element =>
                 element.Name.LocalName == "Border"
                 && element.Attribute(xaml + "Name")?.Value == "BaseBackground"));
+            Assert.Equal("{TemplateBinding Background}", semanticBaseBackground.Attribute("Background")?.Value);
             Assert.Equal(
                 "True",
                 semanticBaseBackground.Attributes().Single(attribute =>
                     attribute.Name.LocalName == "BackdropBlurHost.IsApplied").Value);
-            Assert.Equal("{TemplateBinding Background}", semanticBaseBackground.Attribute("Background")?.Value);
+
+            var semanticColorLayer = Assert.Single(semanticButtonStyle.Descendants().Where(element =>
+                element.Name.LocalName == "Border"
+                && element.Attribute(xaml + "Name")?.Value == "SemanticBackground"));
+            Assert.Equal("{TemplateBinding Background}", semanticColorLayer.Attribute("Background")?.Value);
 
             var semanticDisabledTrigger = Assert.Single(semanticButtonStyle.Descendants().Where(element =>
                 element.Name.LocalName == "Trigger"
@@ -200,16 +257,9 @@ public sealed class BackdropBlurStyleContractTests
                     "{DynamicResource Is.Surface.BackdropBlur.Enabled}");
             Assert.Contains(semanticDisabledTrigger.Elements(), element =>
                 element.Name.LocalName == "Setter"
-                && element.Attribute("TargetName")?.Value == "BaseBackground"
-                && element.Attribute("Property")?.Value == "behaviors:BackdropBlurHost.FallbackBrush"
-                && element.Attribute("Value")?.Value ==
-                    "{DynamicResource Brush.Button.Secondary.Disabled}");
-            Assert.Contains(semanticDisabledTrigger.Elements(), element =>
-                element.Name.LocalName == "Setter"
-                && element.Attribute("TargetName")?.Value == "SurfaceContrastLayer"
-                && element.Attribute("Property")?.Value == "Background"
-                && element.Attribute("Value")?.Value ==
-                    "{DynamicResource Brush.Button.Secondary.Disabled}");
+                && element.Attribute("TargetName")?.Value == "SemanticBackground"
+                && element.Attribute("Property")?.Value == "Opacity"
+                && element.Attribute("Value")?.Value == "0");
             Assert.Single(semanticButtonStyle.Descendants().Where(element =>
                 element.Name.LocalName == "Border"
                 && element.Attribute(xaml + "Name")?.Value == "SurfaceContrastLayer"));
@@ -252,6 +302,45 @@ public sealed class BackdropBlurStyleContractTests
     }
 
     [Fact]
+    public void DownloadTaskCardsAndLoaderChoicesUseTheImageBackdropSwitch()
+    {
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var lists = LoadAppXaml("Styles", "ControlStyles.Lists.xaml");
+        var taskCardStyle = Assert.Single(lists.Descendants().Where(element =>
+            element.Name.LocalName == "Style"
+            && element.Attribute(xaml + "Key")?.Value == "InstallTaskCardStyle"));
+        Assert.Contains(taskCardStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "behaviors:BackdropBlurHost.IsApplied"
+            && element.Attribute("Value")?.Value == "True");
+        Assert.Contains(taskCardStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("Property")?.Value == "behaviors:BackdropBlurHost.IsBlurEnabled"
+            && element.Attribute("Value")?.Value ==
+                "{DynamicResource Is.Surface.BackdropBlur.Enabled}");
+
+        var dialogs = LoadAppXaml("Styles", "ControlStyles.Dialogs.xaml");
+        var loaderChoiceStyle = Assert.Single(dialogs.Descendants().Where(element =>
+            element.Name.LocalName == "Style"
+            && element.Attribute(xaml + "Key")?.Value == "DialogChoiceItemStyle"));
+        var baseBackground = Assert.Single(loaderChoiceStyle.Descendants().Where(element =>
+            element.Name.LocalName == "Border"
+            && element.Attribute(xaml + "Name")?.Value == "BaseBackground"));
+        Assert.Equal(
+            "True",
+            baseBackground.Attributes().Single(attribute =>
+                attribute.Name.LocalName == "BackdropBlurHost.IsApplied").Value);
+        Assert.Equal(
+            "{DynamicResource Is.Surface.BackdropBlur.Enabled}",
+            baseBackground.Attributes().Single(attribute =>
+                attribute.Name.LocalName == "BackdropBlurHost.IsBlurEnabled").Value);
+        Assert.Equal(
+            "{DynamicResource Brush.List.Item.Background}",
+            baseBackground.Attributes().Single(attribute =>
+                attribute.Name.LocalName == "BackdropBlurHost.FallbackBrush").Value);
+    }
+
+    [Fact]
     public void SecondaryMenuBackdropStyleUsesTheImageModeSwitchAndPreservesThePanelTint()
     {
         var document = LoadAppXaml("Styles", "ControlStyles.Effects.xaml");
@@ -269,7 +358,7 @@ public sealed class BackdropBlurStyleContractTests
 
         var enabledTrigger = Assert.Single(style.Descendants().Where(element =>
             element.Name.LocalName == "Trigger"
-            && element.Attribute("Property")?.Value == "IsBlurEnabled"
+            && element.Attribute("Property")?.Value == "IsTintEnabled"
             && element.Attribute("Value")?.Value == "True"));
         Assert.Contains(enabledTrigger.Elements(), element =>
             element.Name.LocalName == "Setter"
@@ -282,16 +371,14 @@ public sealed class BackdropBlurStyleContractTests
     }
 
     [Fact]
-    public void SecondaryMenuFrameSamplesTheDedicatedWindowBackgroundSource()
+    public void SecondaryMenuFrameUsesTheCentralBackdropSourceStyle()
     {
         var document = LoadAppXaml("Controls", "Navigation", "SecondaryMenuFrame.xaml");
         var backdrop = Assert.Single(document.Descendants().Where(element =>
             element.Name.LocalName == "BackdropBlurBorder"));
 
         Assert.Equal("{StaticResource SecondaryMenuBackdropStyle}", backdrop.Attribute("Style")?.Value);
-        Assert.Equal(
-            "{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}",
-            backdrop.Attribute("SourceElement")?.Value);
+        Assert.Null(backdrop.Attribute("SourceElement"));
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Border"
             && element.Attribute("Style")?.Value == "{StaticResource SecondaryMenuPanelStyle}");
@@ -317,7 +404,7 @@ public sealed class BackdropBlurStyleContractTests
             && element.Attribute("Value")?.Value == "Transparent");
         var enabledTrigger = Assert.Single(style.Descendants().Where(element =>
             element.Name.LocalName == "Trigger"
-            && element.Attribute("Property")?.Value == "IsBlurEnabled"
+            && element.Attribute("Property")?.Value == "IsTintEnabled"
             && element.Attribute("Value")?.Value == "True"));
         Assert.Contains(enabledTrigger.Elements(), element =>
             element.Name.LocalName == "Setter"
@@ -330,13 +417,11 @@ public sealed class BackdropBlurStyleContractTests
             element.Name.LocalName == "BackdropBlurBorder"));
         Assert.Equal("{StaticResource PrimaryMenuBackdropStyle}", backdrop.Attribute("Style")?.Value);
         Assert.Equal("False", backdrop.Attribute("IsHitTestVisible")?.Value);
-        Assert.Equal(
-            "{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}",
-            backdrop.Attribute("SourceElement")?.Value);
+        Assert.Null(backdrop.Attribute("SourceElement"));
     }
 
     [Fact]
-    public void HomeLaunchMenuSamplesTheDedicatedWindowBackgroundSource()
+    public void HomeLaunchMenuUsesTheCentralBackdropSourceStyle()
     {
         var document = LoadAppXaml("Views", "Home", "HomeLaunchGameListView.xaml");
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -345,9 +430,7 @@ public sealed class BackdropBlurStyleContractTests
             && element.Attribute(xaml + "Name")?.Value == "HomeLaunchMenuPanel"));
 
         Assert.Equal("{StaticResource SecondaryMenuBackdropStyle}", backdrop.Attribute("Style")?.Value);
-        Assert.Equal(
-            "{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}",
-            backdrop.Attribute("SourceElement")?.Value);
+        Assert.Null(backdrop.Attribute("SourceElement"));
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Border"
             && element.Attribute(xaml + "Name")?.Value == "HomeLaunchMenuPanel"

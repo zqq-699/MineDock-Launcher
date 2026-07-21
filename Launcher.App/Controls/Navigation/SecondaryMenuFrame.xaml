@@ -25,8 +25,7 @@
              x:Name="Root"
              Focusable="False">
     <Border Style="{StaticResource SecondaryMenuPanelShadowStyle}">
-        <controls:BackdropBlurBorder SourceElement="{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
-                                     Style="{StaticResource SecondaryMenuBackdropStyle}">
+        <controls:BackdropBlurBorder Style="{StaticResource SecondaryMenuBackdropStyle}">
             <Grid>
                 <ScrollViewer behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
                               behaviors:VerticalEdgeOpacityMask.TopFadeLength="50"

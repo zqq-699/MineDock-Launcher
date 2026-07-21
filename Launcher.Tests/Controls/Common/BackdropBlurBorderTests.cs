@@ -28,9 +28,38 @@ public sealed class BackdropBlurBorderTests
             Assert.Same(content, control.Content);
             Assert.Equal(42d, control.BlurRadius);
             Assert.True(control.IsBlurEnabled);
+            Assert.False(control.IsSourcePreblurred);
+            Assert.False(control.IsTintEnabled);
             Assert.Equal(RenderingBias.Performance, control.BlurRenderingBias);
             Assert.Equal(KernelType.Gaussian, control.BackdropEffect?.KernelType);
             Assert.Equal(42d, control.BackdropEffect?.Radius);
+        });
+    }
+
+    [Fact]
+    public void PreblurredSourceSamplingUsesExactControlBoundsWithoutOverscan()
+    {
+        RunOnStaThread(() =>
+        {
+            var root = new Canvas();
+            var source = new Border { Width = 300d, Height = 200d };
+            var control = CreateControl(new Border());
+            control.Width = 80d;
+            control.Height = 40d;
+            control.SourceElement = source;
+            control.IsSourcePreblurred = true;
+            Canvas.SetLeft(control, 50d);
+            Canvas.SetTop(control, 30d);
+            root.Children.Add(source);
+            root.Children.Add(control);
+
+            Arrange(root, 300d, 200d);
+            control.RefreshBackdrop();
+
+            Assert.Equal(0d, control.BlurOverscan);
+            Assert.Equal(default, GetBlurLayer(control).Margin);
+            Assert.Equal(new Rect(50d, 30d, 80d, 40d), control.BackdropBrush?.Viewbox);
+            Assert.Equal(new Rect(0d, 0d, 80d, 40d), control.BackdropBrush?.Viewport);
         });
     }
 

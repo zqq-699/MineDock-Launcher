@@ -111,11 +111,8 @@ public static class BackdropBlurHost
         if (GetIsBlurSuppressed(border))
             return;
 
-        if (border.GetValue(BackdropProperty) is BackdropBlurBorder existingBackdrop)
-        {
-            existingBackdrop.SourceElement = ResolveSourceElement(border);
+        if (border.GetValue(BackdropProperty) is BackdropBlurBorder)
             return;
-        }
 
         var originalChild = border.Child;
         if (originalChild is not null)
@@ -123,8 +120,7 @@ public static class BackdropBlurHost
 
         var backdrop = new BackdropBlurBorder
         {
-            IsHitTestVisible = false,
-            SourceElement = ResolveSourceElement(border)
+            IsHitTestVisible = false
         };
         backdrop.SetResourceReference(
             FrameworkElement.StyleProperty,
@@ -164,8 +160,4 @@ public static class BackdropBlurHost
         border.SetValue(BackdropProperty, backdrop);
     }
 
-    private static FrameworkElement? ResolveSourceElement(FrameworkElement element)
-    {
-        return Window.GetWindow(element)?.FindName("LauncherBackgroundVisualSource") as FrameworkElement;
-    }
 }

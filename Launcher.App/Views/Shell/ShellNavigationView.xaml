@@ -25,9 +25,7 @@
              x:Class="Launcher.App.Views.Shell.ShellNavigationView"
              x:Name="Root">
     <Grid>
-        <controls:BackdropBlurBorder
-            SourceElement="{Binding LauncherBackgroundVisualSourceElement, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
-            Style="{StaticResource PrimaryMenuBackdropStyle}"
+        <controls:BackdropBlurBorder Style="{StaticResource PrimaryMenuBackdropStyle}"
             IsHitTestVisible="False" />
 
         <Border BorderBrush="{DynamicResource Brush.284E4E4E}"

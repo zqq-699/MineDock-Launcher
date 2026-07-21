@@ -151,6 +151,22 @@
                     </Grid>
 
                     <Grid Margin="0,18,0,0"
+                          animation:AnimatedCollapse.IsExpanded="{Binding IsBackgroundImageSelectionVisible}"
+                          animation:AnimatedCollapse.Duration="0:0:0.18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.Settings_BackgroundImageControlBlurLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                        <CheckBox Grid.Column="1"
+                                  Margin="16,0,0,0"
+                                  IsChecked="{Binding EnableImageBackgroundControlBlur, Mode=TwoWay}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,18,0,0"
                           animation:AnimatedCollapse.IsExpanded="{Binding IsBackgroundOpacityVisible}"
                           animation:AnimatedCollapse.Duration="0:0:0.18">
                         <Grid.ColumnDefinitions>

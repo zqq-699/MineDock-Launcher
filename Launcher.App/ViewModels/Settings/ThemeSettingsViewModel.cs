@@ -76,6 +76,7 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
     [ObservableProperty] private SettingsBackgroundEffectOption? selectedBackgroundEffectOption;
     [ObservableProperty] private bool followSystemTheme = true;
     [ObservableProperty] private int launcherBackgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
+    [ObservableProperty] private bool enableImageBackgroundControlBlur = LauncherDefaults.DefaultEnableImageBackgroundControlBlur;
 
     public bool IsThemeSelectionVisible => !FollowSystemTheme;
     public bool IsBackgroundImageSelectionVisible => SelectedBackgroundEffectOption?.IsImageSelected ?? false;
@@ -95,6 +96,7 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
             SelectedBackgroundEffectOption = BackgroundEffectOptions.First(option =>
                 string.Equals(option.Id, backgroundEffect, StringComparison.Ordinal));
             LauncherBackgroundOpacityPercent = Math.Clamp(settings.LauncherBackgroundOpacityPercent, 0, 100);
+            EnableImageBackgroundControlBlur = settings.EnableImageBackgroundControlBlur;
         });
     }
 
@@ -147,6 +149,17 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         Persist(settings => settings.LauncherBackgroundOpacityPercent = normalized);
     }
 
+    partial void OnEnableImageBackgroundControlBlurChanged(bool value)
+    {
+        if (!CanPersist)
+            return;
+
+        var backgroundEffect = SelectedBackgroundEffectOption?.Id
+                               ?? LauncherDefaults.DefaultLauncherBackgroundEffect;
+        themeService.ApplyBackgroundEffect(backgroundEffect, value);
+        Persist(settings => settings.EnableImageBackgroundControlBlur = value);
+    }
+
     [RelayCommand]
     private void OpenLauncherBackgroundImageFolder()
     {
@@ -179,9 +192,7 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         OnPropertyChanged(nameof(IsBackgroundOpacityVisible));
         if (!CanPersist)
             return;
-        var disableBackgroundBlur = !newValue.IsAcrylicEnabled;
-        themeService.ApplyBackgroundBlurDisabled(disableBackgroundBlur);
-        themeService.ApplyImageBackgroundStyles(newValue.IsImageSelected);
+        themeService.ApplyBackgroundEffect(newValue.Id, EnableImageBackgroundControlBlur);
         launcherBackground?.ApplyEffect(newValue.Id, reportFailure: newValue.IsImageSelected);
         Persist(settings =>
         {
@@ -194,8 +205,7 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         if (!CanPersist || SelectedThemeOption is null)
             return;
         var theme = SelectedThemeOption.Id;
-        var disableBackgroundBlur = !(SelectedBackgroundEffectOption?.IsAcrylicEnabled ?? true);
-        themeService.ApplyPreference(theme, FollowSystemTheme, LauncherBackgroundOpacityPercent, disableBackgroundBlur);
+        themeService.ApplyPreference(theme, FollowSystemTheme, LauncherBackgroundOpacityPercent);
         Persist(settings =>
         {
             settings.Theme = theme;

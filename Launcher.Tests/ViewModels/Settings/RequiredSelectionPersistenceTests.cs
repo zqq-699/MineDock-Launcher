@@ -152,13 +152,21 @@ public sealed class RequiredSelectionPersistenceTests
 
         Assert.Equal(LauncherBackgroundEffects.Image, settings.LauncherBackgroundEffect);
         Assert.False(viewModel.Theme.IsBackgroundOpacityVisible);
-        Assert.True(themeService.ImageBackgroundStylesEnabled);
+        Assert.Equal(LauncherBackgroundEffects.Image, themeService.BackgroundEffect);
+        Assert.True(viewModel.Theme.EnableImageBackgroundControlBlur);
+
+        viewModel.Theme.EnableImageBackgroundControlBlur = false;
+        await viewModel.FlushPendingSettingsAsync();
+
+        Assert.False(settings.EnableImageBackgroundControlBlur);
+        Assert.False(themeService.EnableImageControlBlur);
+        Assert.Equal(LauncherBackgroundEffects.Image, themeService.BackgroundEffect);
 
         viewModel.Theme.SelectedBackgroundEffectOption = viewModel.Theme.BackgroundEffectOptions.Single(option =>
             option.Id == LauncherBackgroundEffects.None);
         await viewModel.FlushPendingSettingsAsync();
 
-        Assert.False(themeService.ImageBackgroundStylesEnabled);
+        Assert.Equal(LauncherBackgroundEffects.None, themeService.BackgroundEffect);
     }
 
     [Fact]
@@ -429,23 +437,19 @@ public sealed class RequiredSelectionPersistenceTests
     {
         public EffectiveTheme EffectiveTheme => EffectiveTheme.Dark;
 
-        public bool BackgroundBlurDisabled { get; private set; }
-
-        public bool ImageBackgroundStylesEnabled { get; private set; }
+        public string BackgroundEffect { get; private set; } = LauncherBackgroundEffects.Acrylic;
 
 #pragma warning disable CS0067
         public event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
-        public event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
+        public event EventHandler<BackgroundEffectChangedEventArgs>? BackgroundEffectChanged;
 #pragma warning restore CS0067
 
         public void ApplyPreference(
             string? theme,
             bool followSystem,
-            int backgroundOpacityPercent,
-            bool disableBackgroundBlur)
+            int backgroundOpacityPercent)
         {
-            BackgroundBlurDisabled = disableBackgroundBlur;
         }
 
         public void ApplyAccent(string? accentColor)
@@ -456,21 +460,16 @@ public sealed class RequiredSelectionPersistenceTests
         {
         }
 
-        public void ApplyBackgroundBlurDisabled(bool disabled)
+        public bool EnableImageControlBlur { get; private set; } = true;
+
+        public void ApplyBackgroundEffect(string? backgroundEffect, bool enableImageControlBlur)
         {
-            BackgroundBlurDisabled = disabled;
+            var oldEffect = BackgroundEffect;
+            BackgroundEffect = LauncherBackgroundEffects.Normalize(backgroundEffect);
+            EnableImageControlBlur = enableImageControlBlur;
+            if (!string.Equals(oldEffect, BackgroundEffect, StringComparison.Ordinal))
+                BackgroundEffectChanged?.Invoke(this, new BackgroundEffectChangedEventArgs(oldEffect, BackgroundEffect));
         }
-
-        public void ApplyImageBackgroundStyles(bool enabled)
-        {
-            ImageBackgroundStylesEnabled = enabled;
-        }
-
-        public object? GetResource(object key) => null;
-
-        public System.Windows.Media.Brush? GetBrush(object key) => null;
-
-        public System.Windows.Media.Color? GetColor(object key) => null;
     }
 
     public class DefaultInterfaceProxy : DispatchProxy

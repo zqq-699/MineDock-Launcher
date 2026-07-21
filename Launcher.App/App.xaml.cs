@@ -178,11 +178,11 @@ public partial class App : System.Windows.Application
             themeService.ApplyPreference(
                 mainViewModel.Settings.Theme,
                 mainViewModel.Settings.ThemeFollowSystem,
-                mainViewModel.Settings.LauncherBackgroundOpacityPercent,
-                !LauncherBackgroundEffects.IsAcrylic(mainViewModel.Settings.LauncherBackgroundEffect));
+                mainViewModel.Settings.LauncherBackgroundOpacityPercent);
             themeService.ApplyAccent(mainViewModel.Settings.AccentColor);
-            themeService.ApplyImageBackgroundStyles(
-                LauncherBackgroundEffects.IsImage(mainViewModel.Settings.LauncherBackgroundEffect));
+            themeService.ApplyBackgroundEffect(
+                mainViewModel.Settings.LauncherBackgroundEffect,
+                mainViewModel.Settings.EnableImageBackgroundControlBlur);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information(

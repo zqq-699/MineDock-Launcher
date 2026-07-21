@@ -317,6 +317,7 @@
     <Color x:Key="Color.SecondaryMenu.Panel">#804A4A4A</Color>
     <Color x:Key="Color.SecondaryMenu.BackdropTint">#90000000</Color>
     <Color x:Key="Color.SurfaceBackdrop.ContrastOverlay">#18FFFFFF</Color>
+    <Color x:Key="Color.LauncherBackground.Image.DimOverlay">#FF000000</Color>
     <Color x:Key="Color.SecondaryMenu.Border">#24FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Shadow">#52000000</Color>
     <Color x:Key="Color.SecondaryMenu.Header.Start">#D8282828</Color>
@@ -325,7 +326,12 @@
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Panel" Color="{StaticResource Color.SecondaryMenu.Panel}" />
     <SolidColorBrush x:Key="Brush.SecondaryMenu.BackdropTint" Color="{StaticResource Color.SecondaryMenu.BackdropTint}" />
     <SolidColorBrush x:Key="Brush.SurfaceBackdrop.ContrastOverlay" Color="{StaticResource Color.SurfaceBackdrop.ContrastOverlay}" />
+    <SolidColorBrush x:Key="Brush.LauncherBackground.Image.DimOverlay" Color="{StaticResource Color.LauncherBackground.Image.DimOverlay}" />
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Border" Color="{StaticResource Color.SecondaryMenu.Border}" />
+    <SolidColorBrush x:Key="Brush.Home.Name.Foreground" Color="{StaticResource Color.F4FFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.Foreground" Color="{StaticResource Color.9FFFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.ForegroundHover" Color="{StaticResource Color.F0FFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Home.GameSettings.ForegroundPressed" Color="{StaticResource Color.FFFFFF}" />
     <SolidColorBrush x:Key="Brush.Scroll.Track" Color="{StaticResource Color.5A4A4A4A}" />
     <SolidColorBrush x:Key="Brush.Scroll.Thumb" Color="{StaticResource Color.5CFFFFFF}" />
     <SolidColorBrush x:Key="Brush.Scroll.ThumbHover" Color="{StaticResource Color.84FFFFFF}" />

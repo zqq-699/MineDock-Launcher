@@ -916,6 +916,9 @@
   <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve">
     <value>Select Image</value>
   </data>
+  <data name="Settings_BackgroundImageControlBlurLabel" xml:space="preserve">
+    <value>Enable Control Blur</value>
+  </data>
   <data name="Settings_BackgroundImageOpenFolderButton" xml:space="preserve">
     <value>Open Folder</value>
   </data>

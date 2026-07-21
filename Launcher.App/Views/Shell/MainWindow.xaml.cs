@@ -43,7 +43,7 @@ public partial class MainWindow : Window
     public static readonly DependencyProperty IsMenuExpandedProperty =
         DependencyProperty.Register(nameof(IsMenuExpanded), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
-    public FrameworkElement LauncherBackgroundVisualSourceElement => LauncherBackgroundVisualSource;
+    public FrameworkElement LauncherPreblurredBackdropSourceElement => LauncherPreblurredBackdropSource;
 
     private readonly NavigationMenuAnimationService navigationMenuService;
     private readonly IAccountDialogService accountDialogService;
@@ -87,7 +87,7 @@ public partial class MainWindow : Window
             SkinManagerDialogHost);
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
-        AcrylicWindow.Enable(this, themeService);
+        LauncherWindowBackdrop.Attach(this, themeService);
         NativeCaptionButtons.Hide(this);
         Loaded += MainWindow_Loaded;
         Activated += (_, _) => stateSyncService.RequestSync();
