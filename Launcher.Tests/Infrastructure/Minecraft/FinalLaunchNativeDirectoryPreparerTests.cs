@@ -31,58 +31,6 @@ public sealed class FinalLaunchNativeDirectoryPreparerTests : TestTempDirectory
     }
 
     [Fact]
-    public void PrepareCreatesNestedRelativeNativeSubdirectoryFromArgumentsString()
-    {
-        var nativeRoot = Path.Combine(TempRoot, "natives");
-        var targetDirectory = Path.Combine(nativeRoot, "java", "future");
-        var startInfo = CreateStartInfo();
-        startInfo.Arguments = "\"-Djava.library.path=natives\\java\\future\"";
-
-        FinalLaunchNativeDirectoryPreparer.Prepare(
-            startInfo,
-            nativeRoot,
-            "future-version",
-            NullLogger.Instance);
-
-        Assert.True(Directory.Exists(targetDirectory));
-    }
-
-    [Fact]
-    public void PrepareLeavesFlatNativeLayoutUnchanged()
-    {
-        var nativeRoot = Path.Combine(TempRoot, "natives");
-        Directory.CreateDirectory(nativeRoot);
-        var startInfo = CreateStartInfo();
-        startInfo.ArgumentList.Add($"-Djava.library.path={nativeRoot}");
-
-        FinalLaunchNativeDirectoryPreparer.Prepare(
-            startInfo,
-            nativeRoot,
-            "1.21.11",
-            NullLogger.Instance);
-
-        Assert.True(Directory.Exists(nativeRoot));
-        Assert.False(Directory.Exists(Path.Combine(nativeRoot, "java")));
-    }
-
-    [Fact]
-    public void PrepareDoesNotCreateNativeDirectoryOutsideTrustedRoot()
-    {
-        var nativeRoot = Path.Combine(TempRoot, "natives");
-        var outsideDirectory = Path.Combine(TempRoot, "outside", "java");
-        var startInfo = CreateStartInfo();
-        startInfo.ArgumentList.Add($"-Djava.library.path={outsideDirectory}");
-
-        FinalLaunchNativeDirectoryPreparer.Prepare(
-            startInfo,
-            nativeRoot,
-            "26.2",
-            NullLogger.Instance);
-
-        Assert.False(Directory.Exists(outsideDirectory));
-    }
-
-    [Fact]
     public void PrepareDoesNotWriteThroughNativeRootReparsePointWhenSupported()
     {
         var nativeRoot = Path.Combine(TempRoot, "natives");

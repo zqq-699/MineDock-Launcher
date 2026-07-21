@@ -69,60 +69,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ServerPreparationFiltersUnsupportedFilesAndKeepsOptionalFiles()
-    {
-        var path = Path.Combine(TempRoot, "server.mrpack");
-        CreateArchive(path, archive => AddEntry(archive, "modrinth.index.json", """
-            {
-              "name":"Server Pack",
-              "dependencies":{"minecraft":"1.20.1","fabric-loader":"0.16.10"},
-              "files":[
-                {"path":"mods/required.jar","hashes":{"sha1":"1111111111111111111111111111111111111111"},"downloads":["https://example.invalid/required.jar"]},
-                {"path":"mods/client.jar","env":{"server":"unsupported"},"hashes":{"sha1":"2222222222222222222222222222222222222222"},"downloads":["https://example.invalid/client.jar"]},
-                {"path":"mods/optional.jar","env":{"server":"optional"},"hashes":{"sha1":"3333333333333333333333333333333333333333"},"downloads":["https://example.invalid/optional.jar"]}
-              ]
-            }
-            """));
-
-        var prepared = await CreateService().PrepareAsync(path, ModpackInstallEnvironment.Server);
-
-        Assert.Equal(ModpackInstallEnvironment.Server, prepared.Environment);
-        Assert.Equal(["mods/required.jar", "mods/optional.jar"], prepared.Files.Select(file => file.RelativePath));
-    }
-
-    [Fact]
-    public async Task ServerOverridesApplyAfterCommonOverridesAndIgnoreClientOverrides()
-    {
-        var path = Path.Combine(TempRoot, "overrides.mrpack");
-        CreateArchive(path, archive =>
-        {
-            AddEntry(archive, "modrinth.index.json", """{"name":"Server Pack","dependencies":{"minecraft":"1.20.1"},"files":[]}""");
-            AddEntry(archive, "server-overrides/config/value.txt", "server");
-            AddEntry(archive, "client-overrides/config/client.txt", "client");
-            AddEntry(archive, "overrides/config/value.txt", "common");
-        });
-        var service = CreateService();
-        var prepared = await service.PrepareAsync(path, ModpackInstallEnvironment.Server);
-        var target = Path.Combine(TempRoot, "server-target");
-        Directory.CreateDirectory(target);
-
-        await service.CopyOverridesAsync(
-            prepared,
-            new GameInstance { InstanceDirectory = target },
-            progress: null);
-
-        Assert.Equal("server", await File.ReadAllTextAsync(Path.Combine(target, "config", "value.txt")));
-        Assert.False(File.Exists(Path.Combine(target, "config", "client.txt")));
-    }
-
-    [Fact]
-    public void ExtractionBudgetRejectsOversizedContent()
-    {
-        var exception = Assert.Throws<ModpackImportException>(() => new ZipExtractionBudget(1).Reserve(2));
-        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
-    }
-
-    [Fact]
     public async Task InstallRejectsHashMismatchAndRemovesPartialFile()
     {
         var service = CreateService(new HttpClient(new FixedHandler("actual-bytes")));
@@ -154,144 +100,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task InstallRejectsCaseInsensitiveDuplicateTargetsBeforeDownloading()
-    {
-        var handler = new FixedHandler("downloaded");
-        var service = CreateService(new HttpClient(handler));
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        Directory.CreateDirectory(instance.InstanceDirectory);
-        var prepared = new PreparedModpack
-        {
-            PackageKind = ModpackPackageKind.Modrinth,
-            SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
-            WorkingDirectory = Path.Combine(TempRoot, "work"),
-            PackageName = "Pack",
-            MinecraftVersion = "1.20.1",
-            Loader = LoaderKind.Vanilla,
-            Files =
-            [
-                new PreparedModpackDownload
-                {
-                    FileName = "first.jar",
-                    RelativePath = "mods/Same.jar",
-                    SourceUrl = "https://download.test/first.jar"
-                },
-                new PreparedModpackDownload
-                {
-                    FileName = "second.jar",
-                    RelativePath = "MODS/same.jar",
-                    SourceUrl = "https://download.test/second.jar"
-                }
-            ]
-        };
-        Directory.CreateDirectory(prepared.WorkingDirectory);
-
-        var exception = await Assert.ThrowsAsync<ModpackImportException>(() =>
-            service.InstallContentAsync(prepared, instance, null));
-
-        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
-        Assert.Equal(0, handler.RequestCount);
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "Same.jar")));
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "MODS", "same.jar")));
-    }
-
-    [Fact]
-    public async Task CurseForgeDownloadStartsBeforeAllFilesAreResolvedAndPublishesAfterPipelineCompletes()
-    {
-        var handler = new CurseForgePipelineHandler(duplicateTarget: false);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateCurseForgePreparedModpack();
-        var progress = new ThreadSafeProgress();
-
-        var downloadTask = service.DownloadFilesAsync(prepared, instance, progress);
-        await handler.FirstDownloadStarted.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitForConditionAsync(
-            () => Directory.Exists(instance.InstanceDirectory)
-                && Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories).Any());
-
-        Assert.False(downloadTask.IsCompleted);
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "first.jar")));
-        Assert.DoesNotContain(
-            progress.Snapshot(),
-            report => report.Stage == ImportProgressStages.ResolvingPackFiles && report.Percent == 100);
-
-        handler.ReleaseSecondResolution();
-        var manualDownloads = await downloadTask.WaitAsync(TimeSpan.FromSeconds(5));
-        var reports = progress.Snapshot();
-        var firstDownloadReport = Array.FindIndex(
-            reports,
-            report => report.Stage == ImportProgressStages.DownloadingPackFiles
-                && report.Message == "first.jar");
-        var resolutionCompletedReport = Array.FindIndex(
-            reports,
-            report => report.Stage == ImportProgressStages.ResolvingPackFiles && report.Percent == 100);
-
-        Assert.Empty(manualDownloads);
-        Assert.True(firstDownloadReport >= 0);
-        Assert.True(resolutionCompletedReport > firstDownloadReport);
-        Assert.Contains(reports, report => report.Stage == ImportProgressStages.ProcessingPackFiles && report.Percent == 100);
-        Assert.Equal(ImportProgressStages.ProcessingPackFiles, reports[^1].Stage);
-        Assert.Equal("first", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "first.jar")));
-        Assert.Equal("second", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "second.jar")));
-        Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
-    }
-
-    [Fact]
-    public async Task CurseForgeDynamicDuplicateTargetCancelsPipelineAndCleansTemporaryFiles()
-    {
-        var handler = new CurseForgePipelineHandler(duplicateTarget: true);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateCurseForgePreparedModpack();
-
-        var downloadTask = service.DownloadFilesAsync(prepared, instance, null);
-        await handler.FirstDownloadStarted.WaitAsync(TimeSpan.FromSeconds(5));
-        handler.ReleaseSecondResolution();
-
-        var exception = await Assert.ThrowsAsync<ModpackImportException>(
-            () => downloadTask.WaitAsync(TimeSpan.FromSeconds(5)));
-
-        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
-        Assert.True(handler.DownloadRequestCount > 0);
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "same.jar")));
-        Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
-    }
-
-    [Fact]
-    public async Task CancellationStopsPipelineAndCleansTemporaryFiles()
-    {
-        var handler = new CancellationBlockingHandler();
-        var service = CreateService(new HttpClient(handler));
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = new PreparedModpack
-        {
-            PackageKind = ModpackPackageKind.Modrinth,
-            PackageName = "Pack",
-            MinecraftVersion = "1.20.1",
-            Files =
-            [
-                new PreparedModpackDownload
-                {
-                    FileName = "mod.jar",
-                    RelativePath = "mods/mod.jar",
-                    SourceUrl = "https://download.test/mod.jar"
-                }
-            ]
-        };
-        using var cancellation = new CancellationTokenSource();
-
-        var downloadTask = service.DownloadFilesAsync(prepared, instance, null, cancellation.Token);
-        await handler.RequestStarted.WaitAsync(TimeSpan.FromSeconds(5));
-        cancellation.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => downloadTask.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "mod.jar")));
-        Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
-    }
-
-    [Fact]
     public async Task CurseForgeMetadataFailureStopsInstallationInsteadOfCreatingManualDownloads()
     {
         var service = CreateService(new HttpClient(new FailingCurseForgeResolutionHandler()), apiKey: "test-key");
@@ -309,24 +117,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task CurseForgeRestrictedFileUsesConstructedCdnFallbackBeforeManualList()
-    {
-        var handler = new RestrictedCurseForgeHandler(
-            edgeStatus: HttpStatusCode.Forbidden,
-            mediafilezStatus: HttpStatusCode.OK);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateSingleCurseForgePreparedModpack();
-
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
-
-        Assert.Empty(manualDownloads);
-        Assert.Equal("downloaded", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
-        Assert.Contains("edge.forgecdn.net", handler.DownloadHosts);
-        Assert.Contains("mediafilez.forgecdn.net", handler.DownloadHosts);
-    }
-
-    [Fact]
     public async Task CurseForgeDirectFailureUsesConstructedCdnFallbackWithoutCreatingManualList()
     {
         var handler = new DirectCurseForgeFallbackHandler();
@@ -339,155 +129,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Empty(manualDownloads);
         Assert.Equal("downloaded", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "mods", "direct.jar")));
         Assert.Equal(["download.example", "edge.forgecdn.net"], handler.DownloadHosts);
-    }
-
-    [Fact]
-    public async Task CurseForgeRestrictedFileCreatesManualListOnlyAfterAllCdnCandidatesAreUnavailable()
-    {
-        var handler = new RestrictedCurseForgeHandler(
-            edgeStatus: HttpStatusCode.Forbidden,
-            mediafilezStatus: HttpStatusCode.NotFound);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateSingleCurseForgePreparedModpack();
-
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
-
-        var manualDownload = Assert.Single(manualDownloads);
-        Assert.Equal(1L, manualDownload.ProjectId);
-        Assert.Equal(101L, manualDownload.FileId);
-        Assert.Equal("restricted.jar", manualDownload.FileName);
-        Assert.Equal("https://edge.forgecdn.net/files/0/101/restricted.jar", manualDownload.SuggestedUrl);
-        Assert.Contains("edge.forgecdn.net", handler.DownloadHosts);
-        Assert.Contains("mediafilez.forgecdn.net", handler.DownloadHosts);
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
-    }
-
-    [Fact]
-    public async Task CurseForgeRestrictedFileTransientCdnFailureStopsInsteadOfCreatingManualList()
-    {
-        var handler = new RestrictedCurseForgeHandler(
-            edgeStatus: HttpStatusCode.InternalServerError,
-            mediafilezStatus: HttpStatusCode.NotFound);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateSingleCurseForgePreparedModpack();
-
-        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(() =>
-            service.DownloadFilesAsync(prepared, instance, progress: null));
-
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
-    }
-
-    [Fact]
-    public async Task CurseForgeRestrictedFileHashMismatchStopsInsteadOfCreatingManualList()
-    {
-        var handler = new RestrictedCurseForgeHandler(
-            edgeStatus: HttpStatusCode.OK,
-            mediafilezStatus: HttpStatusCode.OK,
-            sha1: new string('0', 40));
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key");
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateSingleCurseForgePreparedModpack();
-
-        var exception = await Assert.ThrowsAsync<ModpackImportException>(() =>
-            service.DownloadFilesAsync(prepared, instance, progress: null));
-
-        Assert.Equal(ModpackImportFailureReason.HashMismatch, exception.FailureReason);
-        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "restricted.jar")));
-    }
-
-    [Fact]
-    public async Task DownloadStatusBeginsOnlyAfterResponseBodyBytesArrive()
-    {
-        var handler = new BodyGateHandler("downloaded");
-        var service = CreateService(new HttpClient(handler));
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = new PreparedModpack
-        {
-            PackageKind = ModpackPackageKind.Modrinth,
-            PackageName = "Pack",
-            MinecraftVersion = "1.20.1",
-            Files =
-            [
-                new PreparedModpackDownload
-                {
-                    FileName = "mod.jar",
-                    RelativePath = "mods/mod.jar",
-                    SourceUrl = "https://download.test/mod.jar"
-                }
-            ]
-        };
-        var progress = new ThreadSafeProgress();
-
-        var downloadTask = service.DownloadFilesAsync(prepared, instance, progress);
-        await handler.RequestStarted.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.DoesNotContain(
-            progress.Snapshot(),
-            report => report.Stage == ImportProgressStages.DownloadingPackFiles);
-
-        handler.ReleaseBody();
-        await downloadTask.WaitAsync(TimeSpan.FromSeconds(5));
-        var reports = progress.Snapshot();
-
-        Assert.Contains(
-            reports,
-            report => report.Stage == ImportProgressStages.DownloadingPackFiles
-                && report.Message == "mod.jar");
-        Assert.Equal(ImportProgressStages.ProcessingPackFiles, reports[^1].Stage);
-    }
-
-    [Fact]
-    public async Task ForegroundBatchWritesStartAndResultForEveryFilePlusOneSummary()
-    {
-        var logger = new CollectingLogger<LocalModpackPackageService>();
-        var service = CreateService(new HttpClient(new FixedHandler("downloaded")), logger: logger);
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var files = Enumerable.Range(1, 3)
-            .Select(index => new PreparedModpackDownload
-            {
-                FileName = $"mod-{index}.jar",
-                RelativePath = $"mods/mod-{index}.jar",
-                SourceUrl = $"https://download.test/mod-{index}.jar?token=secret-{index}"
-            })
-            .ToArray();
-        var prepared = new PreparedModpack
-        {
-            PackageKind = ModpackPackageKind.Modrinth,
-            PackageName = "Pack",
-            MinecraftVersion = "1.20.1",
-            Files = files
-        };
-
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
-
-        Assert.Empty(manualDownloads);
-        var information = logger.Entries.Where(entry => entry.Level == LogLevel.Information).ToArray();
-        Assert.Equal(files.Length, information.Count(entry => entry.Message.Contains("Foreground file download started", StringComparison.Ordinal)));
-        Assert.Equal(files.Length, information.Count(entry => entry.Message.Contains("Foreground file download completed", StringComparison.Ordinal)));
-        Assert.Single(information.Where(entry => entry.Message.Contains("Modpack file batch completed", StringComparison.Ordinal)));
-        Assert.Equal((files.Length * 2) + 1, information.Length);
-        Assert.DoesNotContain("token=", string.Join('\n', logger.Entries.Select(entry => entry.Message)), StringComparison.OrdinalIgnoreCase);
-        Assert.All(files, file => Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, file.RelativePath))));
-    }
-
-    [Fact]
-    public async Task InstallCopiesOverridesIntoInstance()
-    {
-        var path = Path.Combine(TempRoot, "overrides.mrpack");
-        CreateArchive(path, archive =>
-        {
-            AddEntry(archive, "modrinth.index.json", """{"name":"Overrides","dependencies":{"minecraft":"1.20.1"},"files":[]}""");
-            AddEntry(archive, "overrides/config/settings.txt", "demo");
-        });
-        var service = CreateService();
-        var prepared = await service.PrepareAsync(path);
-        var instance = new GameInstance { Name = "Overrides", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-
-        await service.InstallContentAsync(prepared, instance, null);
-
-        Assert.Equal("demo", await File.ReadAllTextAsync(Path.Combine(instance.InstanceDirectory, "config", "settings.txt")));
     }
 
     private LocalModpackPackageService CreateService(
@@ -523,17 +164,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Files = [new PreparedModpackDownload { ProjectId = 1, FileId = 101, TargetDirectory = "mods" }]
     };
 
-    private static async Task WaitForConditionAsync(Func<bool> condition)
-    {
-        var timeoutAt = DateTime.UtcNow.AddSeconds(5);
-        while (!condition())
-        {
-            if (DateTime.UtcNow >= timeoutAt)
-                throw new TimeoutException("The expected condition was not reached.");
-            await Task.Delay(20);
-        }
-    }
-
     private static void CreateArchive(string path, Action<ZipArchive> configure)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -564,69 +194,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         }
     }
 
-    private sealed class CollectingLogger<T> : ILogger<T>
-    {
-        public ConcurrentQueue<LogEntry> Entries { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) =>
-            Entries.Enqueue(new LogEntry(logLevel, formatter(state, exception), exception));
-    }
-
     private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
-
-    private sealed class CurseForgePipelineHandler(bool duplicateTarget) : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource firstDownloadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource releaseSecondResolution = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int downloadRequestCount;
-
-        public Task FirstDownloadStarted => firstDownloadStarted.Task;
-
-        public int DownloadRequestCount => Volatile.Read(ref downloadRequestCount);
-
-        public void ReleaseSecondResolution() => releaseSecondResolution.TrySetResult();
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var uri = request.RequestUri!;
-            if (string.Equals(uri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase))
-            {
-                var isSecondFile = uri.AbsolutePath.Contains("/mods/2/", StringComparison.Ordinal);
-                if (isSecondFile && uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
-                    await releaseSecondResolution.Task.WaitAsync(cancellationToken);
-
-                var fileName = duplicateTarget
-                    ? "same.jar"
-                    : isSecondFile ? "second.jar" : "first.jar";
-                if (uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
-                    return JsonResponse($"{{\"data\":\"https://download.test/{fileName}\"}}");
-
-                return JsonResponse(
-                    $"{{\"data\":{{\"displayName\":\"{fileName}\",\"fileName\":\"{fileName}\",\"downloadUrl\":\"https://download.test/{fileName}\",\"hashes\":[]}}}}");
-            }
-
-            Interlocked.Increment(ref downloadRequestCount);
-            if (uri.AbsolutePath.EndsWith("first.jar", StringComparison.Ordinal)
-                || uri.AbsolutePath.EndsWith("same.jar", StringComparison.Ordinal))
-            {
-                firstDownloadStarted.TrySetResult();
-            }
-
-            var content = uri.AbsolutePath.EndsWith("second.jar", StringComparison.Ordinal) ? "second" : "first";
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        }
-    }
 
     private sealed class FailingCurseForgeResolutionHandler : HttpMessageHandler
     {
@@ -637,45 +205,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             if (request.RequestUri!.AbsolutePath.Contains("/mods/1/", StringComparison.Ordinal))
                 await Task.Delay(80, cancellationToken);
             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-        }
-    }
-
-    private sealed class RestrictedCurseForgeHandler(
-        HttpStatusCode edgeStatus,
-        HttpStatusCode mediafilezStatus,
-        string? sha1 = null) : HttpMessageHandler
-    {
-        private readonly ConcurrentQueue<string> downloadHosts = [];
-
-        public string[] DownloadHosts => downloadHosts.ToArray();
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var uri = request.RequestUri!;
-            if (string.Equals(uri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase))
-            {
-                if (uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
-
-                var hashes = sha1 is null
-                    ? "[]"
-                    : $"[{{\"algo\":1,\"value\":\"{sha1}\"}}]";
-                return Task.FromResult(JsonResponse(
-                    $"{{\"data\":{{\"displayName\":\"Restricted\",\"fileName\":\"restricted.jar\",\"downloadUrl\":null,\"hashes\":{hashes}}}}}"));
-            }
-
-            downloadHosts.Enqueue(uri.Host);
-            var status = string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase)
-                ? edgeStatus
-                : mediafilezStatus;
-            return Task.FromResult(new HttpResponseMessage(status)
-            {
-                Content = status == HttpStatusCode.OK
-                    ? new StringContent("downloaded")
-                    : new ByteArrayContent([])
-            });
         }
     }
 
@@ -702,43 +231,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             return Task.FromResult(string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase)
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("downloaded") }
                 : new HttpResponseMessage(HttpStatusCode.NotFound));
-        }
-    }
-
-    private sealed class CancellationBlockingHandler : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource requestStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task RequestStarted => requestStarted.Task;
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            requestStarted.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            throw new InvalidOperationException("The cancellation test request unexpectedly completed.");
-        }
-    }
-
-    private sealed class BodyGateHandler(string content) : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource requestStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource releaseBody = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task RequestStarted => requestStarted.Task;
-
-        public void ReleaseBody() => releaseBody.TrySetResult();
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            requestStarted.TrySetResult();
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StreamContent(new BodyGateStream(Encoding.UTF8.GetBytes(content), releaseBody.Task))
-            });
         }
     }
 

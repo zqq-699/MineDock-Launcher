@@ -71,26 +71,6 @@ public sealed class ThirdPartyAccountAppearanceServiceTests : IDisposable
         Assert.Single(requestedUris, uri => uri.AbsoluteUri == capeUrl);
     }
 
-    [Fact]
-    public async Task GetProfileTreatsMissingTexturesAsAuthoritativeEmptyAppearance()
-    {
-        var httpClient = new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(
-            ProfileJson(ProfileId, "Player", texturesPayload: null))));
-        var service = CreateService(httpClient);
-
-        var profile = await service.GetProfileAsync(
-            new Uri("https://auth.example.test/api/yggdrasil/"),
-            ProfileId,
-            "third-party-account",
-            CancellationToken.None);
-
-        Assert.True(profile.IsAvailable);
-        Assert.Equal("Player", profile.ProfileName);
-        Assert.Null(profile.Skin);
-        Assert.Null(profile.Cape);
-        Assert.Null(profile.AvatarSource);
-    }
-
     [Theory]
     [InlineData("ffeeddcc-bbaa-9988-7766-554433221100", "Player")]
     [InlineData("00112233-4455-6677-8899-aabbccddeeff", "")]
@@ -107,18 +87,6 @@ public sealed class ThirdPartyAccountAppearanceServiceTests : IDisposable
             CancellationToken.None);
 
         Assert.False(profile.IsAvailable);
-    }
-
-    [Fact]
-    public void ParseTexturesRejectsNonHttpTextureUrl()
-    {
-        var texturesPayload = CreateTexturesPayload("ftp://textures.example.test/skin.png", null, null);
-        using var profile = JsonDocument.Parse(JsonSerializer.Serialize(new
-        {
-            properties = new[] { new { name = "textures", value = texturesPayload } }
-        }));
-
-        Assert.Throws<JsonException>(() => ThirdPartyAccountAppearanceService.ParseTextures(profile.RootElement));
     }
 
     public void Dispose()

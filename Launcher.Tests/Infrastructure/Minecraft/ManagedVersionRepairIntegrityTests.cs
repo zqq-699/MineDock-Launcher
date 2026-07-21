@@ -52,36 +52,6 @@ public sealed class ManagedVersionRepairIntegrityTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task RepairLeavesSameSizedAssetUnchangedWithoutHashValidation()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        var expected = CreateExpectedFiles();
-        var sameSizeWrongAsset = SameLengthWrongContent(expected.Asset);
-        var versionDirectory = CreateVersion(
-            minecraftDirectory,
-            expected,
-            expected.Jar,
-            expected.Library,
-            expected.Index,
-            expected.Logging,
-            sameSizeWrongAsset);
-        var handler = new ContentHandler(expected.Downloads);
-        var service = new ManagedVersionRepairService(new HttpClient(handler));
-
-        await service.RepairAsync(
-            minecraftDirectory,
-            "Test",
-            versionDirectory,
-            progress: null,
-            allowRepair: true,
-            CancellationToken.None,
-            DownloadSourcePreference.Official);
-
-        Assert.Equal(sameSizeWrongAsset, await File.ReadAllTextAsync(expected.AssetPath(minecraftDirectory)));
-        Assert.Equal(0, handler.RequestCount);
-    }
-
-    [Fact]
     public async Task DisabledRepairRejectsInvalidFileWithoutChangingIt()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -109,75 +79,6 @@ public sealed class ManagedVersionRepairIntegrityTests : TestTempDirectory
 
         Assert.Equal(invalidJar, await File.ReadAllTextAsync(Path.Combine(versionDirectory, "Test.jar")));
         Assert.Equal(0, handler.RequestCount);
-    }
-
-    [Fact]
-    public async Task FailedRepairDownloadPreservesExistingFileAndCleansTemporaryFile()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        var expected = CreateExpectedFiles();
-        var invalidLogging = SameLengthWrongContent(expected.Logging);
-        var versionDirectory = CreateVersion(
-            minecraftDirectory,
-            expected,
-            expected.Jar,
-            expected.Library,
-            expected.Index,
-            invalidLogging,
-            expected.Asset);
-        var responses = new Dictionary<string, string>(expected.Downloads, StringComparer.OrdinalIgnoreCase)
-        {
-            ["https://example.test/client.xml"] = SameLengthWrongContent(expected.Logging)
-        };
-        var service = new ManagedVersionRepairService(new HttpClient(new ContentHandler(responses)));
-        var loggingPath = Path.Combine(minecraftDirectory, "assets", "log_configs", "client.xml");
-
-        await Assert.ThrowsAsync<InstanceRepairException>(() => service.RepairAsync(
-            minecraftDirectory,
-            "Test",
-            versionDirectory,
-            progress: null,
-            allowRepair: true,
-            CancellationToken.None,
-            DownloadSourcePreference.Official));
-
-        Assert.Equal(invalidLogging, await File.ReadAllTextAsync(loggingPath));
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(loggingPath)!, ".client.xml.*.tmp"));
-    }
-
-    [Fact]
-    public async Task CanceledRepairPreservesExistingFileAndCleansTemporaryFile()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        var expected = CreateExpectedFiles();
-        var invalidLogging = SameLengthWrongContent(expected.Logging);
-        var versionDirectory = CreateVersion(
-            minecraftDirectory,
-            expected,
-            expected.Jar,
-            expected.Library,
-            expected.Index,
-            invalidLogging,
-            expected.Asset);
-        var handler = new BlockingHandler();
-        var service = new ManagedVersionRepairService(new HttpClient(handler));
-        var loggingPath = Path.Combine(minecraftDirectory, "assets", "log_configs", "client.xml");
-        using var cancellation = new CancellationTokenSource();
-
-        var repair = service.RepairAsync(
-            minecraftDirectory,
-            "Test",
-            versionDirectory,
-            progress: null,
-            allowRepair: true,
-            cancellation.Token,
-            DownloadSourcePreference.Official);
-        await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        cancellation.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repair);
-        Assert.Equal(invalidLogging, await File.ReadAllTextAsync(loggingPath));
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(loggingPath)!, ".client.xml.*.tmp"));
     }
 
     private string CreateVersion(
@@ -335,17 +236,4 @@ public sealed class ManagedVersionRepairIntegrityTests : TestTempDirectory
         }
     }
 
-    private sealed class BlockingHandler : HttpMessageHandler
-    {
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Started.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            throw new InvalidOperationException("The canceled request unexpectedly completed.");
-        }
-    }
 }

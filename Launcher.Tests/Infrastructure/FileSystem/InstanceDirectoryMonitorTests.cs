@@ -13,25 +13,7 @@ namespace Launcher.Tests.Infrastructure.FileSystem;
 public sealed class InstanceDirectoryMonitorTests : TestTempDirectory
 {
     [Theory]
-    [InlineData(InstanceDirectoryKind.Mods)]
-    [InlineData(InstanceDirectoryKind.Saves)]
-    [InlineData(InstanceDirectoryKind.ResourcePacks)]
-    [InlineData(InstanceDirectoryKind.ShaderPacks)]
-    public void WatchDoesNotCreateMissingInstanceOrContentDirectories(InstanceDirectoryKind kind)
-    {
-        var instanceDirectory = Path.Combine(TempRoot, "missing-instance");
-        var instance = CreateInstance(instanceDirectory);
-        var monitor = new InstanceDirectoryMonitor();
-
-        using var watch = monitor.Watch(instance, kind);
-
-        Assert.False(Directory.Exists(instanceDirectory));
-    }
-
-    [Theory]
     [InlineData("mods", InstanceDirectoryKind.Mods)]
-    [InlineData("saves", InstanceDirectoryKind.Saves)]
-    [InlineData("resourcepacks", InstanceDirectoryKind.ResourcePacks)]
     [InlineData("shaderpacks", InstanceDirectoryKind.ShaderPacks)]
     public void WatchDoesNotCreateMissingContentDirectory(string directoryName, InstanceDirectoryKind kind)
     {

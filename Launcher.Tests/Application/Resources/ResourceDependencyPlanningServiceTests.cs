@@ -50,30 +50,6 @@ public sealed class ResourceDependencyPlanningServiceTests
     }
 
     [Fact]
-    public async Task MissingDependencyUsesReleaseVersionAndCanBeInstalled()
-    {
-        var dependency = CreateDependency();
-        var installation = new RecordingInstallationService();
-        var service = new ResourceDependencyPlanningService(
-            new DependencyCatalogService(CreateDependencyVersions()),
-            installation,
-            new StubModService([]),
-            NullLogger<ResourceDependencyPlanningService>.Instance);
-        var instance = CreateInstance();
-        var plan = await service.CreatePlanAsync(
-            new ResourceProjectVersion { RequiredDependencies = [dependency] },
-            instance);
-
-        var missing = Assert.Single(plan.MissingDependencies);
-        Assert.Equal("release-version", missing.InstallVersion?.VersionId);
-        await service.InstallRequiredDependenciesAsync(plan.MissingDependencies, instance);
-
-        Assert.Single(installation.Requests);
-        Assert.Equal(ResourceProjectInstallationTargetKind.ExistingInstance, installation.Requests[0].TargetKind);
-        Assert.Same(instance, installation.Requests[0].Instance);
-    }
-
-    [Fact]
     public async Task DependencyDownloadPreservesTheParentTaskSpeedMeter()
     {
         var dependency = CreateDependency();

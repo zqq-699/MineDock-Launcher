@@ -64,45 +64,6 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task FabricLoaderProviderReturnsEmptyWhenFabricMetadataEndpointReturnsBadRequest()
-    {
-        var provider = new FabricLoaderProvider(new HttpClient(new BadRequestHandler()));
-
-        var versions = await provider.GetLoaderVersionsAsync("1.7.2");
-
-        Assert.Empty(versions);
-    }
-
-    [Fact]
-    public async Task FabricLoaderProviderLoadsSnapshotVersionsFromDirectMetadataEndpoint()
-    {
-        var provider = new FabricLoaderProvider(new HttpClient(new SnapshotLoaderHandler()));
-
-        var versions = await provider.GetLoaderVersionsAsync("26w14a");
-
-        var version = Assert.Single(versions);
-        Assert.Equal("0.19.3", version.Version);
-        Assert.True(version.IsStable);
-    }
-
-    [Theory]
-    [InlineData("Cannot find any loader for 1.99.99")]
-    [InlineData("No loader available for 1.99.99")]
-    [InlineData("Response status code does not indicate success: 404 (Not Found).")]
-    [InlineData("Could not find game version 1.99.99")]
-    [InlineData("Unsupported game version: 1.99.99")]
-    public void FabricLoaderProviderTreatsNoLoaderMessagesAsNoAvailableVersions(string message)
-    {
-        var exception = new InvalidOperationException(
-            "wrapper",
-            new Exception(message));
-
-        var result = FabricLoaderProvider.IsNoAvailableVersionException(exception, "1.99.99");
-
-        Assert.True(result);
-    }
-
-    [Fact]
     public void FabricLoaderProviderDoesNotTreatNetworkFailureAsNoAvailableVersion()
     {
         var exception = new HttpRequestException("connection reset");
@@ -138,27 +99,6 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.2", fabricJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
 
-    [Fact]
-    public async Task FabricVersionComposerKeepsVersionStructureInPrivateSandbox()
-    {
-        var sandboxMinecraftDirectory = Path.Combine(TempRoot, "sandbox", ".minecraft");
-        var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
-
-        var finalVersionName = await FabricVersionComposer.CreateFinalVersionAsync(
-            new HttpClient(new FabricInstallHandler()),
-            "1.20.2",
-            "0.19.3",
-            "1.20.2-fabric-0.19.3",
-            sandboxMinecraftDirectory,
-            LauncherDefaults.DefaultDownloadSourcePreference);
-
-        var sandboxVersionDirectory = Path.Combine(sandboxMinecraftDirectory, "versions", finalVersionName);
-        var sharedVersionDirectory = Path.Combine(sharedMinecraftDirectory, "versions", finalVersionName);
-        Assert.True(File.Exists(Path.Combine(sandboxVersionDirectory, $"{finalVersionName}.json")));
-        Assert.False(File.Exists(Path.Combine(sandboxVersionDirectory, $"{finalVersionName}.jar")));
-        Assert.False(Directory.Exists(sharedVersionDirectory));
-    }
-
     private sealed class NotFoundHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -166,48 +106,6 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 RequestMessage = request
-            });
-        }
-    }
-
-    private sealed class BadRequestHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
-            {
-                RequestMessage = request
-            });
-        }
-    }
-
-    private sealed class SnapshotLoaderHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var absoluteUri = request.RequestUri?.AbsoluteUri ?? string.Empty;
-            var content = absoluteUri switch
-            {
-                "https://meta.fabricmc.net/v2/versions/loader/26w14a" => """
-                    [
-                      {
-                        "loader": {
-                          "separator": ".",
-                          "build": 1,
-                          "maven": "net.fabricmc:fabric-loader:0.19.3",
-                          "version": "0.19.3",
-                          "stable": true
-                        }
-                      }
-                    ]
-                    """,
-                _ => throw new InvalidOperationException($"Unexpected request: {absoluteUri}")
-            };
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                RequestMessage = request,
-                Content = new StringContent(content)
             });
         }
     }

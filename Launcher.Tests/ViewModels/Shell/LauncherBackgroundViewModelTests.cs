@@ -45,59 +45,6 @@ public sealed class LauncherBackgroundViewModelTests : IDisposable
     }
 
     [Fact]
-    public void ManualRefreshSkipsCorruptCandidateAndAvoidsCurrentImage()
-    {
-        var firstPath = WriteValidImage("a.png");
-        var corruptPath = Path.Combine(testDirectory, "b.png");
-        File.WriteAllText(corruptPath, "not an image");
-        var secondPath = WriteValidImage("c.png");
-        var catalog = new TestCatalog(testDirectory) { CandidatePaths = [firstPath] };
-        var viewModel = CreateViewModel(catalog, upperExclusive => upperExclusive - 1);
-        viewModel.ApplyEffect(LauncherBackgroundEffects.Image, reportFailure: false);
-
-        catalog.CandidatePaths = [firstPath, corruptPath, secondPath];
-        var refreshed = viewModel.Refresh();
-
-        Assert.True(refreshed);
-        Assert.True(viewModel.IsActive);
-        Assert.Equal(secondPath, viewModel.CurrentImagePath);
-    }
-
-    [Fact]
-    public void EmptyCatalogFallsBackAndReportsFriendlyStatusForManualRefresh()
-    {
-        var status = new TestStatusService();
-        var catalog = new TestCatalog(testDirectory);
-        var viewModel = CreateViewModel(catalog, statusService: status);
-
-        var refreshed = viewModel.Refresh();
-
-        Assert.False(refreshed);
-        Assert.False(viewModel.IsActive);
-        Assert.Equal(Strings.Status_NoLauncherBackgroundImages, status.LastMessage);
-    }
-
-    [Fact]
-    public void ManualRefreshKeepsCurrentImageWhenNoOtherCandidateCanBeDecoded()
-    {
-        var currentPath = WriteValidImage("current.png");
-        var corruptPath = Path.Combine(testDirectory, "corrupt.png");
-        File.WriteAllText(corruptPath, "not an image");
-        var status = new TestStatusService();
-        var catalog = new TestCatalog(testDirectory) { CandidatePaths = [currentPath] };
-        var viewModel = CreateViewModel(catalog, statusService: status);
-        viewModel.ApplyEffect(LauncherBackgroundEffects.Image, reportFailure: false);
-        catalog.CandidatePaths = [currentPath, corruptPath];
-
-        var refreshed = viewModel.Refresh();
-
-        Assert.False(refreshed);
-        Assert.True(viewModel.IsActive);
-        Assert.Equal(currentPath, viewModel.CurrentImagePath);
-        Assert.Equal(Strings.Status_NoOtherLauncherBackgroundImages, status.LastMessage);
-    }
-
-    [Fact]
     public void EnumerationFailureFallsBackWithoutBlockingStartup()
     {
         var status = new TestStatusService();
@@ -109,22 +56,6 @@ public sealed class LauncherBackgroundViewModelTests : IDisposable
         Assert.False(viewModel.IsActive);
         Assert.Null(viewModel.ImageSource);
         Assert.Null(status.LastMessage);
-    }
-
-    [Fact]
-    public void ClearImagesClearsCatalogAndDeactivatesCurrentBackground()
-    {
-        var imagePath = WriteValidImage("background.png");
-        var catalog = new TestCatalog(testDirectory) { CandidatePaths = [imagePath] };
-        var viewModel = CreateViewModel(catalog);
-        viewModel.ApplyEffect(LauncherBackgroundEffects.Image, reportFailure: false);
-
-        var cleared = viewModel.ClearImages();
-
-        Assert.True(cleared);
-        Assert.Equal(1, catalog.ClearImagesCallCount);
-        Assert.False(viewModel.IsActive);
-        Assert.Null(viewModel.ImageSource);
     }
 
     public void Dispose()

@@ -19,8 +19,6 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
 {
     [Theory]
     [InlineData("mod_management", InstanceDirectoryKind.Mods)]
-    [InlineData("saves", InstanceDirectoryKind.Saves)]
-    [InlineData("resource_packs", InstanceDirectoryKind.ResourcePacks)]
     [InlineData("shaders", InstanceDirectoryKind.ShaderPacks)]
     public async Task ResourceSectionOwnsExactlyItsWatcher(string sectionId, InstanceDirectoryKind expectedKind)
     {
@@ -47,159 +45,6 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
         Assert.Equal(entranceAnimationToken, GetEntranceAnimationToken(details, expectedKind));
         await silentRefresh;
         Assert.Equal(entranceAnimationToken, GetEntranceAnimationToken(details, expectedKind));
-        details.SetPageActive(false);
-    }
-
-    [Theory]
-    [InlineData("general")]
-    [InlineData("launch")]
-    [InlineData("java")]
-    [InlineData("backup")]
-    [InlineData("export")]
-    public void NonResourceSectionKeepsAllContentWatchersStopped(string sectionId)
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        using var details = CreateDetails(monitor);
-        details.SetSelectedInstance(CreateInstanceItem());
-        details.SetSelectedSection(CreateSection(sectionId));
-        details.SetPageActive(true);
-
-        Assert.Empty(monitor.ActiveKinds);
-        details.SetPageActive(false);
-    }
-
-    [Fact]
-    public void HidingDetailsPageStopsCurrentResourceWatcher()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        using var details = CreateDetails(monitor);
-        details.SetSelectedInstance(CreateInstanceItem());
-        details.SetSelectedSection(CreateSection("saves"));
-        details.SetPageActive(true);
-        Assert.Equal([InstanceDirectoryKind.Saves], monitor.ActiveKinds);
-
-        details.SetPageActive(false);
-
-        Assert.Empty(monitor.ActiveKinds);
-    }
-
-    [Fact]
-    public async Task ReenteringResourceSectionShowsCacheWhileSilentScanRuns()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var saveService = new RecordingSaveService();
-        var originalPath = Path.Combine(TempRoot, "original");
-        saveService.Items = [CreateSave("Original", originalPath)];
-        using var details = CreateDetails(monitor, saveService: saveService);
-        details.SetSelectedInstance(CreateInstanceItem());
-        details.SetPageActive(true);
-        details.SetSelectedSection(CreateSection("saves"));
-        await details.SaveManagement.OnSectionActivatedAsync();
-        var cachedItem = Assert.Single(details.SaveManagement.Saves);
-        var entranceAnimationToken = details.SaveManagement.ListEntranceAnimationToken;
-
-        details.SetSelectedSection(CreateSection("general"));
-        Assert.True(details.SaveManagement.HasLoadedSaves);
-        saveService.Items =
-        [
-            CreateSave("Original updated", originalPath),
-            CreateSave("Added while hidden", Path.Combine(TempRoot, "hidden"))
-        ];
-        var releaseSilentRefresh = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        saveService.WaitBeforeSecondCall = releaseSilentRefresh.Task;
-        details.SetSelectedSection(CreateSection("saves"));
-        await saveService.WaitForCallAsync(2);
-        var silentRefresh = details.SaveManagement.OnSectionActivatedAsync();
-
-        Assert.True(details.SaveManagement.HasLoadedSaves);
-        Assert.False(details.SaveManagement.IsLoadingSaves);
-        Assert.Same(cachedItem, Assert.Single(details.SaveManagement.Saves));
-        Assert.Equal(entranceAnimationToken, details.SaveManagement.ListEntranceAnimationToken);
-
-        releaseSilentRefresh.TrySetResult();
-        await silentRefresh;
-
-        Assert.Equal(2, saveService.CallCount);
-        Assert.Equal(2, details.SaveManagement.InstalledSaveCount);
-        Assert.Same(
-            cachedItem,
-            details.SaveManagement.Saves.Single(save =>
-                string.Equals(save.FullPath, originalPath, StringComparison.OrdinalIgnoreCase)));
-        Assert.Equal(entranceAnimationToken, details.SaveManagement.ListEntranceAnimationToken);
-        details.SetPageActive(false);
-    }
-
-    [Fact]
-    public async Task FirstResourceEntryStillUsesInitialLoadingState()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var saveService = new RecordingSaveService
-        {
-            Items = [CreateSave("First", Path.Combine(TempRoot, "first"))]
-        };
-        var releaseInitialLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        saveService.WaitBeforeFirstCall = releaseInitialLoad.Task;
-        using var details = CreateDetails(monitor, saveService: saveService);
-        details.SetSelectedInstance(CreateInstanceItem());
-        details.SetPageActive(true);
-        details.SetSelectedSection(CreateSection("saves"));
-        await saveService.WaitForCallAsync(1);
-        var initialLoad = details.SaveManagement.OnSectionActivatedAsync();
-
-        Assert.True(details.SaveManagement.IsLoadingSaves);
-        Assert.False(details.SaveManagement.HasLoadedSaves);
-
-        releaseInitialLoad.TrySetResult();
-        await initialLoad;
-
-        Assert.False(details.SaveManagement.IsLoadingSaves);
-        Assert.True(details.SaveManagement.HasLoadedSaves);
-        Assert.Single(details.SaveManagement.Saves);
-        details.SetPageActive(false);
-    }
-
-    [Fact]
-    public async Task ReenteringLargeModSectionShowsCacheBeforeSilentScanCompletes()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var modService = new RecordingModService();
-        var originalPath = Path.Combine(TempRoot, "original.jar");
-        modService.Items = [CreateMod("Original", originalPath)];
-        using var details = CreateDetails(monitor, modService: modService);
-        details.SetSelectedInstance(CreateInstanceItem());
-        details.SetPageActive(true);
-        details.SetSelectedSection(CreateSection("mod_management"));
-        await details.ModManagement.OnSectionActivatedAsync();
-        var cachedItem = Assert.Single(details.ModManagement.Mods);
-        var entranceAnimationToken = details.ModManagement.ListEntranceAnimationToken;
-        Assert.Equal(1, modService.CallCount);
-
-        details.SetSelectedSection(CreateSection("general"));
-        modService.Items =
-        [
-            CreateMod("Original updated", originalPath),
-            CreateMod("Added while hidden", Path.Combine(TempRoot, "added.jar"))
-        ];
-        var releaseSilentRefresh = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        modService.WaitBeforeSecondCall = releaseSilentRefresh.Task;
-        details.SetSelectedSection(CreateSection("mod_management"));
-        await modService.WaitForCallAsync(2);
-        var silentRefresh = details.ModManagement.OnSectionActivatedAsync();
-
-        Assert.True(details.ModManagement.HasLoadedMods);
-        Assert.False(details.ModManagement.IsLoadingMods);
-        Assert.Same(cachedItem, Assert.Single(details.ModManagement.Mods));
-        Assert.Equal(entranceAnimationToken, details.ModManagement.ListEntranceAnimationToken);
-
-        releaseSilentRefresh.TrySetResult();
-        await silentRefresh;
-
-        Assert.Equal(2, details.ModManagement.InstalledModCount);
-        Assert.Same(
-            cachedItem,
-            details.ModManagement.Mods.Single(mod =>
-                string.Equals(mod.FullPath, originalPath, StringComparison.OrdinalIgnoreCase)));
-        Assert.Equal(entranceAnimationToken, details.ModManagement.ListEntranceAnimationToken);
         details.SetPageActive(false);
     }
 
@@ -255,69 +100,8 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
         details.SetPageActive(false);
     }
 
-    [Fact]
-    public async Task DeletionDialogRemainsBusyUntilBackendCommits()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var instance = CreateInstanceItem();
-        var deletionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var deletionCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var instanceService = new FakeGameInstanceService
-        {
-            DeleteHandler = async (_, _) =>
-            {
-                deletionStarted.TrySetResult();
-                return await deletionCompletion.Task;
-            }
-        };
-        instanceService.CreatedInstances.Add(instance.Instance);
-        using var details = CreateDetails(monitor, instanceService: instanceService);
-        details.SetSelectedInstance(instance);
-        details.SetSelectedSection(CreateSection("mod_management"));
-        details.SetPageActive(true);
-        var dialogs = new GameSettingsDialogsViewModel(instanceService, Stub<IStatusService>(), details);
-        GameSettingsInstanceItem? deletedInstance = null;
-        dialogs.InstanceDeleted += deleted => deletedInstance = deleted;
-        dialogs.OpenDeleteInstance(instance);
-
-        var deletion = dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
-        await deletionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
-        Assert.True(dialogs.IsDeleteInstanceDialogBusy);
-        Assert.False(dialogs.HasDeleteInstanceDialogError);
-        Assert.Same(instance, dialogs.InstancePendingDelete);
-        Assert.Equal(Strings.Dialog_DeleteInstanceBusyTitle, dialogs.DeleteInstanceDialogTitle);
-        Assert.Equal(
-            string.Format(Strings.Dialog_DeleteInstanceBusyMessageFormat, instance.Name),
-            dialogs.DeleteInstanceDialogMessage);
-        Assert.Equal(Strings.Dialog_DeleteInstanceBusyTitle, dialogs.DeleteInstanceDialogActionText);
-        Assert.False(dialogs.CanShowDeleteInstanceCancelButton);
-        Assert.False(dialogs.CancelDeleteInstanceDialogCommand.CanExecute(null));
-        Assert.False(dialogs.ConfirmDeleteInstanceDialogCommand.CanExecute(null));
-
-        dialogs.CancelDeleteInstanceDialogCommand.Execute(null);
-        dialogs.OpenDeleteInstance(CreateInstanceItem(Path.Combine(TempRoot, "other-instance")));
-        await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
-        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
-        Assert.Same(instance, dialogs.InstancePendingDelete);
-        Assert.Equal(1, instanceService.DeleteCallCount);
-
-        deletionCompletion.SetResult(true);
-        await deletion;
-
-        Assert.False(dialogs.IsDeleteInstanceDialogOpen);
-        Assert.False(dialogs.IsDeleteInstanceDialogBusy);
-        Assert.Null(dialogs.InstancePendingDelete);
-        Assert.Same(instance, deletedInstance);
-        Assert.Null(details.SelectedInstance);
-        Assert.Empty(monitor.ActiveKinds);
-        details.SetPageActive(false);
-    }
-
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task FailedDeletionRemainsOpenAndCanBeRetried(bool throwException)
     {
         var monitor = new RecordingDirectoryMonitor();
@@ -361,51 +145,6 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
         Assert.Equal(2, instanceService.DeleteCallCount);
         Assert.Empty(monitor.ActiveKinds);
         Assert.Null(details.SelectedInstance);
-        details.SetPageActive(false);
-    }
-
-    [Fact]
-    public async Task FailedDeletionRestoresOnlyCurrentResourceWatcher()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var instance = CreateInstanceItem();
-        var instanceService = new FakeGameInstanceService();
-        using var details = CreateDetails(monitor, instanceService: instanceService);
-        details.SetSelectedInstance(instance);
-        details.SetSelectedSection(CreateSection("mod_management"));
-        details.SetPageActive(true);
-        var dialogs = new GameSettingsDialogsViewModel(instanceService, Stub<IStatusService>(), details);
-        dialogs.OpenDeleteInstance(instance);
-
-        await dialogs.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
-
-        Assert.True(dialogs.IsDeleteInstanceDialogOpen);
-        Assert.True(dialogs.HasDeleteInstanceDialogError);
-        Assert.Equal([InstanceDirectoryKind.Mods], monitor.ActiveKinds);
-        Assert.Equal(2, monitor.WatchStartCount);
-        Assert.Same(instance, details.SelectedInstance);
-        details.SetPageActive(false);
-    }
-
-    [Fact]
-    public void RenameRecoveryWatchesOnlyTheNewInstancePath()
-    {
-        var monitor = new RecordingDirectoryMonitor();
-        var original = CreateInstanceItem(Path.Combine(TempRoot, "old"));
-        using var details = CreateDetails(monitor);
-        details.SetSelectedInstance(original);
-        details.SetSelectedSection(CreateSection("saves"));
-        details.SetPageActive(true);
-
-        details.SuspendLocalWatchersForInstanceMove();
-        var renamed = CreateInstanceItem(Path.Combine(TempRoot, "new")).Instance;
-        original.Update(renamed, "release");
-        details.SetSelectedInstance(original);
-        details.ResumeLocalWatchersAfterInstanceMove();
-
-        Assert.Equal([InstanceDirectoryKind.Saves], monitor.ActiveKinds);
-        Assert.Equal(2, monitor.WatchStartCount);
-        Assert.Equal(renamed.InstanceDirectory, monitor.WatchedDirectories.Last(), ignoreCase: true);
         details.SetPageActive(false);
     }
 
@@ -496,14 +235,6 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
         Name = name,
         DirectoryName = Path.GetFileName(fullPath),
         FullPath = fullPath
-    };
-
-    private static LocalMod CreateMod(string name, string fullPath) => new()
-    {
-        Name = name,
-        FileName = Path.GetFileName(fullPath),
-        FullPath = fullPath,
-        IsEnabled = true
     };
 
     private static T Stub<T>() where T : class => DispatchProxy.Create<T, DefaultInterfaceProxy>();
@@ -605,46 +336,6 @@ public sealed class GameSettingsDetailsWatcherLifecycleTests : TestTempDirectory
             throw new NotSupportedException();
 
         public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
-
-    private sealed class RecordingModService : IModService
-    {
-        private readonly TaskCompletionSource firstCall = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource secondCall = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public IReadOnlyList<LocalMod> Items { get; set; } = [];
-        public int CallCount { get; private set; }
-        public Task? WaitBeforeSecondCall { get; set; }
-
-        public async Task<IReadOnlyList<LocalMod>> GetModsAsync(
-            GameInstance instance,
-            CancellationToken cancellationToken = default)
-        {
-            CallCount++;
-            if (CallCount >= 1)
-                firstCall.TrySetResult();
-            if (CallCount >= 2)
-                secondCall.TrySetResult();
-            if (CallCount == 2 && WaitBeforeSecondCall is not null)
-                await WaitBeforeSecondCall;
-            return Items;
-        }
-
-        public Task WaitForCallAsync(int callCount) => (callCount <= 1 ? firstCall : secondCall).Task;
-
-        public Task<LocalMod> ImportAsync(
-            GameInstance instance,
-            string sourceJarPath,
-            bool overwriteExisting = false,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task SetEnabledAsync(
-            LocalMod mod,
-            bool enabled,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

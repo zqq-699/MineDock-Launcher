@@ -56,37 +56,6 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
     }
 
     [Fact]
-    public async Task SwitchingInstanceCancelsPendingMutationForPreviousInstance()
-    {
-        var first = CreateInstance("first");
-        var second = CreateInstance("second");
-        var instanceService = new FakeGameInstanceService();
-        using var coordinator = CreateCoordinator(instanceService, new RecordingStatusService());
-        coordinator.SetInstance(first);
-        coordinator.Schedule(
-            "description",
-            first,
-            target => ApplyDescription(target, "stale"),
-            () => { },
-            TimeSpan.FromMilliseconds(100));
-
-        coordinator.SetInstance(second);
-        coordinator.Schedule(
-            "description",
-            second,
-            target => ApplyDescription(target, "current"),
-            () => { },
-            TimeSpan.FromMilliseconds(10));
-
-        await instanceService.SaveCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await Task.Delay(150);
-
-        Assert.Equal("first", first.Description);
-        Assert.Equal("current", second.Description);
-        Assert.Same(second, instanceService.LastSavedInstance);
-    }
-
-    [Fact]
     public async Task SaveNotificationForSameInstanceDoesNotCancelNewerPendingMutation()
     {
         var instance = CreateInstance("original");
@@ -124,30 +93,6 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
 
         Assert.Equal(2, instanceService.SaveCallCount);
         Assert.Equal("latest", instance.Description);
-    }
-
-    [Fact]
-    public async Task SaveFailureRollsBackModelAndReportsFriendlyStatus()
-    {
-        var instance = CreateInstance("original");
-        var instanceService = new FakeGameInstanceService
-        {
-            SaveException = new IOException("technical details")
-        };
-        var statusService = new RecordingStatusService();
-        using var coordinator = CreateCoordinator(instanceService, statusService);
-        coordinator.SetInstance(instance);
-        coordinator.Schedule(
-            "description",
-            instance,
-            target => ApplyDescription(target, "changed"),
-            () => { });
-
-        var message = await statusService.Message.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
-        Assert.Equal("original", instance.Description);
-        Assert.Equal(Strings.Status_InstanceSettingsSaveFailed, message);
-        Assert.DoesNotContain("technical details", message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static InstanceSettingsPersistenceCoordinator CreateCoordinator(

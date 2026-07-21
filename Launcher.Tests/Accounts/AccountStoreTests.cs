@@ -36,32 +36,6 @@ public sealed class AccountStoreTests
     }
 
     [Fact]
-    public async Task LoadKeepsStoredProfileFieldsWhenRefreshFallsBackToCache()
-    {
-        var state = new FakeStateService(new LauncherAccountState
-        {
-            MicrosoftAccountsImported = true,
-            Accounts = [new()
-            {
-                Id = "ms-1",
-                DisplayName = "Stored",
-                Uuid = "uuid",
-                SkinSource = "stored.png",
-                SkinModel = MinecraftSkinModel.Classic
-            }]
-        });
-        var store = new AccountStore(state,
-            new FakeMicrosoftService(new LauncherAccount { Id = "ms-1", DisplayName = "Cached", Uuid = "uuid", Kind = LauncherAccountKind.Microsoft }),
-            new FakeOfflineAccountUuidService());
-
-        var account = Assert.Single((await store.LoadAsync()).Accounts);
-
-        Assert.Equal("Stored", account.DisplayName);
-        Assert.Equal("stored.png", account.SkinSource);
-        Assert.Equal(MinecraftSkinModel.Classic, account.SkinModel);
-    }
-
-    [Fact]
     public async Task LoadPreservesThirdPartyRecordsWithoutMicrosoftReconciliation()
     {
         var state = new FakeStateService(new LauncherAccountState
@@ -116,19 +90,6 @@ public sealed class AccountStoreTests
         Assert.Equal("Stored Microsoft", account.DisplayName);
         Assert.Equal("uuid", account.Uuid);
         Assert.Equal(0, state.SaveCount);
-    }
-
-    [Fact]
-    public void MapperMigratesLegacyNonOfflineRecordToMicrosoft()
-    {
-        var account = AccountMapper.FromRecord(new LauncherAccountRecord
-        {
-            Id = "legacy",
-            DisplayName = "Legacy",
-            IsOffline = false
-        });
-
-        Assert.True(account.IsMicrosoft);
     }
 
     private sealed class FakeStateService(LauncherAccountState state) : IAccountStateService

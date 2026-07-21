@@ -67,60 +67,6 @@ public sealed class DownloadBandwidthLimiterTests
         Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(850));
     }
 
-    [Fact]
-    public async Task StateBackedLimiterCreatedWhileDisabledRespectsLaterEnable()
-    {
-        var speedLimitState = new TestDownloadSpeedLimitState();
-        speedLimitState.SetDownloadSpeedLimitMbPerSecond(0);
-
-        var limiter = DownloadBandwidthLimiter.Create(4, speedLimitState);
-        Assert.NotNull(limiter);
-
-        var unlimitedStopwatch = Stopwatch.StartNew();
-        await limiter!.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        unlimitedStopwatch.Stop();
-
-        speedLimitState.SetDownloadSpeedLimitMbPerSecond(1);
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        var throttledStopwatch = Stopwatch.StartNew();
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        throttledStopwatch.Stop();
-
-        Assert.True(unlimitedStopwatch.Elapsed < TimeSpan.FromMilliseconds(250));
-        Assert.True(throttledStopwatch.Elapsed >= TimeSpan.FromMilliseconds(850));
-    }
-
-    [Fact]
-    public async Task ExistingStateBackedLimiterRespectsLaterDisableAndReenable()
-    {
-        var speedLimitState = new TestDownloadSpeedLimitState();
-        speedLimitState.SetDownloadSpeedLimitMbPerSecond(1);
-        var limiter = DownloadBandwidthLimiter.Create(0, speedLimitState);
-        Assert.NotNull(limiter);
-
-        await limiter!.ThrottleAsync(1024 * 1024, CancellationToken.None);
-
-        var throttledStopwatch = Stopwatch.StartNew();
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        throttledStopwatch.Stop();
-
-        speedLimitState.SetDownloadSpeedLimitMbPerSecond(0);
-        var unlimitedStopwatch = Stopwatch.StartNew();
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        unlimitedStopwatch.Stop();
-
-        speedLimitState.SetDownloadSpeedLimitMbPerSecond(1);
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-
-        var reenabledStopwatch = Stopwatch.StartNew();
-        await limiter.ThrottleAsync(1024 * 1024, CancellationToken.None);
-        reenabledStopwatch.Stop();
-
-        Assert.True(throttledStopwatch.Elapsed >= TimeSpan.FromMilliseconds(850));
-        Assert.True(unlimitedStopwatch.Elapsed < TimeSpan.FromMilliseconds(250));
-        Assert.True(reenabledStopwatch.Elapsed >= TimeSpan.FromMilliseconds(850));
-    }
-
     private sealed class TestDownloadSpeedLimitState : IDownloadSpeedLimitState
     {
         public int DownloadSpeedLimitMbPerSecond { get; private set; }

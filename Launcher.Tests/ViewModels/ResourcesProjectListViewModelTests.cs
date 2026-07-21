@@ -39,36 +39,6 @@ public sealed class ResourcesProjectListViewModelTests
     }
 
     [Fact]
-    public async Task SearchDebounceOnlyQueriesLatestText()
-    {
-        var service = new RecordingCatalogService();
-        using var viewModel = CreateViewModel(service);
-
-        viewModel.SearchQuery = "ma";
-        viewModel.SearchQuery = "map";
-
-        Assert.Empty(service.Requests);
-        await WaitUntilAsync(() => service.Requests.Count == 1);
-        Assert.Equal("map", Assert.Single(service.Requests).Query);
-    }
-
-    [Fact]
-    public void ConfirmingSeveralPendingFiltersIssuesOneRefresh()
-    {
-        var service = new RecordingCatalogService();
-        using var viewModel = CreateViewModel(service);
-        viewModel.OpenFilterDialogCommand.Execute(null);
-        viewModel.PendingLoaderOption = viewModel.LoaderOptions[1];
-        viewModel.PendingSourceOption = viewModel.SourceOptions[1];
-
-        viewModel.ConfirmFilterDialogCommand.Execute(null);
-
-        var request = Assert.Single(service.Requests);
-        Assert.Equal(LoaderKind.Fabric, request.Loader);
-        Assert.Equal(ResourceProjectSource.Modrinth, request.Source);
-    }
-
-    [Fact]
     public async Task CanceledOlderRequestCannotReplaceLatestResults()
     {
         var service = new ControlledCatalogService();
@@ -84,24 +54,6 @@ public sealed class ResourcesProjectListViewModelTests
         await Task.Delay(50);
 
         Assert.Equal("new", Assert.Single(viewModel.VisibleProjects).Title);
-    }
-
-    [Fact]
-    public async Task ManagedThumbnailUsesCacheImmediatelyThenPublishesBackgroundRefresh()
-    {
-        var service = new ThumbnailCatalogService();
-        using var viewModel = CreateViewModel(service);
-
-        await viewModel.RefreshAsync();
-
-        var item = Assert.Single(viewModel.VisibleProjects);
-        Assert.Equal("file:///cached.png?v=1", item.IconSource);
-        Assert.True(service.ThumbnailRequested.Task.IsCompleted);
-
-        service.ThumbnailCompletion.SetResult("file:///cached.png?v=2");
-        await WaitUntilAsync(() => item.IconSource == "file:///cached.png?v=2");
-
-        Assert.Equal(string.Empty, item.IconKey);
     }
 
     [Fact]

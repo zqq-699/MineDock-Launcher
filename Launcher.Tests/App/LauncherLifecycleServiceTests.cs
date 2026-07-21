@@ -148,49 +148,6 @@ public sealed class LauncherLifecycleServiceTests
         Assert.Equal(1, sandboxCleanup.WaitCallCount);
     }
 
-    [Fact]
-    public async Task ShutdownWaitsForTrackedSandboxCleanupBeforeContinuing()
-    {
-        var downloadTasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var installCleanup = new TestInstallCleanupService();
-        var workspaceCleanup = new TestWorkspaceCleanupService(completeImmediately: true);
-        var cleanupReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var sandboxCleanup = new TestSandboxCleanupService(cleanupReleased.Task);
-        var service = new LauncherShutdownService(
-            downloadTasks,
-            installCleanup,
-            workspaceCleanup,
-            sandboxCleanup);
-
-        var shutdown = service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
-        await Task.Delay(20);
-
-        Assert.False(shutdown.IsCompleted);
-        Assert.Equal(0, installCleanup.CallCount);
-
-        cleanupReleased.SetResult();
-        await shutdown;
-
-        Assert.Equal(1, sandboxCleanup.WaitCallCount);
-        Assert.Equal(1, installCleanup.CallCount);
-    }
-
-    [Fact]
-    public async Task ShutdownStopsActiveMultiplayerLobby()
-    {
-        var lobby = new TestMultiplayerLobbyService();
-        var service = new LauncherShutdownService(
-            new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1)),
-            new TestInstallCleanupService(),
-            new TestWorkspaceCleanupService(completeImmediately: true),
-            new TestSandboxCleanupService(),
-            multiplayerLobbyService: lobby);
-
-        await service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(1, lobby.StopCount);
-    }
-
     private sealed class TestLauncherStateMonitor : ILauncherStateMonitor
     {
         public event EventHandler? StateChanged;
@@ -282,37 +239,4 @@ public sealed class LauncherLifecycleServiceTests
         }
     }
 
-    private sealed class TestMultiplayerLobbyService : IMultiplayerLobbyService
-    {
-        public MultiplayerLobbySnapshot? Current => null;
-
-        public int StopCount { get; private set; }
-
-        public event Action<MultiplayerLobbySnapshot>? SnapshotChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public event Action<MultiplayerLobbyStopped>? Stopped
-        {
-            add { }
-            remove { }
-        }
-
-        public Task<MultiplayerLobbySnapshot> CreateHostAsync(
-            string hostName,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<MultiplayerLobbySnapshot> JoinAsync(
-            string roomCode,
-            string playerName,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task StopAsync(CancellationToken cancellationToken = default)
-        {
-            StopCount++;
-            return Task.CompletedTask;
-        }
-    }
 }

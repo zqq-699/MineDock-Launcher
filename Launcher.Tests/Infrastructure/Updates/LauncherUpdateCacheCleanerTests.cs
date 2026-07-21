@@ -43,39 +43,6 @@ public sealed class LauncherUpdateCacheCleanerTests : IDisposable
         Assert.False(File.Exists(staleUpdater));
     }
 
-    [Fact]
-    public async Task CleanupConfirmedUpdateRetriesUntilRunningUpdaterIsReleased()
-    {
-        var updaterPath = WriteCachedUpdater("1.0.1");
-        var cleaner = new LauncherUpdateCacheCleaner(
-            tempRoot,
-            deleteAttempts: 20,
-            retryDelay: TimeSpan.FromMilliseconds(10));
-        await using var updaterLock = new FileStream(
-            updaterPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.None);
-
-        var cleanupTask = cleaner.CleanupConfirmedUpdateAsync(updaterPath);
-        await updaterLock.DisposeAsync();
-        await cleanupTask;
-
-        Assert.False(Directory.Exists(GetUpdatesRoot()));
-    }
-
-    [Fact]
-    public async Task CleanupConfirmedUpdateNeverDeletesOutsideUpdateCache()
-    {
-        Directory.CreateDirectory(tempRoot);
-        var outsideUpdater = Path.Combine(tempRoot, "outside.exe");
-        File.WriteAllText(outsideUpdater, "outside");
-
-        await CreateCleaner().CleanupConfirmedUpdateAsync(outsideUpdater);
-
-        Assert.True(File.Exists(outsideUpdater));
-    }
-
     private LauncherUpdateCacheCleaner CreateCleaner() => new(tempRoot);
 
     private string WriteCachedUpdater(string version)

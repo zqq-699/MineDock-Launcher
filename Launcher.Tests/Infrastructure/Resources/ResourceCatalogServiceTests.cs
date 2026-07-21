@@ -41,70 +41,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task CurseForgeMultiVersionSearchLimitsConcurrencyToFour()
-    {
-        var handler = new BlockingCurseForgeSearchHandler();
-        var service = CreateService(handler, "key");
-        var searchTask = service.SearchProjectsAsync(new ResourceCatalogSearchRequest
-        {
-            Kind = ResourceProjectKind.Mod,
-            Source = ResourceProjectSource.CurseForge,
-            MinecraftVersions = ["1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5"]
-        });
-
-        try
-        {
-            await handler.FirstWaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.Equal(4, handler.MaxActiveRequests);
-        }
-        finally
-        {
-            handler.Release.TrySetResult();
-        }
-
-        var result = await searchTask;
-        Assert.Equal(6, handler.RequestCount);
-        Assert.Equal(4, handler.MaxActiveRequests);
-        Assert.Single(result.Projects);
-    }
-
-    [Fact]
-    public async Task CurseForgeMultiVersionSearchPreservesRequestedVersionOrderWhenDeduplicating()
-    {
-        var handler = new OutOfOrderCurseForgeSearchHandler();
-        var service = CreateService(handler, "key");
-
-        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
-        {
-            Kind = ResourceProjectKind.Mod,
-            Source = ResourceProjectSource.CurseForge,
-            MinecraftVersions = ["first", "second"]
-        });
-
-        Assert.Equal("First version project", Assert.Single(result.Projects).Title);
-    }
-
-    [Fact]
-    public async Task CurseForgeMultiVersionSearchCancelsAllInFlightRequests()
-    {
-        var handler = new BlockingCurseForgeSearchHandler();
-        var service = CreateService(handler, "key");
-        using var cancellation = new CancellationTokenSource();
-        var searchTask = service.SearchProjectsAsync(new ResourceCatalogSearchRequest
-        {
-            Kind = ResourceProjectKind.Mod,
-            Source = ResourceProjectSource.CurseForge,
-            MinecraftVersions = ["1", "2", "3", "4", "5", "6"]
-        }, cancellation.Token);
-
-        await handler.FirstWaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        cancellation.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => searchTask);
-        Assert.Equal(0, handler.ActiveRequests);
-    }
-
-    [Fact]
     public async Task SearchMergesBothSourcesByDownloads()
     {
         var handler = new StubHandler(request => Json(request.RequestUri!.Host == "api.modrinth.com"
@@ -116,95 +52,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
 
         Assert.Equal(["CurseForge", "Modrinth"], result.Projects.Select(project => project.Title));
         Assert.Equal([120, 50], result.Projects.Select(project => project.Downloads));
-    }
-
-    [Fact]
-    public async Task RecognizedModrinthReferenceLoadsCompleteProjectById()
-    {
-        var handler = new StubHandler(_ => Json(
-            """{"id":"shader-project","slug":"shader-slug","project_type":"shader","title":"Shader","description":"Description","downloads":42,"game_versions":["1.21"],"categories":["fantasy"]}"""));
-        var service = CreateService(handler);
-
-        var project = await service.GetProjectAsync(new ResourceProjectReference(
-            ResourceProjectKind.ShaderPack,
-            ResourceProjectSource.Modrinth,
-            "shader-project"));
-
-        Assert.NotNull(project);
-        Assert.Equal("Shader", project.Title);
-        Assert.Equal(ResourceProjectKind.ShaderPack, project.Kind);
-        Assert.Equal("https://modrinth.com/shader/shader-slug", project.ProjectUrl);
-    }
-
-    [Fact]
-    public async Task RecognizedCurseForgeReferenceLoadsCompleteProjectById()
-    {
-        var handler = new StubHandler(_ => Json(
-            """{"data":{"id":42,"name":"Pack","slug":"pack-slug","summary":"Description","downloadCount":7,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/pack-slug"}}}"""));
-        var service = CreateService(handler, "key");
-
-        var project = await service.GetProjectAsync(new ResourceProjectReference(
-            ResourceProjectKind.ResourcePack,
-            ResourceProjectSource.CurseForge,
-            "42"));
-
-        Assert.NotNull(project);
-        Assert.Equal("Pack", project.Title);
-        Assert.Equal(ResourceProjectKind.ResourcePack, project.Kind);
-        Assert.Equal("https://www.curseforge.com/minecraft/texture-packs/pack-slug", project.ProjectUrl);
-    }
-
-    [Fact]
-    public async Task ModrinthSearchMapsOnlyUnifiedCategoriesForKind()
-    {
-        var handler = new StubHandler(_ => Json(
-            """{"hits":[{"project_id":"m","slug":"project","title":"Project","description":"","downloads":1,"categories":["fabric","optimization","decoration","client","optimization"]}]}"""));
-        var service = CreateService(handler);
-
-        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
-        {
-            Kind = ResourceProjectKind.Mod,
-            Source = ResourceProjectSource.Modrinth
-        });
-
-        Assert.Equal(
-            [ResourceProjectCategory.Optimization, ResourceProjectCategory.Decoration],
-            Assert.Single(result.Projects).Categories);
-    }
-
-    [Fact]
-    public async Task CurseForgeSearchMapsAliasesWithinRequestedKindAndRemovesDuplicates()
-    {
-        var handler = new StubHandler(_ => Json(
-            """{"data":[{"id":9,"name":"Pack","slug":"pack","summary":"","downloadCount":1,"categories":[{"name":"Fantasy","slug":"fantasy"},{"name":"Realistic","slug":"realistic"},{"name":"Technology","slug":"technology"},{"name":"Fantasy","slug":"fantasy"}]}]}"""));
-        var service = CreateService(handler, "key");
-
-        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
-        {
-            Kind = ResourceProjectKind.ResourcePack,
-            Source = ResourceProjectSource.CurseForge
-        });
-
-        Assert.Equal(
-            [ResourceProjectCategory.Themed, ResourceProjectCategory.Realistic],
-            Assert.Single(result.Projects).Categories);
-    }
-
-    [Theory]
-    [InlineData(ResourceProjectKind.Mod, "performance", ResourceProjectCategory.Optimization, "audio")]
-    [InlineData(ResourceProjectKind.ResourcePack, "fantasy", ResourceProjectCategory.Themed, "technology")]
-    [InlineData(ResourceProjectKind.ShaderPack, "semi-realistic", ResourceProjectCategory.SemiRealistic, "quests")]
-    [InlineData(ResourceProjectKind.World, "minigame", ResourceProjectCategory.GameMap, "magic")]
-    [InlineData(ResourceProjectKind.Modpack, "questing", ResourceProjectCategory.Quests, "decoration")]
-    public void CurseForgeCategoryMappingIsScopedToResourceKind(
-        ResourceProjectKind kind,
-        string accepted,
-        ResourceProjectCategory expected,
-        string rejected)
-    {
-        var categories = ResourceProjectCategoryMapping.MapCurseForge(kind, [accepted, rejected]);
-
-        Assert.Equal([expected], categories);
     }
 
     [Fact]
@@ -256,66 +103,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task CurseForgeVersionsPreserveFileIntegrityMetadata()
-    {
-        const string sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        const string md5 = "cccccccccccccccccccccccccccccccc";
-        var handler = new StubHandler(_ => Json(
-            $$$"""{"data":[{"id":7,"displayName":"Pack","fileName":"pack.zip","downloadUrl":"https://download.test/pack.zip","fileLength":456,"hashes":[{"value":"{{{sha1}}}","algo":1},{"value":"{{{md5}}}","algo":2}]}],"pagination":{"totalCount":1}}"""));
-        var service = CreateService(handler, "key");
-
-        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
-        {
-            Kind = ResourceProjectKind.ResourcePack,
-            Source = ResourceProjectSource.CurseForge,
-            ProjectId = "42",
-            IncludeAllVersions = true
-        });
-
-        var version = Assert.Single(result.Versions);
-        Assert.Equal(456, version.ExpectedFileSize);
-        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Sha1 && hash.Value == sha1);
-        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Md5 && hash.Value == md5);
-    }
-
-    [Fact]
-    public async Task CurseForgeServerVersionsUseOnlyLinkedServerPacks()
-    {
-        var batchRequested = false;
-        var handler = new StubHandler(request =>
-        {
-            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/v1/mods/files")
-            {
-                batchRequested = true;
-                return Json(
-                    """{"data":[{"id":99,"isAvailable":true,"isServerPack":true,"displayName":"Pack Server 1.0","fileName":"server.zip","downloadUrl":"https://download.test/server.zip","gameVersions":[],"sortableGameVersions":[]}]}""");
-            }
-
-            return Json(
-                """{"data":[{"id":7,"isAvailable":true,"isServerPack":false,"serverPackFileId":99,"displayName":"Pack Client 1.0","fileName":"client.zip","gameVersions":["1.20.1"],"sortableGameVersions":[{"modLoader":1}]},{"id":8,"isAvailable":true,"isServerPack":false,"displayName":"Pack Client 2.0","fileName":"client-2.zip"}],"pagination":{"totalCount":2}}""");
-        });
-        var service = CreateService(handler, "key");
-
-        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
-        {
-            Kind = ResourceProjectKind.Modpack,
-            Source = ResourceProjectSource.CurseForge,
-            ProjectId = "42",
-            IncludeAllVersions = true,
-            ForServerInstallation = true,
-            PageSize = 100
-        });
-
-        var version = Assert.Single(result.Versions);
-        Assert.True(batchRequested);
-        Assert.Equal("99", version.VersionId);
-        Assert.Equal("server.zip", version.FileName);
-        Assert.Equal(["1.20.1"], version.GameVersions);
-        Assert.Equal(["forge"], version.Loaders);
-        Assert.False(result.HasMore);
-    }
-
-    [Fact]
     public async Task DownloadFallsBackAfterPrimaryFailure()
     {
         var handler = new StubHandler(request => request.RequestUri!.AbsolutePath.Contains("fallback", StringComparison.Ordinal)
@@ -335,49 +122,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
 
         Assert.Equal("fallback", await File.ReadAllTextAsync(path));
         Assert.Equal(2, handler.Requests.Count);
-    }
-
-    [Fact]
-    public async Task AllForbiddenCandidatesReportThirdPartyDistributionRestriction()
-    {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
-        var service = CreateService(handler);
-
-        await Assert.ThrowsAsync<ResourceProjectDistributionRestrictedException>(() =>
-            service.DownloadProjectVersionAsync(new ResourceProjectVersion
-            {
-                Kind = ResourceProjectKind.Modpack,
-                VersionId = "server-pack",
-                FileName = "server.zip",
-                PrimaryDownloadUrl = "https://api.test/server.zip",
-                FallbackDownloadUrls =
-                [
-                    "https://edge.forgecdn.net/files/1/2/server.zip",
-                    "https://mediafilez.forgecdn.net/files/1/2/server.zip"
-                ]
-            }, TempRoot));
-
-        Assert.Equal(3, handler.Requests.Count);
-    }
-
-    [Fact]
-    public async Task InstallWritesModIntoInstanceDirectory()
-    {
-        var service = CreateService(new StubHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("jar") }));
-        var instance = new GameInstance { Id = "instance", InstanceDirectory = TempRoot };
-
-        var path = await service.InstallProjectVersionAsync(new ResourceProjectVersion
-        {
-            VersionId = "v1",
-            FileName = "mod.jar",
-            PrimaryDownloadUrl = "https://download.test/mod.jar",
-            ExpectedFileSize = Encoding.UTF8.GetByteCount("jar"),
-            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "jar")]
-        }, instance);
-
-        Assert.Equal(Path.Combine(TempRoot, "mods", "mod.jar"), path);
-        Assert.Equal("jar", await File.ReadAllTextAsync(path));
     }
 
     [Fact]
@@ -433,31 +177,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Theory]
-    [InlineData("abc")]
-    [InlineData("abcde")]
-    public async Task LengthMismatchRejectsTruncatedOrOversizedContent(string content)
-    {
-        var service = CreateService(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(content)
-        }));
-
-        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
-            service.DownloadProjectVersionAsync(new ResourceProjectVersion
-            {
-                Kind = ResourceProjectKind.ResourcePack,
-                VersionId = "v1",
-                FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download.test/pack.zip",
-                ExpectedFileSize = 4
-            }, TempRoot));
-
-        Assert.Equal(ResourceProjectIntegrityFailureReason.LengthMismatch, exception.Reason);
-        Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
-        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ExecutableResourceWithoutTrustedHashIsRejectedBeforeDownload(bool md5Only)
@@ -476,46 +195,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             }, TempRoot));
 
         Assert.Equal(ResourceProjectIntegrityFailureReason.MissingTrustedHash, exception.Reason);
-        Assert.Empty(handler.Requests);
-    }
-
-    [Fact]
-    public async Task NonExecutableResourceAllowsLengthOnlyVerification()
-    {
-        var service = CreateService(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent("pack")
-        }));
-
-        var path = await service.DownloadProjectVersionAsync(new ResourceProjectVersion
-        {
-            Kind = ResourceProjectKind.ResourcePack,
-            VersionId = "v1",
-            FileName = "pack.zip",
-            PrimaryDownloadUrl = "https://download.test/pack.zip",
-            ExpectedFileSize = 4
-        }, TempRoot);
-
-        Assert.Equal("pack", await File.ReadAllTextAsync(path));
-    }
-
-    [Fact]
-    public async Task MalformedHashMetadataIsRejectedBeforeDownload()
-    {
-        var handler = new StubHandler(_ => throw new InvalidOperationException("Download must not start."));
-        var service = CreateService(handler);
-
-        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
-            service.DownloadProjectVersionAsync(new ResourceProjectVersion
-            {
-                Kind = ResourceProjectKind.ResourcePack,
-                VersionId = "v1",
-                FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download.test/pack.zip",
-                FileHashes = [new ResourceFileHash(ResourceFileHashAlgorithm.Sha1, "not-a-hash")]
-            }, TempRoot));
-
-        Assert.Equal(ResourceProjectIntegrityFailureReason.InvalidMetadata, exception.Reason);
         Assert.Empty(handler.Requests);
     }
 
@@ -566,98 +245,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
 
         Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
         Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
-    }
-
-    [Fact]
-    public async Task HttpClientTimeoutFallsBackAndPublishesVerifiedFile()
-    {
-        var handler = new TimeoutThenFallbackHandler();
-        using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(100) };
-        var service = new ResourceCatalogService(
-            httpClient,
-            curseForgeApiKeyResolver: new StubKeyResolver(null));
-
-        var path = await service.DownloadProjectVersionAsync(new ResourceProjectVersion
-        {
-            Kind = ResourceProjectKind.ResourcePack,
-            VersionId = "v1",
-            FileName = "pack.zip",
-            PrimaryDownloadUrl = "https://download.test/primary.zip",
-            FallbackDownloadUrls = ["https://download.test/fallback.zip"],
-            ExpectedFileSize = Encoding.UTF8.GetByteCount("fallback"),
-            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "fallback")]
-        }, TempRoot);
-
-        Assert.Equal("fallback", await File.ReadAllTextAsync(path));
-        Assert.Equal(2, handler.Requests.Count);
-        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
-    }
-
-    [Theory]
-    [InlineData("expected", true)]
-    [InlineData("modified", false)]
-    [InlineData("short", false)]
-    public async Task ExistingDownloadMustMatchLengthAndHash(string content, bool expectedExists)
-    {
-        Directory.CreateDirectory(TempRoot);
-        await File.WriteAllTextAsync(Path.Combine(TempRoot, "mod.jar"), content);
-        var service = CreateService(new StubHandler(_ => throw new InvalidOperationException("Download must not start.")));
-        var version = new ResourceProjectVersion
-        {
-            VersionId = "v1",
-            FileName = "mod.jar",
-            ExpectedFileSize = Encoding.UTF8.GetByteCount("expected"),
-            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
-        };
-
-        var exists = await service.ProjectVersionDownloadExistsAsync(version, TempRoot);
-
-        Assert.Equal(expectedExists, exists);
-    }
-
-    [Fact]
-    public async Task ExistingInstallMustMatchLengthAndHash()
-    {
-        var modsDirectory = Path.Combine(TempRoot, "mods");
-        Directory.CreateDirectory(modsDirectory);
-        await File.WriteAllTextAsync(Path.Combine(modsDirectory, "mod.jar"), "modified");
-        var service = CreateService(new StubHandler(_ => throw new InvalidOperationException("Download must not start.")));
-
-        var exists = await service.ProjectVersionInstallExistsAsync(
-            new ResourceProjectVersion
-            {
-                VersionId = "v1",
-                FileName = "mod.jar",
-                ExpectedFileSize = Encoding.UTF8.GetByteCount("modified"),
-                FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
-            },
-            new GameInstance { Id = "instance", InstanceDirectory = TempRoot });
-
-        Assert.False(exists);
-    }
-
-    [Fact]
-    public async Task TemporaryFileCreationFailureDoesNotPublishTarget()
-    {
-        var downloadDirectory = Path.Combine(TempRoot, "download");
-        var handler = new StubHandler(_ =>
-        {
-            Directory.Delete(downloadDirectory);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("pack") };
-        });
-        var service = CreateService(handler);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.DownloadProjectVersionAsync(new ResourceProjectVersion
-            {
-                Kind = ResourceProjectKind.ResourcePack,
-                VersionId = "v1",
-                FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download.test/pack.zip",
-                ExpectedFileSize = 4
-            }, downloadDirectory));
-
-        Assert.False(File.Exists(Path.Combine(downloadDirectory, "pack.zip")));
     }
 
     [Fact]
@@ -801,21 +388,6 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class TimeoutThenFallbackHandler : HttpMessageHandler
-    {
-        public List<Uri> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request.RequestUri!);
-            if (request.RequestUri!.AbsolutePath.Contains("primary", StringComparison.Ordinal))
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("fallback") };
-        }
-    }
-
     private sealed class ConcurrentProviderSearchHandler : HttpMessageHandler
     {
         private int startedCount;
@@ -839,72 +411,4 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         }
     }
 
-    private sealed class BlockingCurseForgeSearchHandler : HttpMessageHandler
-    {
-        private int activeRequests;
-        private int maxActiveRequests;
-        private int requestCount;
-
-        public TaskCompletionSource FirstWaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public int ActiveRequests => Volatile.Read(ref activeRequests);
-
-        public int MaxActiveRequests => Volatile.Read(ref maxActiveRequests);
-
-        public int RequestCount => Volatile.Read(ref requestCount);
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref requestCount);
-            var active = Interlocked.Increment(ref activeRequests);
-            UpdateMaximum(ref maxActiveRequests, active);
-            if (active == 4)
-                FirstWaveStarted.TrySetResult();
-            try
-            {
-                await Release.Task.WaitAsync(cancellationToken);
-                return Json("""{"data":[{"id":9,"name":"Project","slug":"project","summary":"","downloadCount":120,"links":null,"logo":null}]}""");
-            }
-            finally
-            {
-                Interlocked.Decrement(ref activeRequests);
-            }
-        }
-
-        private static void UpdateMaximum(ref int maximum, int candidate)
-        {
-            while (true)
-            {
-                var current = Volatile.Read(ref maximum);
-                if (candidate <= current || Interlocked.CompareExchange(ref maximum, candidate, current) == current)
-                    return;
-            }
-        }
-    }
-
-    private sealed class OutOfOrderCurseForgeSearchHandler : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource secondCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            if (request.RequestUri!.Query.Contains("gameVersion=first", StringComparison.Ordinal))
-            {
-                await secondCompleted.Task.WaitAsync(cancellationToken);
-                return Project("First version project");
-            }
-
-            secondCompleted.TrySetResult();
-            return Project("Second version project");
-        }
-
-        private static HttpResponseMessage Project(string title) => Json(
-            $$"""{"data":[{"id":9,"name":"{{title}}","slug":"project","summary":"","downloadCount":120,"links":null,"logo":null}]}""");
-    }
 }

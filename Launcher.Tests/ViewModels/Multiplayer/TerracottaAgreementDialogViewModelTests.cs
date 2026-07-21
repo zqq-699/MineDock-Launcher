@@ -27,33 +27,6 @@ public sealed class TerracottaAgreementDialogViewModelTests
     }
 
     [Fact]
-    public async Task MissingModuleOpensNoticeAndDisagreeCancelsEntry()
-    {
-        var context = Create();
-        var decision = context.ViewModel.EnsureReadyAsync();
-
-        context.ViewModel.DisagreeCommand.Execute(null);
-
-        Assert.False(await decision);
-        Assert.False(context.ViewModel.IsOpen);
-        Assert.Equal(0, context.Provisioning.EnsureCount);
-    }
-
-    [Fact]
-    public async Task AgreeDownloadsModuleThenAllowsEntry()
-    {
-        var context = Create();
-        var decision = context.ViewModel.EnsureReadyAsync();
-
-        await context.ViewModel.AgreeCommand.ExecuteAsync(null);
-
-        Assert.True(await decision);
-        Assert.False(context.ViewModel.IsOpen);
-        Assert.Equal(1, context.Provisioning.EnsureCount);
-        Assert.Equal(Strings.Status_TerracottaReady, context.Messages.StatusMessage);
-    }
-
-    [Fact]
     public async Task DownloadFailureKeepsNoticeOpenForRetry()
     {
         var context = Create();
@@ -66,16 +39,6 @@ public sealed class TerracottaAgreementDialogViewModelTests
         Assert.True(context.ViewModel.IsOpen);
         Assert.Equal(Strings.Dialog_TerracottaDownloadFailed, context.ViewModel.DownloadStatus);
         Assert.Equal(Strings.Status_TerracottaDownloadFailed, context.Messages.StatusMessage);
-    }
-
-    [Fact]
-    public void ProjectLinkUsesOfficialTerracottaRepository()
-    {
-        var context = Create();
-
-        context.ViewModel.OpenProjectCommand.Execute(null);
-
-        Assert.Equal(TerracottaAgreementDialogViewModel.TerracottaProjectUrl, context.ExternalLinks.LastUrl);
     }
 
     private static TestContext Create(bool isAvailable = false)

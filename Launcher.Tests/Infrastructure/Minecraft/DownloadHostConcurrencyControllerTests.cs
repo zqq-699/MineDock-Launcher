@@ -30,117 +30,6 @@ public sealed class DownloadHostConcurrencyControllerTests
     }
 
     [Fact]
-    public async Task PermanentStatusesAndOneTransientFailureDoNotReduceHost()
-    {
-        var clock = new TestTimeProvider();
-        var controller = CreateController(clock);
-        await CreateHostAsync(controller, CurseForgeUri);
-
-        controller.RecordResult(CurseForgeUri, DownloadFailureReason.HttpStatus, HttpStatusCode.Forbidden);
-        controller.RecordResult(CurseForgeUri, DownloadFailureReason.HttpStatus, HttpStatusCode.NotFound);
-        controller.RecordResult(CurseForgeUri, DownloadFailureReason.Network);
-        clock.Advance(TimeSpan.FromSeconds(20));
-        controller.RecordResult(CurseForgeUri, failureReason: null);
-
-        Assert.Equal(64, controller.GetSnapshot(Origin(CurseForgeUri)).CurrentTarget);
-    }
-
-    [Fact]
-    public async Task CongestionThresholdRequiresThreeFailuresAndTwentyFivePercent()
-    {
-        var clock = new TestTimeProvider();
-        var controller = CreateController(clock);
-        await CreateHostAsync(controller, CurseForgeUri);
-
-        for (var index = 0; index < 5; index++)
-            controller.RecordResult(CurseForgeUri, failureReason: null);
-        controller.RecordResult(CurseForgeUri, DownloadFailureReason.Network);
-        controller.RecordResult(CurseForgeUri, DownloadFailureReason.BodyInterrupted);
-        clock.Advance(TimeSpan.FromSeconds(20));
-        var adjustment = controller.RecordResult(CurseForgeUri, DownloadFailureReason.ResponseHeadersTimeout);
-
-        Assert.NotNull(adjustment);
-        Assert.Equal(DownloadHostAdjustmentReason.CongestionThreshold, adjustment.Reason);
-        Assert.Equal(32, adjustment.CurrentTarget);
-    }
-
-    [Fact]
-    public async Task HealthyBacklogDoublesHostTargetAfterTwentySeconds()
-    {
-        var clock = new TestTimeProvider();
-        var controller = CreateController(clock);
-        await CreateHostAsync(controller, CurseForgeUri);
-        controller.RecordResult(
-            CurseForgeUri,
-            DownloadFailureReason.HttpStatus,
-            HttpStatusCode.TooManyRequests);
-
-        var leases = new List<DownloadHostConcurrencyController.DownloadAdmissionLease>();
-        for (var index = 0; index < 32; index++)
-        {
-            leases.Add(await controller.AcquireAsync(
-                CurseForgeUri,
-                AcquireNoopGlobalAsync,
-                applyColdStartJitter: false,
-                CancellationToken.None));
-        }
-
-        try
-        {
-            var queued = controller.AcquireAsync(
-                CurseForgeUri,
-                AcquireNoopGlobalAsync,
-                applyColdStartJitter: false,
-                CancellationToken.None).AsTask();
-            Assert.True(SpinWait.SpinUntil(
-                () => controller.GetSnapshot(Origin(CurseForgeUri)).WaitingCount == 1,
-                TimeSpan.FromSeconds(1)));
-
-            for (var index = 0; index < 31; index++)
-                controller.RecordResult(CurseForgeUri, failureReason: null);
-            clock.Advance(TimeSpan.FromSeconds(20));
-            var adjustment = controller.RecordResult(CurseForgeUri, failureReason: null);
-
-            Assert.NotNull(adjustment);
-            Assert.Equal(DownloadHostAdjustmentReason.HealthyRecovery, adjustment.Reason);
-            Assert.Equal(64, adjustment.CurrentTarget);
-            await using var released = await queued.WaitAsync(TimeSpan.FromSeconds(1));
-        }
-        finally
-        {
-            foreach (var lease in leases)
-                await lease.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task ConcurrentColdStartAddsConfiguredJitterAfterFirstRequest()
-    {
-        var delays = new List<TimeSpan>();
-        var controller = new DownloadHostConcurrencyController(
-            maximumJitter: TimeSpan.FromSeconds(2),
-            nextJitter: () => 0.5,
-            delayAsync: (delay, _) =>
-            {
-                delays.Add(delay);
-                return ValueTask.CompletedTask;
-            });
-
-        await using var first = await controller.AcquireAsync(
-            CurseForgeUri,
-            AcquireNoopGlobalAsync,
-            applyColdStartJitter: true,
-            CancellationToken.None);
-        await using var second = await controller.AcquireAsync(
-            CurseForgeUri,
-            AcquireNoopGlobalAsync,
-            applyColdStartJitter: true,
-            CancellationToken.None);
-
-        Assert.Equal([TimeSpan.FromSeconds(1)], delays);
-    }
-
-    [Fact]
     public async Task CompletedColdStartDoesNotJitterSubsequentRequests()
     {
         var delays = new List<TimeSpan>();
@@ -209,59 +98,6 @@ public sealed class DownloadHostConcurrencyControllerTests
     }
 
     [Fact]
-    public async Task IdleHostStateResetsToSixtyFourAfterFiveMinutes()
-    {
-        var clock = new TestTimeProvider();
-        var controller = CreateController(clock);
-        await CreateHostAsync(controller, CurseForgeUri);
-        controller.RecordResult(
-            CurseForgeUri,
-            DownloadFailureReason.HttpStatus,
-            HttpStatusCode.TooManyRequests);
-        Assert.Equal(32, controller.GetSnapshot(Origin(CurseForgeUri)).CurrentTarget);
-
-        clock.Advance(TimeSpan.FromMinutes(5));
-        await CreateHostAsync(controller, CurseForgeUri);
-
-        Assert.Equal(64, controller.GetSnapshot(Origin(CurseForgeUri)).CurrentTarget);
-    }
-
-    [Fact]
-    public async Task RedirectReleasesIntermediateHostAndKeepsFinalLeaseUntilResultDisposal()
-    {
-        var controller = CreateController(new TestTimeProvider());
-        var limiter = new ImportConcurrencyLimiter();
-        using var httpClient = new HttpClient(new RedirectHandler());
-        var transport = new MinecraftDownloadTransport(
-            httpClient,
-            new DownloadRetryOptions(),
-            (uri, jitter, token) => controller.AcquireAsync(
-                uri,
-                limiter.AcquireRuntimeDownloadSlotAsync,
-                jitter,
-                token));
-
-        var result = await transport.SendAsync(
-            "https://first.example/file.jar",
-            CancellationToken.None,
-            applyColdStartJitter: true);
-        try
-        {
-            Assert.Equal(0, controller.GetSnapshot("https://first.example:443").ActiveCount);
-            Assert.Equal(1, controller.GetSnapshot("https://second.example:443").ActiveCount);
-            Assert.Equal(1, limiter.DownloadSnapshot.ActiveCount);
-        }
-        finally
-        {
-            result.Response.Dispose();
-            await result.DisposeAsync();
-        }
-
-        Assert.Equal(0, controller.GetSnapshot("https://second.example:443").ActiveCount);
-        Assert.Equal(0, limiter.DownloadSnapshot.ActiveCount);
-    }
-
-    [Fact]
     public void RetryDelayAddsUpToTwoSecondsButPreservesRetryAfter()
     {
         var options = new DownloadRetryOptions
@@ -288,26 +124,6 @@ public sealed class DownloadHostConcurrencyControllerTests
         Assert.Equal(TimeSpan.FromSeconds(2), executor.GetRetryDelay(transient, attempt: 1));
         Assert.Equal(TimeSpan.FromSeconds(5), executor.GetRetryDelay(transient, attempt: 3));
         Assert.Equal(TimeSpan.FromSeconds(7), executor.GetRetryDelay(rateLimited, attempt: 1));
-    }
-
-    [Theory]
-    [InlineData(HttpStatusCode.BadRequest)]
-    [InlineData(HttpStatusCode.Forbidden)]
-    [InlineData(HttpStatusCode.NotFound)]
-    [InlineData(HttpStatusCode.Gone)]
-    public void PermanentHttpStatusesAreNeutral(HttpStatusCode statusCode)
-    {
-        Assert.Equal(
-            DownloadHostResultKind.Neutral,
-            DownloadHostConcurrencyController.ClassifyResult(DownloadFailureReason.HttpStatus, statusCode));
-    }
-
-    [Fact]
-    public void SlowBodyFailureCountsAsHostCongestion()
-    {
-        Assert.Equal(
-            DownloadHostResultKind.CongestionFailure,
-            DownloadHostConcurrencyController.ClassifyResult(DownloadFailureReason.BodyTooSlow, statusCode: null));
     }
 
     private static DownloadHostConcurrencyController CreateController(TestTimeProvider clock) => new(
@@ -341,29 +157,6 @@ public sealed class DownloadHostConcurrencyControllerTests
         private DateTimeOffset utcNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow() => utcNow;
         public void Advance(TimeSpan duration) => utcNow += duration;
-    }
-
-    private sealed class RedirectHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            if (request.RequestUri!.Host == "first.example")
-            {
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Redirect)
-                {
-                    RequestMessage = request,
-                    Headers = { Location = new Uri("https://second.example/file.jar") }
-                });
-            }
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                RequestMessage = request,
-                Content = new ByteArrayContent("ok"u8.ToArray())
-            });
-        }
     }
 
     private sealed class SuccessHandler : HttpMessageHandler

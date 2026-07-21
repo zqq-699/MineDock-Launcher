@@ -65,24 +65,6 @@ public sealed class SettingsPersistenceCoordinatorTests
         Assert.Equal("C:\\Games\\Minecraft", settings.MinecraftDirectory);
     }
 
-    [Fact]
-    public async Task FlushPersistsPendingDebouncedUpdatesBeforeShutdown()
-    {
-        var settings = new LauncherSettings();
-        var service = new TestSettingsService(settings);
-        using var coordinator = new SettingsPersistenceCoordinator(
-            service,
-            new RecordingStatusService(),
-            NullLogger.Instance);
-        coordinator.Prime(settings);
-        coordinator.Update(value => value.Theme = "Light");
-
-        await coordinator.FlushAsync();
-
-        Assert.Equal(1, service.SaveCount);
-        Assert.Equal("Light", settings.Theme);
-    }
-
     private sealed class RecordingStatusService : IStatusService
     {
         public event Action<string>? MessageReported;

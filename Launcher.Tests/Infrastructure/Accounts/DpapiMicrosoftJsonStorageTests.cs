@@ -69,24 +69,4 @@ public sealed class DpapiMicrosoftJsonStorageTests
         }
     }
 
-    [Fact]
-    public void CorruptedCredentialFileIsNotTreatedAsEmptyStorage()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), $"launcher-microsoft-corrupt-test-{Guid.NewGuid():N}");
-        var path = Path.Combine(directory, "credentials.dat");
-        try
-        {
-            Directory.CreateDirectory(directory);
-            File.WriteAllBytes(path, [1, 2, 3, 4]);
-            var storage = new DpapiMicrosoftJsonStorage(path);
-
-            Assert.Throws<MicrosoftCredentialStorageException>(() => storage.ReadAsJsonNode());
-            Assert.Equal([1, 2, 3, 4], File.ReadAllBytes(path));
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-    }
 }

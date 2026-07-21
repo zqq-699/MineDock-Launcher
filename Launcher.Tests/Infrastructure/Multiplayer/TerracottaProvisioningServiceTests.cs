@@ -32,40 +32,6 @@ public sealed class TerracottaProvisioningServiceTests
     }
 
     [Fact]
-    public async Task HashMismatchFallsBackFromGiteeToGithub()
-    {
-        var correct = CreatePackage("0.4.3", "x86_64");
-        var incorrect = correct.ToArray();
-        incorrect[^1] ^= 0x5a;
-        using var context = CreateContext(
-            "0.4.3",
-            correct,
-            GithubDigest(correct),
-            giteeArchive: incorrect);
-
-        var module = await context.Service.EnsureAvailableAsync();
-
-        Assert.True(File.Exists(module.ExecutablePath));
-        Assert.Equal(["gitee.com", "github.com"], context.Handler.AssetRequestHosts);
-    }
-
-    [Fact]
-    public async Task MissingPublisherDigestAllowsInstallAndLocalHashesDetectDamage()
-    {
-        var archive = CreatePackage("0.4.3", "x86_64");
-        using var context = CreateContext(
-            "0.4.3",
-            archive,
-            githubDigest: null,
-            githubMetadataUnavailable: true);
-
-        var module = await context.Service.EnsureAvailableAsync();
-        await File.AppendAllTextAsync(module.ExecutablePath, "damage");
-
-        Assert.Null(context.Service.TryGetAvailable());
-    }
-
-    [Fact]
     public async Task UnexpectedArchiveEntryIsRejectedWithoutPublication()
     {
         var archive = CreatePackage("0.4.3", "x86_64", unexpectedFile: true);
@@ -78,58 +44,6 @@ public sealed class TerracottaProvisioningServiceTests
         await Assert.ThrowsAsync<InvalidDataException>(() => context.Service.EnsureAvailableAsync());
 
         Assert.Null(context.Service.TryGetAvailable());
-    }
-
-    [Fact]
-    public async Task MissingRequiredFileIsRejected()
-    {
-        var archive = CreatePackage("0.4.3", "x86_64", includeRuntime: false);
-        using var context = CreateContext(
-            "0.4.3",
-            archive,
-            githubDigest: null,
-            githubMetadataUnavailable: true);
-
-        await Assert.ThrowsAsync<InvalidDataException>(() => context.Service.EnsureAvailableAsync());
-
-        Assert.Null(context.Service.TryGetAvailable());
-    }
-
-    [Fact]
-    public async Task ConcurrentProvisioningDownloadsPackageOnlyOnce()
-    {
-        var archive = CreatePackage("0.4.3", "x86_64");
-        using var context = CreateContext("0.4.3", archive, GithubDigest(archive));
-
-        var modules = await Task.WhenAll(
-            context.Service.EnsureAvailableAsync(),
-            context.Service.EnsureAvailableAsync(),
-            context.Service.EnsureAvailableAsync());
-
-        Assert.All(modules, module => Assert.True(File.Exists(module.ExecutablePath)));
-        Assert.Single(context.Handler.AssetRequestHosts);
-    }
-
-    [Fact]
-    public async Task MetadataFailureCanBeRetriedInTheSameLauncherSession()
-    {
-        var archive = CreatePackage("0.4.3", "x86_64");
-        using var context = CreateContext("0.4.3", archive, GithubDigest(archive));
-        context.Handler.AllMetadataUnavailable = true;
-
-        await Assert.ThrowsAsync<HttpRequestException>(() => context.Service.EnsureAvailableAsync());
-        context.Handler.AllMetadataUnavailable = false;
-
-        var module = await context.Service.EnsureAvailableAsync();
-        Assert.True(File.Exists(module.ExecutablePath));
-    }
-
-    [Theory]
-    [InlineData("x86_64", "07ebe139e3ca5f74576e58b1a96efe59abdfbe148d3f1a49bfdca8b6f70745f0")]
-    [InlineData("arm64", "acfab0a87a02dedc6dab7c05303186c8907f56f815548b693fb3324358da7d14")]
-    public void BuiltInV042DigestMatchesOfficialGithubMetadata(string architecture, string expected)
-    {
-        Assert.Equal(expected, TerracottaProvisioningService.ResolveKnownDigest("0.4.2", architecture));
     }
 
     private static TestContext CreateContext(

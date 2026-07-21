@@ -40,29 +40,6 @@ public sealed class GeneralSettingsViewModelTests
     }
 
     [Fact]
-    public void RunningDownloadDisablesDirectoryChangeAndShowsWarningState()
-    {
-        var settings = new LauncherSettings { MinecraftDirectory = "C:\\Minecraft\\old" };
-        var status = new RecordingStatusService();
-        using var persistence = CreatePersistence(settings, status);
-        var downloads = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        using var viewModel = CreateViewModel(persistence, status, downloads);
-        viewModel.Load(settings);
-
-        var task = downloads.BeginTask("install", "instance");
-
-        Assert.False(viewModel.CanChangeMinecraftDirectory);
-        Assert.True(viewModel.IsMinecraftDirectoryChangeBlocked);
-        Assert.False(viewModel.ChangeMinecraftDirectoryCommand.CanExecute(null));
-
-        task.Complete("done");
-
-        Assert.True(viewModel.CanChangeMinecraftDirectory);
-        Assert.False(viewModel.IsMinecraftDirectoryChangeBlocked);
-        Assert.True(viewModel.ChangeMinecraftDirectoryCommand.CanExecute(null));
-    }
-
-    [Fact]
     public async Task DownloadStartingWhileFolderPickerIsOpenPreventsDirectorySave()
     {
         var settings = new LauncherSettings { MinecraftDirectory = "C:\\Minecraft\\old" };

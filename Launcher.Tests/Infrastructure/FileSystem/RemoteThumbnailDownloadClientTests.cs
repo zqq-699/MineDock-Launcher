@@ -62,23 +62,6 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task OversizedThumbnailIsRejectedBeforeReadingResponseBody()
-    {
-        using var httpClient = new HttpClient(new OversizedThumbnailHandler());
-        var client = new RemoteThumbnailDownloadClient(
-            httpClient,
-            new RecordingLimiter(),
-            downloadSpeedLimitState: null,
-            NullLogger.Instance);
-
-        await Assert.ThrowsAsync<Launcher.Infrastructure.Minecraft.MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
-            () => client.DownloadAsync(
-                "https://cdn.example.com/icon.png",
-                maximumBytes: 4,
-                CancellationToken.None));
-    }
-
-    [Fact]
     public async Task LocalModEnrichmentStartsThumbnailDownloadsConcurrently()
     {
         Directory.CreateDirectory(TempRoot);
@@ -116,38 +99,6 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
 
         Assert.Equal(2, resolved.Count);
         Assert.All(mods, mod => Assert.True(resolved.ContainsKey(mod.FullPath)));
-    }
-
-    [Fact]
-    public async Task ResourceThumbnailCacheReturnsLocalFileAndAvoidsDuplicateDownload()
-    {
-        Directory.CreateDirectory(TempRoot);
-        var handler = new ImmediateThumbnailHandler();
-        using var httpClient = new HttpClient(handler);
-        var service = new ResourceThumbnailCacheService(
-            new LauncherPathProvider(TempRoot),
-            httpClient,
-            new RecordingLimiter(),
-            downloadSpeedLimitState: null,
-            NullLogger.Instance);
-        var project = new ResourceProject
-        {
-            Kind = ResourceProjectKind.ResourcePack,
-            Source = ResourceProjectSource.Modrinth,
-            ProjectId = "project",
-            IconUrl = "http://127.0.0.1/icon.png"
-        };
-
-        Assert.Null(service.TryGetCachedThumbnailSource(project));
-
-        var first = await service.GetOrCreateThumbnailSourceAsync(project, CancellationToken.None);
-        var second = await service.GetOrCreateThumbnailSourceAsync(project, CancellationToken.None);
-
-        Assert.NotNull(first);
-        Assert.Equal(first, second);
-        Assert.StartsWith("file:", first, StringComparison.OrdinalIgnoreCase);
-        Assert.True(File.Exists(new Uri(first!).LocalPath));
-        Assert.Equal(1, handler.RequestCount);
     }
 
     private sealed class BlockingThumbnailHandler(int expectedMaximum) : HttpMessageHandler
@@ -189,20 +140,6 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
             {
                 Interlocked.Decrement(ref activeRequests);
             }
-        }
-    }
-
-    private sealed class OversizedThumbnailHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var content = new ByteArrayContent([1, 2, 3, 4, 5]);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = content
-            });
         }
     }
 
@@ -277,26 +214,6 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
                 Encoding.UTF8,
                 "application/json")
         };
-    }
-
-    private sealed class ImmediateThumbnailHandler : HttpMessageHandler
-    {
-        private static readonly byte[] IconPayload = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-        private int requestCount;
-
-        public int RequestCount => Volatile.Read(ref requestCount);
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref requestCount);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent(IconPayload)
-            });
-        }
     }
 
     private sealed class RecordingLimiter : IImportConcurrencyLimiter

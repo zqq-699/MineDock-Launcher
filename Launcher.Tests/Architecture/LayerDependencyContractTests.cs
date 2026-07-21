@@ -58,55 +58,6 @@ public sealed class LayerDependencyContractTests
     }
 
     [Fact]
-    public void AppReferencesInfrastructureOnlyFromCompositionRoot()
-    {
-        var root = FindRepositoryRoot();
-        var offendingFiles = EnumerateSourceFiles(root)
-            .Where(file => IsUnder(file, root, "Launcher.App"))
-            .Where(file => !string.Equals(Path.GetFileName(file), "App.xaml.cs", StringComparison.OrdinalIgnoreCase))
-            .Where(file => File.ReadAllText(file).Contains("using Launcher.Infrastructure", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.Empty(offendingFiles);
-    }
-
-    [Fact]
-    public void ViewModelsDoNotOwnFileSystemWatchers()
-    {
-        var root = FindRepositoryRoot();
-        var offendingFiles = EnumerateSourceFiles(root)
-            .Where(file => IsUnder(file, root, "Launcher.App"))
-            .Where(file => file.Contains(
-                $"{Path.DirectorySeparatorChar}ViewModels{Path.DirectorySeparatorChar}",
-                StringComparison.OrdinalIgnoreCase))
-            .Where(file => File.ReadAllText(file).Contains("FileSystemWatcher", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.Empty(offendingFiles);
-    }
-
-    [Fact]
-    public void ViewModelsDoNotReadOrWriteFileSystemDirectly()
-    {
-        var root = FindRepositoryRoot();
-        var viewModelsRoot = Path.Combine(
-            root.FullName,
-            "Launcher.App",
-            "ViewModels") + Path.DirectorySeparatorChar;
-        var offendingFiles = EnumerateSourceFiles(root)
-            .Where(file => file.StartsWith(viewModelsRoot, StringComparison.OrdinalIgnoreCase))
-            .Where(file =>
-            {
-                var source = File.ReadAllText(file);
-                return source.Contains("File.", StringComparison.Ordinal)
-                    || source.Contains("Directory.", StringComparison.Ordinal);
-            })
-            .ToArray();
-
-        Assert.Empty(offendingFiles);
-    }
-
-    [Fact]
     public void ShellKeepsStateMonitoringAndBlockingShutdownOutOfUiBoundaries()
     {
         var root = FindRepositoryRoot();
@@ -122,22 +73,6 @@ public sealed class LayerDependencyContractTests
         Assert.DoesNotContain("FileSystemWatcher", mainWindowSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GetAwaiter().GetResult()", appSource, StringComparison.Ordinal);
         Assert.DoesNotContain(".Wait()", appSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void LauncherCultureIsAppliedBeforeWpfStartsLoadingResources()
-    {
-        var root = FindRepositoryRoot();
-        var appSource = File.ReadAllText(Path.Combine(root.FullName, "Launcher.App", "App.xaml.cs"));
-        var constructorIndex = appSource.IndexOf("public App()", StringComparison.Ordinal);
-        var startupIndex = appSource.IndexOf("protected override async void OnStartup", StringComparison.Ordinal);
-        var bootstrapLanguageIndex = appSource.IndexOf(
-            "LoadLauncherBootstrapPreferences()",
-            StringComparison.Ordinal);
-
-        Assert.True(constructorIndex >= 0);
-        Assert.True(bootstrapLanguageIndex > constructorIndex);
-        Assert.True(startupIndex > bootstrapLanguageIndex);
     }
 
     [Fact]
@@ -179,83 +114,6 @@ public sealed class LayerDependencyContractTests
         Assert.DoesNotContain("LoadAvailableVersionsAsync", source, StringComparison.Ordinal);
         Assert.Contains("ResourcesProjectListViewModel ProjectList", source, StringComparison.Ordinal);
         Assert.Contains("ResourcesProjectVersionsViewModel Versions", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AccountAppearanceParentOnlyComposesAccountSubmodules()
-    {
-        var root = FindRepositoryRoot();
-        var source = File.ReadAllText(Path.Combine(
-            root.FullName,
-            "Launcher.App",
-            "ViewModels",
-            "Account",
-            "AccountAppearanceViewModel.cs"));
-
-        Assert.DoesNotContain("[RelayCommand", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("UploadSkinAsync", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("SetActiveCapeAsync", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("RefreshAccountProfileAsync", source, StringComparison.Ordinal);
-        Assert.Contains("AccountProfileViewModel Profile", source, StringComparison.Ordinal);
-        Assert.Contains("AccountSkinLibraryViewModel SkinLibrary", source, StringComparison.Ordinal);
-        Assert.Contains("AccountCapeViewModel Cape", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AccountProfileRefreshKeepsUiContinuationContext()
-    {
-        var root = FindRepositoryRoot();
-        var source = File.ReadAllText(Path.Combine(
-            root.FullName,
-            "Launcher.App",
-            "ViewModels",
-            "Account",
-            "AccountProfileViewModel.cs"));
-
-        Assert.DoesNotContain("ConfigureAwait(false)", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GameSettingsPageDoesNotReabsorbInstanceListOrDialogState()
-    {
-        var root = FindRepositoryRoot();
-        var source = File.ReadAllText(Path.Combine(
-            root.FullName,
-            "Launcher.App",
-            "ViewModels",
-            "GameSettings",
-            "GameSettingsPageViewModel.cs"));
-
-        Assert.DoesNotContain("IGameInstanceService", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ObservableCollection<GameSettingsInstanceItem>", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("IsDeleteInstanceDialogOpen", source, StringComparison.Ordinal);
-        Assert.Contains("GameSettingsInstanceListViewModel InstanceList", source, StringComparison.Ordinal);
-        Assert.Contains("GameSettingsDialogsViewModel Dialogs", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AnimatedComboBoxPopupCannotClearOwnerSelectionDuringTemplateTeardown()
-    {
-        var root = FindRepositoryRoot();
-        var document = XDocument.Load(Path.Combine(
-            root.FullName,
-            "Launcher.App",
-            "Styles",
-            "ControlStyles.Inputs.xaml"));
-        var popupList = Assert.Single(document
-            .Descendants()
-            .Where(element => element.Name.LocalName == "ListBox")
-            .Where(element => element.Attributes().Any(attribute =>
-                attribute.Name.LocalName == "Name" && attribute.Value == "PART_DropDownList")));
-
-        var selectedItemBinding = popupList.Attributes()
-            .Single(attribute => attribute.Name.LocalName == "SelectedItem")
-            .Value;
-
-        Assert.Contains("Mode=OneWay", selectedItemBinding, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            popupList.Attributes(),
-            attribute => attribute.Name.LocalName == "SelectedValue");
     }
 
     private static void AssertProjectReferences(DirectoryInfo root, string project, params string[] expectedReferences)

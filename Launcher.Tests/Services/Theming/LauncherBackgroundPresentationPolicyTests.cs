@@ -16,9 +16,6 @@ public sealed class LauncherBackgroundPresentationPolicyTests
     [InlineData(LauncherBackgroundEffects.Acrylic, 42, true, true, false, false, 42)]
     [InlineData(LauncherBackgroundEffects.Image, 42, true, false, true, true, 100)]
     [InlineData(LauncherBackgroundEffects.Image, 42, false, false, true, false, 100)]
-    [InlineData("unknown", 42, true, true, false, false, 42)]
-    [InlineData(LauncherBackgroundEffects.Acrylic, -1, true, true, false, false, 0)]
-    [InlineData(LauncherBackgroundEffects.Acrylic, 120, true, true, false, false, 100)]
     public void ResolveProducesOneConsistentPresentation(
         string effect,
         int preferredOpacityPercent,

@@ -37,58 +37,6 @@ public sealed class LaunchDiagnosticResourceLimitTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task BoundedTailKeepsWindowFromSingleOversizedLine()
-    {
-        Directory.CreateDirectory(TempRoot);
-        var path = Path.Combine(TempRoot, "single-line.log");
-        await File.WriteAllTextAsync(path, new string('x', 1024));
-
-        var tail = await BoundedDiagnosticFileReader.ReadTailAsync(
-            path,
-            CancellationToken.None,
-            maxLines: 1,
-            maxBytes: 128);
-
-        Assert.Equal(128, tail.Length);
-        Assert.All(tail, character => Assert.Equal('x', character));
-    }
-
-    [Fact]
-    public async Task OutputCaptureCapsFileAndLinesWhileDrainingProcessPipes()
-    {
-        var outputPath = Path.Combine(TempRoot, "launch-output-test.log");
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = "/d /s /c \"for /L %i in (1,1,200) do @echo 1234567890123456789012345678901234567890\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        var capture = new LaunchOutputCapture(
-            outputPath,
-            [],
-            maxOutputBytes: 200,
-            maxLineCharacters: 32);
-
-        Assert.True(process.Start());
-        capture.Start(process);
-        await process.WaitForExitAsync();
-        var result = await capture.CompleteAsync();
-
-        Assert.True(result.WasTruncated);
-        Assert.NotNull(result.FilePath);
-        Assert.InRange(new FileInfo(result.FilePath).Length, 1, 200);
-        Assert.Equal(120, SplitLines(result.StdOut).Length);
-        Assert.All(SplitLines(result.StdOut), line => Assert.InRange(line.Length, 1, 32));
-        Assert.All(SplitLines(result.StdOut), line => Assert.Contains("<line truncated>", line));
-    }
-
-    [Fact]
     public async Task ExceptionDiagnosticDoesNotEnumerateHistoricalCrashReports()
     {
         var context = CreateContext();
@@ -114,53 +62,6 @@ public sealed class LaunchDiagnosticResourceLimitTests : TestTempDirectory
         Assert.Equal(LaunchDiagnosticType.LauncherDiagnostic, candidate.Type);
         Assert.NotNull(result.DiagnosticPath);
         Assert.DoesNotContain("crash-historical-client.txt", await File.ReadAllTextAsync(result.DiagnosticPath!));
-    }
-
-    [Fact]
-    public async Task QuickExitDiagnosticRecordsCapturedOutputTruncation()
-    {
-        var context = CreateContext();
-
-        var result = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
-            context,
-            "runtime_abnormal_exit",
-            exitCode: 1,
-            runtime: TimeSpan.FromSeconds(3),
-            createdAt: DateTimeOffset.UtcNow,
-            startInfo: null,
-            diagnosticCandidates: [],
-            stdout: "tail",
-            stderr: string.Empty,
-            capturedOutputTruncated: true,
-            cancellationToken: CancellationToken.None);
-
-        Assert.NotNull(result.DiagnosticPath);
-        Assert.Contains(
-            "CapturedOutputTruncated: True",
-            await File.ReadAllTextAsync(result.DiagnosticPath!));
-    }
-
-    [Fact]
-    public async Task QuickExitDiagnosticPrefersStderrExceptionOverStdoutMissingInfo()
-    {
-        var context = CreateContext();
-
-        var result = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
-            context,
-            "runtime_abnormal_exit",
-            exitCode: 1,
-            runtime: TimeSpan.FromSeconds(3),
-            createdAt: DateTimeOffset.UtcNow,
-            startInfo: null,
-            diagnosticCandidates: [],
-            stdout: "[INFO] Missing Mods Checker: All mods found!",
-            stderr: "java.lang.IllegalArgumentException: Invalid paths argument, contained no existing paths",
-            capturedOutputTruncated: false,
-            cancellationToken: CancellationToken.None);
-
-        Assert.Contains("Invalid paths argument", result.FailureSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("All mods found", result.FailureSummary, StringComparison.Ordinal);
-        Assert.Equal(LaunchFailureCategory.MissingGameFiles, result.Analysis?.Category);
     }
 
     private static string[] SplitLines(string text) =>

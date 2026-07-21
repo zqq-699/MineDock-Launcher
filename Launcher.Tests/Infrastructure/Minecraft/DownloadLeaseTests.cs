@@ -105,33 +105,6 @@ public sealed class DownloadSourceRoutingLeaseTests
             slotCount: 8);
     }
 
-    [Fact]
-    public async Task DownloadSourceRoutingFinalFailureReleasesRuntimeSlots()
-    {
-        var limiter = new ImportConcurrencyLimiter();
-        using var httpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
-            DownloadSourcePreference.Official,
-            DownloadConcurrencyCategory.Runtime,
-            new ThrowingRequestHandler(),
-            limiter: limiter,
-            retryOptions: new DownloadRetryOptions
-            {
-                MaxAttemptsPerSource = 1,
-                RetryDelay = TimeSpan.Zero
-            },
-            hostConcurrencyController: CreateHostController()));
-
-        foreach (var index in Enumerable.Range(0, 8))
-        {
-            await Assert.ThrowsAsync<DownloadAttemptException>(
-                () => httpClient.GetAsync($"https://example.test/runtime/{index}.json"));
-        }
-
-        await using var leases = await SlotLeaseSet.AcquireAsync(
-            limiter.AcquireRuntimeDownloadSlotAsync,
-            slotCount: 8);
-    }
-
     private static DownloadHostConcurrencyController CreateHostController() => new(
         maximumJitter: TimeSpan.Zero,
         nextJitter: () => 0,

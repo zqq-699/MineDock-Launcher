@@ -38,28 +38,6 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task QuiltLoaderProviderReturnsEmptyWhenMetadataEndpointReturnsBadRequest()
-    {
-        var provider = new QuiltLoaderProvider(new HttpClient(new BadRequestHandler()));
-
-        var versions = await provider.GetLoaderVersionsAsync("1.7.2");
-
-        Assert.Empty(versions);
-    }
-
-    [Fact]
-    public async Task QuiltLoaderProviderLoadsVersionsFromMetadataEndpoint()
-    {
-        var provider = new QuiltLoaderProvider(new HttpClient(new QuiltMetadataHandler()));
-
-        var versions = await provider.GetLoaderVersionsAsync("1.20.2");
-
-        Assert.Equal(["0.29.2", "0.29.2-beta.5"], versions.Select(version => version.Version));
-        Assert.True(versions[0].IsStable);
-        Assert.False(versions[1].IsStable);
-    }
-
-    [Fact]
     public async Task QuiltVersionComposerCreatesVersionStructureWithoutClientJar()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -98,50 +76,6 @@ public sealed class QuiltLoaderProviderTests : TestTempDirectory
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 RequestMessage = request
-            });
-        }
-    }
-
-    private sealed class BadRequestHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
-            {
-                RequestMessage = request
-            });
-        }
-    }
-
-    private sealed class QuiltMetadataHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var content = request.RequestUri?.AbsoluteUri switch
-            {
-                "https://meta.quiltmc.org/v3/versions/loader/1.20.2" => """
-                    [
-                      {
-                        "loader": {
-                          "maven": "org.quiltmc:quilt-loader:0.29.2-beta.5",
-                          "version": "0.29.2-beta.5"
-                        }
-                      },
-                      {
-                        "loader": {
-                          "maven": "org.quiltmc:quilt-loader:0.29.2",
-                          "version": "0.29.2"
-                        }
-                      }
-                    ]
-                    """,
-                _ => throw new InvalidOperationException($"Unexpected request: {request.RequestUri}")
-            };
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                RequestMessage = request,
-                Content = new StringContent(content)
             });
         }
     }

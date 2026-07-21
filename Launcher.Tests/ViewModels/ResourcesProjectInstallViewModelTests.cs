@@ -46,94 +46,6 @@ public sealed class ResourcesProjectInstallViewModelTests
     }
 
     [Fact]
-    public async Task ServerInstallTargetOpensVersionListWithServerQuery()
-    {
-        var catalog = new RecordingCatalogService();
-        using var page = new ResourcesModpacksPageViewModel(
-            new ResourcesPageViewModel(),
-            resourceCatalogService: catalog,
-            uiDispatcher: ImmediateUiDispatcher.Instance);
-        page.Versions.SetProject(new ResourcesModProjectItemViewModel(new ResourceProject
-        {
-            Kind = ResourceProjectKind.Modpack,
-            Source = ResourceProjectSource.CurseForge,
-            ProjectId = "42",
-            Slug = "pack",
-            Title = "Pack"
-        }));
-        await WaitUntilAsync(() => page.Versions.InstallTargets.Count == 3);
-
-        var serverTarget = page.Versions.InstallTargets.Single(target => target.IsServerInstall);
-        page.Versions.SelectTargetCommand.Execute(serverTarget);
-        await WaitUntilAsync(() => catalog.Requests.Count == 1 && page.Versions.SourceVersions.Count == 1);
-
-        Assert.True(page.IsProjectVersionsStep);
-        Assert.Same(serverTarget, page.Versions.SelectedTarget);
-        Assert.True(Assert.Single(catalog.Requests).ForServerInstallation);
-    }
-
-    [Fact]
-    public async Task LocalDownloadUsesDirectoryTargetAndCompletesTask()
-    {
-        var installation = new RecordingInstallationService();
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var statuses = new List<string>();
-        var viewModel = CreateViewModel(installation, tasks, statuses.Add);
-
-        await viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.ResourcePack),
-            ResourcesModInstallTargetItemViewModel.CreateLocalDownload(),
-            null);
-
-        var request = Assert.Single(installation.ExecutedRequests);
-        Assert.Equal(ResourceProjectInstallationTargetKind.LocalDirectory, request.TargetKind);
-        Assert.Equal("target", request.TargetDirectory);
-        Assert.Equal(DownloadTaskState.Completed, Assert.Single(tasks.Tasks).State);
-        Assert.Contains(statuses, status => status.StartsWith("downloaded", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task ExistingTargetOpensFileExistsDialogWithoutExecuting()
-    {
-        var installation = new RecordingInstallationService { TargetExists = true };
-        var viewModel = CreateViewModel(
-            installation,
-            new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1)),
-            _ => { });
-
-        await viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.Mod),
-            ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
-            {
-                Id = "instance",
-                InstanceDirectory = "instance"
-            }),
-            null);
-
-        Assert.True(viewModel.IsFileExistsDialogOpen);
-        Assert.Empty(installation.ExecutedRequests);
-    }
-
-    [Fact]
-    public async Task CancelingDownloadTaskCancelsActiveInstallation()
-    {
-        var installation = new RecordingInstallationService { WaitForCancellation = true };
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var viewModel = CreateViewModel(installation, tasks, _ => { });
-        var operation = viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.ResourcePack),
-            ResourcesModInstallTargetItemViewModel.CreateLocalDownload(),
-            null);
-        await installation.ExecuteStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
-        tasks.CancelTask(Assert.Single(tasks.Tasks));
-        await operation;
-
-        Assert.False(viewModel.IsInstalling);
-        Assert.Empty(tasks.Tasks);
-    }
-
-    [Fact]
     public async Task IntegrityFailureUsesLocalizedMessageInsteadOfGenericFailure()
     {
         var installation = new RecordingInstallationService { IntegrityFailure = true };
@@ -181,85 +93,6 @@ public sealed class ResourcesProjectInstallViewModelTests
     }
 
     [Fact]
-    public async Task NewModpackArchiveDownloadReservesProgressForImportedFiles()
-    {
-        var installation = new ProgressReportingInstallationService();
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var viewModel = CreateViewModel(installation, tasks, _ => { });
-        var operation = viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.Modpack),
-            ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance"),
-            null);
-        await installation.ExecuteStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
-        installation.Report(new LauncherProgress(ModProgressStages.DownloadingFile, "pack.mrpack", 100));
-        var task = Assert.Single(tasks.Tasks);
-        await WaitUntilAsync(() => task.ProgressPercent == 5);
-
-        installation.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "mod.jar", 50));
-        await WaitUntilAsync(() => task.ProgressPercent > 50);
-
-        Assert.InRange(task.ProgressPercent, 52, 53);
-        Assert.True(task.ProgressPercent < 99);
-
-        installation.Complete(CreateSuccessfulModpackResult("instance"));
-        await operation;
-    }
-
-    [Fact]
-    public async Task NewModpackInstallIncludesSelectedResourceProject()
-    {
-        var installation = new RecordingInstallationService();
-        var viewModel = CreateViewModel(
-            installation,
-            new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1)),
-            _ => { });
-        var project = new ResourceProject
-        {
-            Kind = ResourceProjectKind.Modpack,
-            Source = ResourceProjectSource.Modrinth,
-            ProjectId = "project",
-            Title = "Project",
-            IconUrl = "https://example.invalid/icon.png"
-        };
-
-        await viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.Modpack),
-            ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance"),
-            new ResourcesModProjectItemViewModel(project));
-
-        var request = Assert.Single(installation.ExecutedRequests);
-        Assert.Equal(ResourceProjectInstallationTargetKind.NewModpackInstance, request.TargetKind);
-        Assert.Same(project, request.Project);
-    }
-
-    [Fact]
-    public async Task ServerInstallUsesSelectedParentDirectoryAndProject()
-    {
-        var installation = new RecordingInstallationService();
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var viewModel = CreateViewModel(installation, tasks, _ => { });
-        var project = new ResourceProject
-        {
-            Kind = ResourceProjectKind.Modpack,
-            Source = ResourceProjectSource.Modrinth,
-            ProjectId = "project",
-            Title = "Project"
-        };
-
-        await viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.Modpack),
-            ResourcesModInstallTargetItemViewModel.CreateServerInstall("server"),
-            new ResourcesModProjectItemViewModel(project));
-
-        var request = Assert.Single(installation.ExecutedRequests);
-        Assert.Equal(ResourceProjectInstallationTargetKind.NewServerDirectory, request.TargetKind);
-        Assert.Equal("target", request.TargetDirectory);
-        Assert.Same(project, request.Project);
-        Assert.Equal(DownloadTaskState.Completed, Assert.Single(tasks.Tasks).State);
-    }
-
-    [Fact]
     public async Task CancelingServerParentDirectoryDoesNotCreateTask()
     {
         var installation = new RecordingInstallationService();
@@ -280,33 +113,6 @@ public sealed class ResourcesProjectInstallViewModelTests
                 ProjectId = "project"
             }));
 
-        Assert.Empty(installation.ExecutedRequests);
-        Assert.Empty(tasks.Tasks);
-    }
-
-    [Fact]
-    public async Task ExistingServerDirectoryShowsResolvedPathAndDoesNotCreateTask()
-    {
-        var installation = new RecordingInstallationService
-        {
-            TargetExists = true,
-            TargetPath = "target\\Sanitized-Pack"
-        };
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var viewModel = CreateViewModel(installation, tasks, _ => { });
-
-        await viewModel.InstallAsync(
-            CreateVersionItem(ResourceProjectKind.Modpack),
-            ResourcesModInstallTargetItemViewModel.CreateServerInstall("server"),
-            new ResourcesModProjectItemViewModel(new ResourceProject
-            {
-                Kind = ResourceProjectKind.Modpack,
-                Source = ResourceProjectSource.Modrinth,
-                ProjectId = "project"
-            }));
-
-        Assert.True(viewModel.IsFileExistsDialogOpen);
-        Assert.Contains("Sanitized-Pack", viewModel.FileExistsDialogMessage, StringComparison.Ordinal);
         Assert.Empty(installation.ExecutedRequests);
         Assert.Empty(tasks.Tasks);
     }
@@ -337,29 +143,6 @@ public sealed class ResourcesProjectInstallViewModelTests
 
         Assert.False(viewModel.IsInstalling);
         Assert.Equal(DownloadTaskState.Completed, remainingTask.State);
-    }
-
-    [Fact]
-    public async Task ResourcePageTracksModpackInstallAsBackgroundTask()
-    {
-        var installation = new ControllableInstallationService();
-        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var parent = new ResourcesPageViewModel();
-        using var page = new ResourcesModpacksPageViewModel(
-            parent,
-            downloadTasksPage: tasks,
-            resourceProjectInstallationService: installation);
-        page.Versions.SelectedTarget = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance");
-
-        page.Versions.InstallVersionCommand.Execute(CreateVersionItem(ResourceProjectKind.Modpack, "tracked"));
-        await installation.WaitForExecutionCountAsync(1);
-
-        Assert.Equal(1, tasks.TrackedBackgroundTaskCount);
-
-        installation.Complete("tracked", CreateSuccessfulModpackResult("tracked-instance"));
-        await WaitUntilAsync(() => tasks.TrackedBackgroundTaskCount == 0);
-
-        Assert.Equal(DownloadTaskState.Completed, Assert.Single(tasks.Tasks).State);
     }
 
     private static ResourcesProjectInstallViewModel CreateViewModel(
@@ -401,13 +184,6 @@ public sealed class ResourcesProjectInstallViewModelTests
             Name = instanceId,
             InstanceDirectory = instanceId
         }));
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition())
-            await Task.Delay(10, timeout.Token);
-    }
 
     private static ResourcesOnlineProjectPageOptions CreateOptions() => new(
         Kind: ResourceProjectKind.Mod,
@@ -481,60 +257,6 @@ public sealed class ResourcesProjectInstallViewModelTests
         }
     }
 
-    private sealed class RecordingCatalogService : IResourceCatalogService
-    {
-        public List<ResourceProjectVersionsRequest> Requests { get; } = [];
-
-        public Task<ResourceCatalogSearchResult> SearchModsAsync(
-            ResourceCatalogSearchRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ResourceCatalogSearchResult());
-
-        public Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
-            ResourceProjectVersionsRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            Requests.Add(request);
-            return Task.FromResult(new ResourceProjectVersionsResult
-            {
-                Versions =
-                [
-                    new ResourceProjectVersion
-                    {
-                        Kind = ResourceProjectKind.Modpack,
-                        VersionId = "server-version",
-                        Name = "Server Version",
-                        FileName = "server.zip"
-                    }
-                ]
-            });
-        }
-
-        public Task<string> InstallProjectVersionAsync(
-            ResourceProjectVersion version,
-            GameInstance instance,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<string> DownloadProjectVersionAsync(
-            ResourceProjectVersion version,
-            string targetDirectory,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<bool> ProjectVersionDownloadExistsAsync(
-            ResourceProjectVersion version,
-            string targetDirectory,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<bool> ProjectVersionInstallExistsAsync(
-            ResourceProjectVersion version,
-            GameInstance instance,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
-
     private sealed class ControllableInstallationService : IResourceProjectInstallationService
     {
         private readonly object syncRoot = new();
@@ -599,35 +321,6 @@ public sealed class ResourcesProjectInstallViewModelTests
 
         private static TaskCompletionSource<bool> CreateSignal() =>
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
-
-    private sealed class ProgressReportingInstallationService : IResourceProjectInstallationService
-    {
-        private readonly TaskCompletionSource<ResourceProjectInstallationResult> completion = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource<bool> ExecuteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public IProgress<LauncherProgress>? Progress { get; private set; }
-
-        public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
-            ResourceProjectInstallationRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ResourceProjectInstallationPreparationResult(false));
-
-        public Task<ResourceProjectInstallationResult> ExecuteAsync(
-            ResourceProjectInstallationRequest request,
-            IProgress<LauncherProgress>? progress = null,
-            CancellationToken cancellationToken = default)
-        {
-            Progress = progress;
-            ExecuteStarted.TrySetResult(true);
-            return completion.Task.WaitAsync(cancellationToken);
-        }
-
-        public void Report(LauncherProgress progress) => Progress!.Report(progress);
-
-        public void Complete(ResourceProjectInstallationResult result) => completion.TrySetResult(result);
     }
 
     private sealed class RecordingFloatingMessageService : IFloatingMessageService

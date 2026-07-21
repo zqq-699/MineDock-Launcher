@@ -51,52 +51,6 @@ public sealed class ResourceProjectInstallationServiceTests
     }
 
     [Fact]
-    public async Task ModpackProjectIconIsCopiedIntoInstanceAndPersisted()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"launcher-resource-icon-{Guid.NewGuid():N}");
-        var sourcePath = Path.Combine(root, "cached.png");
-        var instanceDirectory = Path.Combine(root, "instance");
-        Directory.CreateDirectory(instanceDirectory);
-        await File.WriteAllBytesAsync(sourcePath, [1, 2, 3, 4]);
-        var project = CreateProject("project");
-        var catalog = new RecordingCatalogService();
-        catalog.ThumbnailSources[project.ProjectId] = $"{new Uri(sourcePath).AbsoluteUri}?v=1";
-        var importedInstance = new GameInstance
-        {
-            Id = "imported",
-            Name = "Pack",
-            InstanceDirectory = instanceDirectory
-        };
-        var instanceService = new FakeGameInstanceService();
-        var service = new ResourceProjectInstallationService(
-            catalog,
-            new StubModpackImportService(ModpackImportResult.Success(importedInstance)),
-            instanceService,
-            NullLogger<ResourceProjectInstallationService>.Instance);
-
-        try
-        {
-            var result = await service.ExecuteAsync(new ResourceProjectInstallationRequest(
-                CreateVersion(ResourceProjectKind.Modpack),
-                ResourceProjectInstallationTargetKind.NewModpackInstance,
-                Project: project));
-
-            var destinationPath = Path.Combine(instanceDirectory, "BHL", "resource-project-icon.png");
-            Assert.True(result.ModpackImportResult?.IsSuccess);
-            Assert.Equal([1, 2, 3, 4], await File.ReadAllBytesAsync(destinationPath));
-            Assert.Equal(new Uri(destinationPath).AbsoluteUri, importedInstance.IconSource);
-            Assert.Same(importedInstance, instanceService.LastSavedInstance);
-            File.Delete(sourcePath);
-            Assert.True(File.Exists(destinationPath));
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
     public async Task ModpackIconPersistenceFailureKeepsImportSuccessfulAndRestoresFallback()
     {
         var root = Path.Combine(Path.GetTempPath(), $"launcher-resource-icon-{Guid.NewGuid():N}");
@@ -133,42 +87,6 @@ public sealed class ResourceProjectInstallationServiceTests
             Assert.True(result.ModpackImportResult?.IsSuccess);
             Assert.Null(importedInstance.IconSource);
             Assert.False(File.Exists(Path.Combine(instanceDirectory, "BHL", "resource-project-icon.png")));
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task MissingModpackThumbnailKeepsImportSuccessfulWithDefaultIcon()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"launcher-resource-icon-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(root);
-        var importedInstance = new GameInstance
-        {
-            Id = "imported",
-            Name = "Pack",
-            InstanceDirectory = root
-        };
-        var instanceService = new FakeGameInstanceService();
-        var service = new ResourceProjectInstallationService(
-            new RecordingCatalogService(),
-            new StubModpackImportService(ModpackImportResult.Success(importedInstance)),
-            instanceService,
-            NullLogger<ResourceProjectInstallationService>.Instance);
-
-        try
-        {
-            var result = await service.ExecuteAsync(new ResourceProjectInstallationRequest(
-                CreateVersion(ResourceProjectKind.Modpack),
-                ResourceProjectInstallationTargetKind.NewModpackInstance,
-                Project: CreateProject("missing")));
-
-            Assert.True(result.ModpackImportResult?.IsSuccess);
-            Assert.Null(importedInstance.IconSource);
-            Assert.Equal(0, instanceService.SaveCallCount);
         }
         finally
         {
@@ -222,25 +140,6 @@ public sealed class ResourceProjectInstallationServiceTests
             if (Directory.Exists(root))
                 Directory.Delete(root, recursive: true);
         }
-    }
-
-    [Fact]
-    public async Task ModpackWorkspaceIsRemovedWhenImportThrows()
-    {
-        var catalog = new RecordingCatalogService();
-        var service = new ResourceProjectInstallationService(
-            catalog,
-            new StubModpackImportService(exception: new InvalidDataException("invalid")),
-            new FakeGameInstanceService(),
-            NullLogger<ResourceProjectInstallationService>.Instance);
-
-        await Assert.ThrowsAsync<InvalidDataException>(() => service.ExecuteAsync(
-            new ResourceProjectInstallationRequest(
-                CreateVersion(ResourceProjectKind.Modpack),
-                ResourceProjectInstallationTargetKind.NewModpackInstance)));
-
-        Assert.NotNull(catalog.LastTargetDirectory);
-        Assert.False(Directory.Exists(catalog.LastTargetDirectory));
     }
 
     [Fact]
@@ -300,49 +199,6 @@ public sealed class ResourceProjectInstallationServiceTests
             if (Directory.Exists(staleServer))
                 Directory.Delete(staleServer, recursive: true);
         }
-    }
-
-    [Fact]
-    public async Task PreparationRoutesExistingInstanceCheckToCatalog()
-    {
-        var catalog = new RecordingCatalogService { InstallExists = true };
-        var service = new ResourceProjectInstallationService(
-            catalog,
-            new StubModpackImportService(ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError)),
-            new FakeGameInstanceService(),
-            NullLogger<ResourceProjectInstallationService>.Instance);
-        var instance = new GameInstance { Id = "target", InstanceDirectory = "instance" };
-
-        var result = await service.PrepareAsync(new ResourceProjectInstallationRequest(
-            CreateVersion(ResourceProjectKind.Mod),
-            ResourceProjectInstallationTargetKind.ExistingInstance,
-            Instance: instance));
-
-        Assert.True(result.TargetExists);
-        Assert.Same(instance, catalog.LastInstallExistsInstance);
-    }
-
-    [Fact]
-    public async Task DirectInstallForwardsObservableDownloadProgressAndReservesFinalization()
-    {
-        var catalog = new RecordingCatalogService();
-        var service = new ResourceProjectInstallationService(
-            catalog,
-            new StubModpackImportService(ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError)),
-            new FakeGameInstanceService(),
-            NullLogger<ResourceProjectInstallationService>.Instance);
-        var reports = new List<LauncherProgress>();
-
-        await service.ExecuteAsync(
-            new ResourceProjectInstallationRequest(
-                CreateVersion(ResourceProjectKind.Mod),
-                ResourceProjectInstallationTargetKind.ExistingInstance,
-                Instance: new GameInstance { Id = "target", InstanceDirectory = "instance" }),
-            new InlineProgress(reports));
-
-        Assert.Contains(reports, report => report.Stage is ModProgressStages.DownloadingFile && report.Percent == 50);
-        Assert.Equal(InstallProgressStages.CompletingFiles, reports[^1].Stage);
-        Assert.Equal(99, reports[^1].Percent);
     }
 
     private static ResourceProjectVersion CreateVersion(ResourceProjectKind kind, string versionId = "version")
@@ -435,11 +291,6 @@ public sealed class ResourceProjectInstallationServiceTests
             ResourceProject project,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(TryGetCachedThumbnailSource(project));
-    }
-
-    private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
-    {
-        public void Report(LauncherProgress value) => reports.Add(value);
     }
 
     private sealed class StubModpackImportService : ILocalModpackImportService

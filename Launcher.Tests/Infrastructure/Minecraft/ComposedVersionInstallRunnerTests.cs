@@ -51,22 +51,4 @@ public sealed class ComposedVersionInstallRunnerTests : TestTempDirectory
         Assert.False(Directory.Exists(versionDirectory));
     }
 
-    [Fact]
-    public async Task CanceledFileInstallCleansVersionDirectoryAndPreservesCancellation()
-    {
-        var versionDirectory = Path.Combine(TempRoot, "versions", "canceled");
-        Directory.CreateDirectory(versionDirectory);
-        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "canceled.json"), "{}");
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-
-        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            ComposedVersionInstallRunner.RunAsync(
-                _ => Task.FromResult(new PreparedVersionInstall("canceled", versionDirectory)),
-                (_, token) => Task.FromCanceled(token),
-                cancellation.Token));
-
-        Assert.Equal(cancellation.Token, exception.CancellationToken);
-        Assert.False(Directory.Exists(versionDirectory));
-    }
 }

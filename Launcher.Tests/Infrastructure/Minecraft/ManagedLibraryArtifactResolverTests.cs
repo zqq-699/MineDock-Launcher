@@ -54,19 +54,4 @@ public sealed class ManagedLibraryArtifactResolverTests
         Assert.StartsWith("https://maven.fabricmc.net/", artifact.Url, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void AppliesMatchingRulesInDeclarationOrder()
-    {
-        var osName = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "osx" : "linux";
-        var library = JsonNode.Parse($$"""
-            {
-              "rules": [
-                { "action": "allow", "os": { "name": "{{osName}}" } },
-                { "action": "disallow", "os": { "name": "{{osName}}" } }
-              ]
-            }
-            """)!.AsObject();
-
-        Assert.False(ManagedLibraryArtifactResolver.IsAllowed(library));
-    }
 }

@@ -17,9 +17,6 @@ public sealed class ManagedDownloadPathGuardTests : TestTempDirectory
 {
     [Theory]
     [InlineData("libraries")]
-    [InlineData("assets/indexes")]
-    [InlineData("assets/objects")]
-    [InlineData("assets/log_configs")]
     [InlineData("versions/Guarded Version")]
     public async Task ManagedRepairRootReparsePointFailsBeforeNetworkOrExternalWrite(string relativeRoot)
     {

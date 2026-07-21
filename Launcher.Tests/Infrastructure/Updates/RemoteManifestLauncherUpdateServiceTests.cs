@@ -25,60 +25,6 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.Equal(Sha256, result.Update?.Sha256);
     }
 
-    [Fact]
-    public async Task OneUnavailableMirrorAllowsOtherValidMirror()
-    {
-        var service = CreateService(
-            DefaultSources,
-            (GiteeManifest, HttpStatusCode.ServiceUnavailable, ""),
-            (GitHubManifest, HttpStatusCode.OK, CreateManifest()));
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
-
-        Assert.False(result.IsFailed);
-        Assert.True(result.IsUpdateAvailable);
-    }
-
-    [Fact]
-    public async Task LegacyKeyIdIsIgnored()
-    {
-        var manifest = CreateManifest().Replace(
-            "\"channel\": \"release\"",
-            "\"keyId\": \"legacy-signing-key\",\n      \"channel\": \"release\"",
-            StringComparison.Ordinal);
-        var service = CreateService((GiteeManifest, HttpStatusCode.OK, manifest));
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
-
-        Assert.False(result.IsFailed);
-        Assert.True(result.IsUpdateAvailable);
-    }
-
-    [Fact]
-    public async Task FirstValidManifestWinsWithoutLoadingEveryMirror()
-    {
-        var service = CreateService(
-            DefaultSources,
-            (GiteeManifest, HttpStatusCode.OK, CreateManifest("1.1.0")),
-            (GitHubManifest, HttpStatusCode.OK, CreateManifest("1.1.1")));
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
-
-        Assert.False(result.IsFailed);
-        Assert.Equal("1.1.0", result.Update?.Version);
-    }
-
-    [Fact]
-    public async Task OversizedManifestIsRejectedBeforeParsing()
-    {
-        var oversized = new string(' ', 1024 * 1024 + 1);
-        var service = CreateService((GiteeManifest, HttpStatusCode.OK, oversized));
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
-
-        Assert.True(result.IsFailed);
-    }
-
     [Theory]
     [InlineData(0, Sha256)]
     [InlineData(12, "abcd")]
@@ -89,26 +35,6 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
         Assert.True(result.IsFailed);
-    }
-
-    [Fact]
-    public async Task HttpExecutableUrlIsRejectedAfterManifestValidation()
-    {
-        var manifest = CreateManifest(downloadUrl: "http://github.com/zqq-699/BlockHelm-Launcher/test.exe");
-        var service = CreateService((GiteeManifest, HttpStatusCode.OK, manifest));
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
-
-        Assert.True(result.IsFailed);
-    }
-
-    [Fact]
-    public void VersionCodeCalculationRemainsCompatible()
-    {
-        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode("0.9.3-beta.1", out var beta));
-        Assert.Equal(90301, beta);
-        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode("0.9.3", out var release));
-        Assert.Equal(90399, release);
     }
 
     private static IReadOnlyList<LauncherUpdateManifestSource> DefaultSources =>

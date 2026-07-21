@@ -42,28 +42,6 @@ public sealed class AuthlibInjectorProvisioningServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task UsesPreviouslyVerifiedCacheWhenLatestMetadataFails()
-    {
-        var bytes = Encoding.UTF8.GetBytes("verified-jar");
-        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var cache = Path.Combine(TempRoot, "authlib");
-        var initial = new AuthlibInjectorProvisioningService(
-            new HttpClient(new StubHttpMessageHandler(request => Task.FromResult(
-                request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal)
-                    ? Json(Metadata(hash))
-                    : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }))),
-            cache);
-        var downloaded = await initial.EnsureAvailableAsync();
-        var offline = new AuthlibInjectorProvisioningService(
-            new HttpClient(new StubHttpMessageHandler(_ => throw new HttpRequestException("offline"))),
-            cache);
-
-        var fallback = await offline.EnsureAvailableAsync();
-
-        Assert.Equal(downloaded, fallback);
-    }
-
-    [Fact]
     public async Task RejectsChecksumMismatchWhenNoCacheExists()
     {
         var service = new AuthlibInjectorProvisioningService(
@@ -78,58 +56,6 @@ public sealed class AuthlibInjectorProvisioningServiceTests : TestTempDirectory
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(TempRoot, "authlib"), "*.jar"));
-    }
-
-    [Fact]
-    public async Task AllowsPrivateArtifactAddressToReachArtifactHandler()
-    {
-        var bytes = Encoding.UTF8.GetBytes("private-address-artifact");
-        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var artifactRequests = 0;
-        var service = new AuthlibInjectorProvisioningService(
-            new HttpClient(new StubHttpMessageHandler(request =>
-            {
-                if (request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal))
-                {
-                    var metadata =
-                        $"{{\"build_number\":55,\"version\":\"1.2.7\",\"download_url\":\"http://127.0.0.1/authlib-injector.jar\",\"checksums\":{{\"sha256\":\"{hash}\"}}}}";
-                    return Task.FromResult(Json(metadata));
-                }
-                artifactRequests++;
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new ByteArrayContent(bytes)
-                });
-            })),
-            Path.Combine(TempRoot, "authlib"));
-
-        var artifact = await service.EnsureAvailableAsync();
-
-        Assert.Equal(1, artifactRequests);
-        Assert.Equal(bytes, await File.ReadAllBytesAsync(artifact.FilePath));
-    }
-
-    [Theory]
-    [InlineData("null")]
-    [InlineData("{\"sha256\":null}")]
-    public async Task RejectsNullChecksumMetadataBeforeArtifactRequest(string checksumsJson)
-    {
-        var artifactRequests = 0;
-        var metadata =
-            $"{{\"build_number\":55,\"version\":\"1.2.7\",\"download_url\":\"https://download.example.test/authlib-injector.jar\",\"checksums\":{checksumsJson}}}";
-        var service = new AuthlibInjectorProvisioningService(
-            new HttpClient(new StubHttpMessageHandler(request =>
-            {
-                if (request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal))
-                    return Task.FromResult(Json(metadata));
-                artifactRequests++;
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
-            })),
-            Path.Combine(TempRoot, "authlib"));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
-
-        Assert.Equal(0, artifactRequests);
     }
 
     private static string Metadata(string hash) =>

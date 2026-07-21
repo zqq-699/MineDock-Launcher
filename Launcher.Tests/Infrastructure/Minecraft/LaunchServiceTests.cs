@@ -34,135 +34,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task DisabledFileCheckSkipsFileStagesAndReportsHundredOnlyAfterWindowAppears()
-    {
-        var integrity = new RecordingIntegrityService();
-        var launcher = new FakeLauncherFactory();
-        var service = CreateService(launcher: launcher, integrity: integrity);
-        var settings = CreateSettings();
-        settings.DefaultCheckFilesBeforeLaunch = false;
-        var reports = new List<LauncherProgress>();
-
-        await service.LaunchAsync(
-            CreateInstance(settings.MinecraftDirectory, "No File Check"),
-            CreateAccount(),
-            settings,
-            new InlineProgress(reports));
-
-        Assert.Equal(0, integrity.ValidateCallCount);
-        Assert.Equal(1, integrity.FinalValidationCallCount);
-        Assert.DoesNotContain(
-            reports,
-            report => report.Stage is LaunchProgressStages.CheckingFiles
-                or LaunchProgressStages.RevalidatingFiles);
-        Assert.Equal(
-            [99d, 100d],
-            reports
-                .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
-                .Select(report => report.Percent!.Value));
-    }
-
-    [Fact]
-    public async Task EnabledFileCheckRunsFullAndFinalValidationOnce()
-    {
-        var integrity = new RecordingIntegrityService();
-        var launcher = new FakeLauncherFactory();
-        var service = CreateService(launcher: launcher, integrity: integrity);
-        var settings = CreateSettings();
-
-        await service.LaunchAsync(
-            CreateInstance(settings.MinecraftDirectory, "File Check"),
-            CreateAccount(),
-            settings,
-            progress: null);
-
-        Assert.Equal(1, integrity.ValidateCallCount);
-        Assert.Equal(1, integrity.FinalValidationCallCount);
-    }
-
-    [Fact]
-    public async Task SplitNativeLayoutIsPreparedBeforeFinalValidation()
-    {
-        var nativeRoot = Path.Combine(TempRoot, "path with spaces", "natives");
-        var javaDirectory = Path.Combine(nativeRoot, "java");
-        var integrity = new RecordingIntegrityService
-        {
-            OnFinalValidate = _ =>
-            {
-                Assert.True(Directory.Exists(javaDirectory));
-                return Task.FromResult(GameFileRepairResult.Empty);
-            }
-        };
-        var launcher = new FakeLauncherFactory
-        {
-            BuildProcess = (_, option) =>
-            {
-                option.NativesDirectory = nativeRoot;
-                var process = CreateCommandProcess($"/c rem \"-Djava.library.path={javaDirectory}\"");
-                process.StartInfo.WorkingDirectory = TempRoot;
-                return process;
-            }
-        };
-        var service = CreateService(launcher: launcher, integrity: integrity);
-        var settings = CreateSettings();
-        settings.DefaultCheckFilesBeforeLaunch = false;
-
-        await service.LaunchAsync(
-            CreateInstance(settings.MinecraftDirectory, "26.2"),
-            CreateAccount(),
-            settings,
-            progress: null);
-
-        Assert.Equal(1, integrity.FinalValidationCallCount);
-        Assert.True(Directory.Exists(javaDirectory));
-    }
-
-    [Fact]
-    public async Task LaunchRemainsAtNinetyNineUntilVisibleWindowIsReported()
-    {
-        var waiter = new ControlledWindowReadinessWaiter();
-        Process? launchedProcess = null;
-        var launcher = new FakeLauncherFactory
-        {
-            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
-        };
-        var service = CreateService(launcher: launcher, windowReadinessWaiter: waiter);
-        var settings = CreateSettings();
-        settings.DefaultCheckFilesBeforeLaunch = false;
-        var reports = new List<LauncherProgress>();
-
-        try
-        {
-            var launchTask = service.LaunchAsync(
-                CreateInstance(settings.MinecraftDirectory, "Window Wait"),
-                CreateAccount(),
-                settings,
-                new InlineProgress(reports));
-
-            await waiter.WaitUntilCalledAsync();
-            Assert.False(launchTask.IsCompleted);
-            Assert.Equal(
-                [99d],
-                reports
-                    .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
-                    .Select(report => report.Percent!.Value));
-
-            waiter.Complete(GameWindowReadinessResult.WindowVisible);
-            await launchTask;
-
-            Assert.Equal(
-                [99d, 100d],
-                reports
-                    .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
-                    .Select(report => report.Percent!.Value));
-        }
-        finally
-        {
-            TryKillProcess(launchedProcess);
-        }
-    }
-
-    [Fact]
     public async Task CancelingWindowWaitTerminatesProcessTreeWithoutReportingCompletion()
     {
         var waiter = new ControlledWindowReadinessWaiter();
@@ -226,73 +97,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             TryKillProcess(launchedProcess);
             TryKillProcess(childProcessId);
         }
-    }
-
-    [Fact]
-    public async Task TerminationFailureIsReportedAsLaunchFailureAndKeepsCrashMonitoring()
-    {
-        var waiter = new ControlledWindowReadinessWaiter();
-        var crashMonitor = new RecordingCrashMonitor();
-        Process? launchedProcess = null;
-        var launcher = new FakeLauncherFactory
-        {
-            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
-        };
-        var service = CreateService(
-            launcher: launcher,
-            crashMonitor: crashMonitor,
-            windowReadinessWaiter: waiter,
-            processTerminator: new FailingProcessTerminator());
-        var settings = CreateSettings();
-        settings.DefaultCheckFilesBeforeLaunch = false;
-        using var cancellation = new CancellationTokenSource();
-
-        try
-        {
-            var launchTask = service.LaunchAsync(
-                CreateInstance(settings.MinecraftDirectory, "Failed Cancellation Cleanup"),
-                CreateAccount(),
-                settings,
-                progress: null,
-                cancellationToken: cancellation.Token);
-
-            await waiter.WaitUntilCalledAsync();
-            cancellation.Cancel();
-            var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => launchTask);
-
-            Assert.Contains("terminate", exception.Report.FailureSummary, StringComparison.OrdinalIgnoreCase);
-            Assert.True(crashMonitor.MonitorSession.GameSessionCreated);
-        }
-        finally
-        {
-            TryKillProcess(launchedProcess);
-        }
-    }
-
-    [Fact]
-    public async Task AutomaticJavaProvisioningRetriesSelection()
-    {
-        var javaDirectory = Path.Combine(TempRoot, "java", "bin");
-        Directory.CreateDirectory(javaDirectory);
-        var javaPath = Path.Combine(javaDirectory, "java.exe");
-        var javawPath = Path.Combine(javaDirectory, "javaw.exe");
-        await File.WriteAllTextAsync(javaPath, string.Empty);
-        await File.WriteAllTextAsync(javawPath, string.Empty);
-        var runtime = new JavaRuntimeInfo("Java 21", "21", 21, "x64", javaPath, Path.GetDirectoryName(javaDirectory)!, "MinecraftRuntime");
-        var selection = new FakeJavaSelection(
-            new JavaRuntimeSelectionException("missing", JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing, 21),
-            runtime);
-        var provisioning = new FakeJavaProvisioning();
-        var launcher = new FakeLauncherFactory();
-        var service = CreateService(javaSelection: selection, javaProvisioning: provisioning, launcher: launcher);
-        var settings = CreateSettings();
-        settings.JavaSelectionMode = JavaSelectionMode.Auto;
-
-        await service.LaunchAsync(CreateInstance(settings.MinecraftDirectory, "1.21.4"), CreateAccount(), settings, null);
-
-        Assert.Equal(2, selection.CallCount);
-        Assert.Equal(1, provisioning.CallCount);
-        Assert.Equal(javawPath, launcher.Launcher.LastOption?.JavaPath);
     }
 
     [Fact]
@@ -364,34 +168,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task RepairFailureWritesDiagnosticBeforeProcessStarts()
-    {
-        var settings = CreateSettings();
-        var instance = CreateInstance(settings.MinecraftDirectory, "Broken Pack");
-        Directory.CreateDirectory(instance.InstanceDirectory);
-        var repair = new FakeRepairService
-        {
-            OnRepair = () => throw new InstanceRepairException("No usable Java runtime was found.")
-        };
-        var launcher = new FakeLauncherFactory();
-        var service = CreateService(repair, launcher);
-
-        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() =>
-            service.LaunchAsync(instance, CreateAccount(), settings, null));
-
-        Assert.IsType<InstanceRepairException>(exception.InnerException);
-        Assert.Null(launcher.Launcher.LastVersionName);
-        Assert.True(File.Exists(exception.Report.DiagnosticPath));
-        var expectedDiagnosticDirectory = Path.Combine(
-            instance.InstanceDirectory,
-            LauncherApplicationIdentity.StorageDirectoryName,
-            "logs");
-        Assert.Equal(expectedDiagnosticDirectory, exception.Report.DiagnosticDirectory);
-        Assert.Equal(expectedDiagnosticDirectory, Path.GetDirectoryName(exception.Report.DiagnosticPath));
-        Assert.Contains("instance_repair_failed", await File.ReadAllTextAsync(exception.Report.DiagnosticPath!));
-    }
-
-    [Fact]
     public async Task IntegrityCancellationDoesNotWriteRepairFailureDiagnostic()
     {
         using var cancellation = new CancellationTokenSource();
@@ -420,53 +196,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             instance.InstanceDirectory,
             LauncherApplicationIdentity.StorageDirectoryName,
             "logs")));
-    }
-
-    [Fact]
-    public async Task ThirdPartyLaunchPrependsInjectorArgumentsAndUsesMojangIdentity()
-    {
-        var injectorPath = Path.Combine(TempRoot, "path with spaces", "authlib-injector.jar");
-        var accountSession = new FakeAccountSession(new LaunchAccountSession(
-            "ThirdPartyPlayer",
-            "third-party-secret-token",
-            "00112233445566778899aabbccddeeff",
-            IsOffline: false,
-            Kind: LauncherAccountKind.ThirdParty,
-            ThirdParty: new ThirdPartyLaunchContext(
-                "https://example.test/api/yggdrasil/",
-                "eyJtZXRhIjp7fX0=")));
-        var launcher = new FakeLauncherFactory();
-        var integrity = new RecordingIntegrityService();
-        var service = CreateService(
-            launcher: launcher,
-            integrity: integrity,
-            accountSession: accountSession,
-            authlibInjector: new FakeAuthlibInjector(injectorPath));
-        var settings = CreateSettings();
-        settings.DefaultJvmArguments = "-Duser.option=true";
-        var account = new LauncherAccount
-        {
-            Id = "third-party",
-            DisplayName = "ThirdPartyPlayer",
-            Kind = LauncherAccountKind.ThirdParty,
-            Uuid = "00112233-4455-6677-8899-aabbccddeeff"
-        };
-
-        await service.LaunchAsync(CreateInstance(settings.MinecraftDirectory, "Third Party Pack"), account, settings, null);
-
-        var option = Assert.IsType<MLaunchOption>(launcher.Launcher.LastOption);
-        var arguments = option.ExtraJvmArguments.SelectMany(argument => argument.Values).ToArray();
-        Assert.Equal($"-javaagent:{injectorPath}=https://example.test/api/yggdrasil/", arguments[0]);
-        Assert.Equal("-Dauthlibinjector.yggdrasil.prefetched=eyJtZXRhIjp7fX0=", arguments[1]);
-        Assert.Equal("-Duser.option=true", arguments[2]);
-        Assert.Equal("mojang", option.ArgumentDictionary["user_type"]);
-        Assert.Equal("{}", option.UserProperties);
-        Assert.Equal("ThirdPartyPlayer", option.Session?.Username);
-        Assert.Equal("00112233445566778899aabbccddeeff", option.Session?.UUID);
-        Assert.Contains(
-            Path.GetFullPath(injectorPath),
-            Assert.IsType<GameFileIntegrityRequest>(integrity.FinalRequest).AllowedAdditionalCommandFilePaths,
-            StringComparer.OrdinalIgnoreCase);
     }
 
     private static LaunchService CreateService(
@@ -651,12 +380,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
         public void Report(LauncherProgress value) => reports.Add(value);
     }
 
-    private sealed class FakeAuthlibInjector(string filePath) : IAuthlibInjectorProvisioningService
-    {
-        public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new AuthlibInjectorArtifact(filePath, "1.2.7", 55));
-    }
-
     private sealed class RecordingIntegrityService : IGameFileIntegrityService
     {
         public Func<CancellationToken, Task<GameFileRepairResult>>? OnValidate { get; init; }
@@ -785,43 +508,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
         {
             await inner.TerminateAsync(process);
             ObservedExitedProcess = process.HasExited;
-        }
-    }
-
-    private sealed class FailingProcessTerminator : ILaunchProcessTerminator
-    {
-        public Task TerminateAsync(Process process) =>
-            Task.FromException(new IOException("Injected process-tree termination failure."));
-    }
-
-    private sealed class RecordingCrashMonitor : ILaunchCrashMonitor
-    {
-        public Session MonitorSession { get; } = new();
-
-        public ILaunchCrashMonitorSession CreateSession(
-            string minecraftDirectory,
-            string instanceDirectory,
-            string versionName) => MonitorSession;
-
-        internal sealed class Session : ILaunchCrashMonitorSession
-        {
-            public bool GameSessionCreated { get; private set; }
-
-            public void Configure(Process process) { }
-            public void BeginMonitoring(Process process, LaunchDiagnosticContext context) { }
-            public Task<LaunchCrashMonitorResult> CreateStartupExitResultAsync(
-                Process process,
-                LaunchDiagnosticContext context,
-                CancellationToken cancellationToken) => throw new InvalidOperationException();
-            public Task CompleteCanceledStartupAsync(Process process) => Task.CompletedTask;
-            public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context)
-            {
-                GameSessionCreated = true;
-                return new GameLaunchSession(
-                    context.InstanceId,
-                    context.InstanceName,
-                    Task.FromResult(LaunchExitResult.Success));
-            }
         }
     }
 

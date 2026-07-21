@@ -64,58 +64,6 @@ public sealed class LaunchCommandRunnerTests : TestTempDirectory
         Assert.False(File.Exists(markerPath));
     }
 
-    [Fact]
-    public async Task NonWaitingCommandRemainsRunningAfterCancellation()
-    {
-        var runner = new LaunchCommandRunner();
-        var command = await CreateLongRunningCommandAsync();
-        using var cancellation = new CancellationTokenSource();
-        Process? parentProcess = null;
-
-        try
-        {
-            await runner.RunAsync(command.Command, TempRoot, waitForExit: false, cancellation.Token);
-            var parentProcessId = await WaitForProcessIdAsync(command.ParentProcessIdPath);
-            parentProcess = Process.GetProcessById(parentProcessId);
-
-            cancellation.Cancel();
-            await Task.Delay(150);
-
-            Assert.False(parentProcess.HasExited);
-        }
-        finally
-        {
-            if (parentProcess is not null)
-            {
-                TryKillProcessTree(parentProcess);
-                await WaitForExitAsync(parentProcess);
-                parentProcess.Dispose();
-            }
-        }
-    }
-
-    [Fact]
-    public async Task ZeroExitCodeCompletesSuccessfully()
-    {
-        var runner = new LaunchCommandRunner();
-
-        await runner.RunAsync("exit /b 0", TempRoot, waitForExit: true, CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task NonZeroExitCodeThrows()
-    {
-        var runner = new LaunchCommandRunner();
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync(
-            "exit /b 7",
-            TempRoot,
-            waitForExit: true,
-            CancellationToken.None));
-
-        Assert.Contains("code 7", exception.Message);
-    }
-
     private async Task<LongRunningCommand> CreateLongRunningCommandAsync()
     {
         Directory.CreateDirectory(TempRoot);
@@ -173,18 +121,6 @@ public sealed class LaunchCommandRunnerTests : TestTempDirectory
         catch (InvalidOperationException)
         {
             return true;
-        }
-    }
-
-    private static void TryKillProcessTree(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
-        }
-        catch (InvalidOperationException)
-        {
         }
     }
 

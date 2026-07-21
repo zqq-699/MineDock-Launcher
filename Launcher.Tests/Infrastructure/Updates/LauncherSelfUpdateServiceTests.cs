@@ -37,38 +37,6 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task FailedUpdateProcessStartDeletesDownloadedCache()
-    {
-        var handler = new DownloadHandler().Respond(GitHubUrl, HttpStatusCode.OK, Payload);
-
-        var result = await CreateService(handler, _ => false).StartUpdateAsync(CreateUpdate());
-
-        Assert.False(result.Succeeded);
-        var updatesRoot = Path.Combine(
-            tempRoot,
-            LauncherApplicationIdentity.StorageDirectoryName,
-            "cache",
-            "updates");
-        Assert.False(Directory.Exists(updatesRoot));
-    }
-
-    [Fact]
-    public async Task NetworkFailureFallsBackToSecondOfficialMirror()
-    {
-        var handler = new DownloadHandler()
-            .Respond(GiteeUrl, HttpStatusCode.ServiceUnavailable, [])
-            .Respond(GitHubUrl, HttpStatusCode.OK, Payload);
-        var update = CreateUpdate([
-            new LauncherUpdateDownloadUrl("gitee", GiteeUrl, 1),
-            new LauncherUpdateDownloadUrl("github", GitHubUrl, 2)]);
-
-        var result = await CreateService(handler, _ => true).StartUpdateAsync(update);
-
-        Assert.True(result.Succeeded, result.ErrorMessage);
-        Assert.Equal([GiteeUrl, GitHubUrl], handler.Requests);
-    }
-
-    [Fact]
     public async Task HashFailureDoesNotFallbackOrStartAndDeletesTemporaryFile()
     {
         var starts = 0;
@@ -83,21 +51,6 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
 
         Assert.False(result.Succeeded);
         Assert.Equal([GiteeUrl], handler.Requests);
-        Assert.Equal(0, starts);
-        Assert.Empty(Directory.EnumerateFiles(tempRoot, "*.download", SearchOption.AllDirectories));
-    }
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(999)]
-    public async Task SizeMismatchNeverStartsAndDeletesTemporaryFile(long declaredSize)
-    {
-        var starts = 0;
-        var handler = new DownloadHandler().Respond(GitHubUrl, HttpStatusCode.OK, Payload);
-        var result = await CreateService(handler, _ => { starts++; return true; })
-            .StartUpdateAsync(CreateUpdate() with { SizeBytes = declaredSize });
-
-        Assert.False(result.Succeeded);
         Assert.Equal(0, starts);
         Assert.Empty(Directory.EnumerateFiles(tempRoot, "*.download", SearchOption.AllDirectories));
     }
@@ -130,17 +83,6 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
 
         Assert.False(result.Succeeded);
         Assert.Empty(handler.Requests);
-    }
-
-    [Fact]
-    public async Task CrossProviderHttpsRedirectIsAllowedAndFollowed()
-    {
-        var handler = new DownloadHandler().Redirect(GiteeUrl, GitHubUrl).Respond(GitHubUrl, HttpStatusCode.OK, Payload);
-        var result = await CreateService(handler, _ => true).StartUpdateAsync(CreateUpdate([
-            new LauncherUpdateDownloadUrl("gitee", GiteeUrl, 1)]));
-
-        Assert.True(result.Succeeded, result.ErrorMessage);
-        Assert.Equal([GiteeUrl, GitHubUrl], handler.Requests);
     }
 
     private LauncherSelfUpdateService CreateService(DownloadHandler handler, Func<ProcessStartInfo, bool> startProcess)

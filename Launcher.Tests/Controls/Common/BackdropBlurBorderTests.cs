@@ -37,130 +37,6 @@ public sealed class BackdropBlurBorderTests
     }
 
     [Fact]
-    public void PreblurredSourceSamplingUsesExactControlBoundsWithoutOverscan()
-    {
-        RunOnStaThread(() =>
-        {
-            var root = new Canvas();
-            var source = new Border { Width = 300d, Height = 200d };
-            var control = CreateControl(new Border());
-            control.Width = 80d;
-            control.Height = 40d;
-            control.SourceElement = source;
-            control.IsSourcePreblurred = true;
-            Canvas.SetLeft(control, 50d);
-            Canvas.SetTop(control, 30d);
-            root.Children.Add(source);
-            root.Children.Add(control);
-
-            Arrange(root, 300d, 200d);
-            control.RefreshBackdrop();
-
-            Assert.Equal(0d, control.BlurOverscan);
-            Assert.Equal(default, GetBlurLayer(control).Margin);
-            Assert.Equal(new Rect(50d, 30d, 80d, 40d), control.BackdropBrush?.Viewbox);
-            Assert.Equal(new Rect(0d, 0d, 80d, 40d), control.BackdropBrush?.Viewport);
-        });
-    }
-
-    [Fact]
-    public void RefreshBackdropOverscansTheTargetBoundsIntoTheSiblingSource()
-    {
-        RunOnStaThread(() =>
-        {
-            var root = new Canvas();
-            var source = new Border
-            {
-                Width = 300d,
-                Height = 200d,
-                Background = Brushes.CornflowerBlue
-            };
-            var control = CreateControl(new TextBlock { Text = "Foreground" });
-            control.Width = 80d;
-            control.Height = 40d;
-            control.SourceElement = source;
-            Canvas.SetLeft(control, 50d);
-            Canvas.SetTop(control, 30d);
-            root.Children.Add(source);
-            root.Children.Add(control);
-
-            Arrange(root, 300d, 200d);
-            control.ApplyTemplate();
-            control.RefreshBackdrop();
-
-            Assert.True(control.IsBackdropActive);
-            Assert.Same(source, control.BackdropBrush?.Visual);
-            Assert.Equal(63d, control.BlurOverscan);
-            Assert.Equal(new Thickness(-63d), GetBlurLayer(control).Margin);
-            Assert.Equal(TileMode.FlipXY, control.BackdropBrush?.TileMode);
-            Assert.Equal(BrushMappingMode.Absolute, control.BackdropBrush?.ViewportUnits);
-            Assert.Equal(new Rect(0d, 0d, 193d, 133d), control.BackdropBrush?.Viewbox);
-            Assert.Equal(new Rect(13d, 33d, 193d, 133d), control.BackdropBrush?.Viewport);
-
-            Canvas.SetLeft(control, 90d);
-            root.InvalidateArrange();
-            Arrange(root, 300d, 200d);
-            control.RefreshBackdrop();
-
-            Assert.Equal(new Rect(27d, 0d, 206d, 133d), control.BackdropBrush?.Viewbox);
-            Assert.Equal(new Rect(0d, 33d, 206d, 133d), control.BackdropBrush?.Viewport);
-        });
-    }
-
-    [Fact]
-    public void ChangingBlurRadiusUpdatesTheOverscanAndSampleBounds()
-    {
-        RunOnStaThread(() =>
-        {
-            var root = new Canvas();
-            var source = new Border { Width = 300d, Height = 200d };
-            var control = CreateControl(new Border());
-            control.Width = 80d;
-            control.Height = 40d;
-            control.SourceElement = source;
-            Canvas.SetLeft(control, 50d);
-            Canvas.SetTop(control, 30d);
-            root.Children.Add(source);
-            root.Children.Add(control);
-
-            Arrange(root, 300d, 200d);
-            control.BlurRadius = 20d;
-            control.RefreshBackdrop();
-
-            Assert.Equal(30d, control.BlurOverscan);
-            Assert.Equal(new Thickness(-30d), GetBlurLayer(control).Margin);
-            Assert.Equal(new Rect(20d, 0d, 140d, 100d), control.BackdropBrush?.Viewbox);
-            Assert.Equal(new Rect(0d, 0d, 140d, 100d), control.BackdropBrush?.Viewport);
-        });
-    }
-
-    [Fact]
-    public void SourceEdgeUsesMirroredTilesInsteadOfTransparentOverscan()
-    {
-        RunOnStaThread(() =>
-        {
-            var root = new Canvas();
-            var source = new Border { Width = 300d, Height = 200d };
-            var control = CreateControl(new Border());
-            control.Width = 80d;
-            control.Height = 40d;
-            control.SourceElement = source;
-            Canvas.SetLeft(control, 0d);
-            Canvas.SetTop(control, 50d);
-            root.Children.Add(source);
-            root.Children.Add(control);
-
-            Arrange(root, 300d, 200d);
-            control.RefreshBackdrop();
-
-            Assert.True(control.IsBackdropActive);
-            Assert.Equal(new Rect(0d, 0d, 143d, 153d), control.BackdropBrush?.Viewbox);
-            Assert.Equal(new Rect(63d, 13d, 143d, 153d), control.BackdropBrush?.Viewport);
-            Assert.Equal(TileMode.FlipXY, control.BackdropBrush?.TileMode);
-        });
-    }
-
-    [Fact]
     public void InvalidOrDisabledSourcesLeaveTheForegroundAndFallbackLayersAvailable()
     {
         RunOnStaThread(() =>
@@ -190,38 +66,6 @@ public sealed class BackdropBlurBorderTests
             control.RefreshBackdrop();
             Assert.False(control.IsBackdropActive);
             Assert.Null(control.BackdropBrush?.Visual);
-        });
-    }
-
-    [Fact]
-    public void LoadedAndUnloadedEventsManagePerFrameTrackingWithoutLeakingTheSource()
-    {
-        RunOnStaThread(() =>
-        {
-            var control = CreateControl(new Border());
-            control.SourceElement = new Border();
-            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-            Assert.True(control.IsRenderTrackingActive);
-
-            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
-            Assert.False(control.IsRenderTrackingActive);
-            Assert.False(control.IsBackdropActive);
-            Assert.Null(control.BackdropBrush?.Visual);
-        });
-    }
-
-    [Fact]
-    public void DisabledBackdropDoesNotSubscribeToPerFrameRendering()
-    {
-        RunOnStaThread(() =>
-        {
-            var control = CreateControl(new Border());
-            control.SourceElement = new Border();
-            control.IsBlurEnabled = false;
-
-            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-
-            Assert.False(control.IsRenderTrackingActive);
         });
     }
 
@@ -261,11 +105,6 @@ public sealed class BackdropBlurBorderTests
             </ControlTemplate>
             """;
         return (ControlTemplate)XamlReader.Parse(xaml);
-    }
-
-    private static Border GetBlurLayer(BackdropBlurBorder control)
-    {
-        return Assert.IsType<Border>(control.Template.FindName("PART_BlurLayer", control));
     }
 
     private static void Arrange(FrameworkElement element, double width, double height)

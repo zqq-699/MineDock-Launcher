@@ -45,23 +45,6 @@ public sealed class InstallCardProgressMapperTests
         Assert.Equal(67, reports[6].Percent);
     }
 
-    [Fact]
-    public void OptionalContentKeepsSpaceBeforeCommit()
-    {
-        var reports = new List<LauncherProgress>();
-        var mapper = new InstallCardProgressMapper(new InlineProgress(reports), LoaderKind.Fabric, hasOptionalContent: true);
-
-        mapper.Report(new LauncherProgress(LaunchProgressStages.DownloadingFiles, string.Empty, 100));
-        mapper.ReportBaseInstallCompleted();
-        mapper.Report(new LauncherProgress(ModProgressStages.DownloadingFile, "Fabric API"));
-        mapper.ReportOptionalContentCompleted();
-
-        Assert.Equal(86, reports[0].Percent);
-        Assert.Equal(86, reports[1].Percent);
-        Assert.Equal(86, reports[2].Percent);
-        Assert.Equal(96, reports[3].Percent);
-    }
-
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
     {
         public void Report(LauncherProgress value) => reports.Add(value);

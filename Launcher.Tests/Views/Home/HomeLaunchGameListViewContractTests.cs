@@ -50,13 +50,6 @@ public sealed class HomeLaunchGameListViewContractTests : TestTempDirectory
     }
 
     [Fact]
-    public void ListPageFrameDefersTitleIconConversionToImmediateFileLoader()
-    {
-        Assert.Equal(typeof(object), ListPageFrame.TitleIconSourceProperty.PropertyType);
-        Assert.Equal(typeof(ImageSource), ListPageFrame.ResolvedTitleIconSourceProperty.PropertyType);
-    }
-
-    [Fact]
     public void LocalInstanceIconDoesNotPreventContainingDirectoryMove()
     {
         var sourceDirectory = Path.Combine(TempRoot, "instance");

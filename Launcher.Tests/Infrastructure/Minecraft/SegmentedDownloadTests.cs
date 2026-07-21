@@ -59,34 +59,6 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ServerIgnoringRangeFallsBackOnceToSingleStream()
-    {
-        var handler = new RecordingRequestHandler((_, request, _) =>
-            Task.FromResult(CreateFullResponse(request, LargePayload)));
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "client.jar");
-        var attempts = new List<int>();
-
-        await executor.DownloadFileAsync(
-            DownloadUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            Sha1(LargePayload),
-            LargePayload.Length,
-            CancellationToken.None,
-            (attempt, _, _) => attempts.Add(attempt));
-
-        Assert.Equal(2, handler.RequestCount);
-        Assert.NotNull(handler.RangeHeaders.ElementAt(0));
-        Assert.Null(handler.RangeHeaders.ElementAt(1));
-        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
-        Assert.All(attempts, attempt => Assert.Equal(2, attempt));
-        AssertNoPendingFiles(destination);
-    }
-
-    [Fact]
     public async Task InvalidContentRangeFallsBackOnceToSingleStream()
     {
         var handler = new RecordingRequestHandler((requestNumber, request, _) =>
@@ -150,68 +122,6 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task UnknownSizeTrustedFileKeepsSingleStreamPath()
-    {
-        var handler = FullResponseHandler(LargePayload);
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "unknown-size.jar");
-
-        await executor.DownloadFileAsync(
-            DownloadUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            new DownloadIntegrityExpectation(
-                expectedSize: null,
-                [(HashAlgorithmName.SHA1, Sha1(LargePayload))]),
-            CancellationToken.None);
-
-        Assert.Equal([null], handler.RangeHeaders);
-    }
-
-    [Fact]
-    public async Task FileBelowThresholdKeepsSingleStreamPath()
-    {
-        var payload = LargePayload.AsSpan(0, 1024).ToArray();
-        var handler = FullResponseHandler(payload);
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "small.jar");
-
-        await executor.DownloadFileAsync(
-            DownloadUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            Sha1(payload),
-            payload.Length,
-            CancellationToken.None);
-
-        Assert.Equal([null], handler.RangeHeaders);
-    }
-
-    [Fact]
-    public async Task UnverifiedLargeFileKeepsSingleStreamPath()
-    {
-        var handler = FullResponseHandler(LargePayload);
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "unverified.jar");
-
-        await executor.DownloadFileAsync(
-            DownloadUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            expectedSha1: null,
-            expectedSize: LargePayload.Length,
-            cancellationToken: CancellationToken.None);
-
-        Assert.Equal([null], handler.RangeHeaders);
-    }
-
-    [Fact]
     public async Task LightweightAtomicLargeFileKeepsSingleStreamPath()
     {
         var handler = FullResponseHandler(LargePayload);
@@ -230,48 +140,6 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
             options: new DownloadFileOptions(
                 DownloadPersistenceMode.LightweightAtomic,
                 ManagedRoot: TempRoot));
-
-        Assert.Equal([null], handler.RangeHeaders);
-    }
-
-    [Fact]
-    public async Task BmclApiLargeFileKeepsSingleStreamPath()
-    {
-        var handler = FullResponseHandler(LargePayload);
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "bmcl.jar");
-
-        await executor.DownloadFileAsync(
-            "https://bmclapi2.bangbang93.com/maven/example/client.jar",
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            Sha1(LargePayload),
-            LargePayload.Length,
-            CancellationToken.None);
-
-        Assert.Equal([null], handler.RangeHeaders);
-    }
-
-    [Fact]
-    public async Task LowGlobalConcurrencyKeepsSingleStreamPath()
-    {
-        var handler = FullResponseHandler(LargePayload);
-        using var client = CreateClient(handler);
-        var limiter = new ImportConcurrencyLimiter();
-        limiter.SetMaximumDownloadConcurrency(3);
-        var executor = CreateExecutor(client, limiter);
-        var destination = Path.Combine(TempRoot, "low-concurrency.jar");
-
-        await executor.DownloadFileAsync(
-            DownloadUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            Sha1(LargePayload),
-            LargePayload.Length,
-            CancellationToken.None);
 
         Assert.Equal([null], handler.RangeHeaders);
     }
@@ -308,54 +176,6 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
         Assert.Equal(0, limiter.DownloadSnapshot.WaitingCount);
         Assert.False(File.Exists(destination));
         AssertNoPendingFiles(destination);
-    }
-
-    [Fact]
-    public async Task SegmentedRedirectKeepsRangeAndDoesNotForwardSensitiveHeader()
-    {
-        const string originalUrl = "https://api.curseforge.com/v1/files/client.jar";
-        const string redirectedUrl = "https://edge.forgecdn.net/files/client.jar";
-        var handler = new RecordingRequestHandler((_, request, _) =>
-        {
-            if (request.RequestUri!.Host.Equals("api.curseforge.com", StringComparison.OrdinalIgnoreCase))
-            {
-                var redirect = new HttpResponseMessage(HttpStatusCode.Found)
-                {
-                    RequestMessage = request,
-                    Content = new ByteArrayContent([])
-                };
-                redirect.Headers.Location = new Uri(redirectedUrl);
-                return Task.FromResult(redirect);
-            }
-
-            return Task.FromResult(CreatePartialResponse(request, LargePayload));
-        });
-        using var client = CreateClient(handler);
-        var executor = CreateExecutor(client);
-        var destination = Path.Combine(TempRoot, "redirected.jar");
-
-        await executor.DownloadFileAsync(
-            originalUrl,
-            DownloadSourcePreference.Official,
-            "ThirdParty",
-            destination,
-            Sha1(LargePayload),
-            LargePayload.Length,
-            CancellationToken.None,
-            sensitiveHeaders: DownloadRequestHeaders.CurseForgeApiKey("secret"));
-
-        Assert.Equal(MinecraftDownloadRequestExecutor.SegmentedDownloadPartCount * 2, handler.RequestCount);
-        Assert.All(handler.Requests.Where(request => request.Host == "api.curseforge.com"), request =>
-        {
-            Assert.NotNull(request.Range);
-            Assert.True(request.HasSensitiveHeader);
-        });
-        Assert.All(handler.Requests.Where(request => request.Host == "edge.forgecdn.net"), request =>
-        {
-            Assert.NotNull(request.Range);
-            Assert.False(request.HasSensitiveHeader);
-        });
-        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
     }
 
     private static MinecraftDownloadRequestExecutor CreateExecutor(

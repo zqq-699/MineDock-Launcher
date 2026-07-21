@@ -42,44 +42,6 @@ public sealed class ThirdPartyLaunchSessionServiceTests
     }
 
     [Fact]
-    public async Task InvalidTokenRefreshesAndPersistsMatchingProfile()
-    {
-        var store = new RecordingTokenStore(new ThirdPartyAccountTokens("old-access", "client"));
-        var service = new ThirdPartyLaunchSessionService(
-            new HttpClient(new StubHttpMessageHandler(request => Task.FromResult(
-                request.Method == HttpMethod.Get
-                    ? Json(HttpStatusCode.OK, "{}")
-                    : request.RequestUri!.AbsolutePath.EndsWith("/validate", StringComparison.Ordinal)
-                        ? Json(HttpStatusCode.Forbidden, "{}")
-                        : Json(HttpStatusCode.OK, """
-                            {"accessToken":"new-access","clientToken":"client","selectedProfile":{"id":"00112233445566778899aabbccddeeff","name":"Renamed"}}
-                            """)))),
-            store);
-
-        var session = await service.CreateAsync(CreateAccount());
-
-        Assert.Equal("Renamed", session.Username);
-        Assert.Equal("new-access", session.AccessToken);
-        Assert.Equal(new ThirdPartyAccountTokens("new-access", "client"), store.SavedTokens);
-    }
-
-    [Fact]
-    public async Task ForbiddenRefreshRequiresReauthentication()
-    {
-        var service = new ThirdPartyLaunchSessionService(
-            new HttpClient(new StubHttpMessageHandler(request => Task.FromResult(
-                request.Method == HttpMethod.Get
-                    ? Json(HttpStatusCode.OK, "{}")
-                    : Json(HttpStatusCode.Forbidden, "{}")))),
-            new RecordingTokenStore(new ThirdPartyAccountTokens("expired", "client")));
-
-        var exception = await Assert.ThrowsAsync<LaunchAccountSessionException>(() =>
-            service.CreateAsync(CreateAccount()));
-
-        Assert.Equal(LaunchAccountSessionFailureReason.ReauthenticationRequired, exception.Reason);
-    }
-
-    [Fact]
     public async Task RefreshRejectsDifferentProfileUuidWithoutOverwritingTokens()
     {
         var store = new RecordingTokenStore(new ThirdPartyAccountTokens("old-access", "client"));

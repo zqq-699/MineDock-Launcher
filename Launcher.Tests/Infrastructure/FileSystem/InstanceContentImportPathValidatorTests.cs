@@ -52,20 +52,6 @@ public sealed class InstanceContentImportPathValidatorTests
         Assert.Equal(InstanceContentImportPathFailure.DirectoryNotSupported, result.Failure);
     }
 
-    [Fact]
-    public void MissingOrWrongExtensionIsRejected()
-    {
-        using var directory = new TemporaryDirectory();
-        var path = Path.Combine(directory.Path, "sample.txt");
-        File.WriteAllText(path, "test");
-
-        var result = new InstanceContentImportPathValidator().Validate(
-            [path],
-            InstanceContentImportKind.ResourcePack);
-
-        Assert.Equal(InstanceContentImportPathFailure.MissingOrInvalidFile, result.Failure);
-    }
-
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

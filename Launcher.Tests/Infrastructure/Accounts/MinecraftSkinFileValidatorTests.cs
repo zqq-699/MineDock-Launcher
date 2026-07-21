@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
