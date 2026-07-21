@@ -66,8 +66,8 @@
     </shell:WindowChrome.WindowChrome>
 
     <Border CornerRadius="8"
-            BorderBrush="{DynamicResource Brush.344E4E4E}"
-            BorderThickness="1"
+            BorderBrush="{DynamicResource Brush.Surface.WindowBorder}"
+            BorderThickness="{DynamicResource Thickness.Surface.WindowBorder}"
             SnapsToDevicePixels="True">
         <Grid Background="Transparent">
             <Grid x:Name="LauncherBackgroundVisualSource"

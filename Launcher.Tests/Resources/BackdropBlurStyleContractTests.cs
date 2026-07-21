@@ -130,6 +130,10 @@ public sealed class BackdropBlurStyleContractTests
         var contrastLayer = Assert.Single(ordinaryButtonStyle.Descendants().Where(element =>
             element.Name.LocalName == "Border"
             && element.Attribute(xaml + "Name")?.Value == "SurfaceContrastLayer"));
+        var ordinaryBaseBackground = Assert.Single(ordinaryButtonStyle.Descendants().Where(element =>
+            element.Name.LocalName == "Border"
+            && element.Attribute(xaml + "Name")?.Value == "BaseBackground"));
+        Assert.Equal("{TemplateBinding Background}", ordinaryBaseBackground.Attribute("Background")?.Value);
         Assert.Equal("{DynamicResource Brush.Button.Secondary.Background}", contrastLayer.Attribute("Background")?.Value);
         Assert.Equal("{DynamicResource Brush.Input.TextBox.Border}", contrastLayer.Attribute("BorderBrush")?.Value);
         Assert.Equal("1", contrastLayer.Attribute("BorderThickness")?.Value);
@@ -151,6 +155,11 @@ public sealed class BackdropBlurStyleContractTests
         Assert.Contains(disabledTrigger.Elements(), element =>
             element.Name.LocalName == "Setter"
             && element.Attribute("TargetName")?.Value == "BaseBackground"
+            && element.Attribute("Property")?.Value == "Background"
+            && element.Attribute("Value")?.Value == "{DynamicResource Brush.Button.Secondary.Disabled}");
+        Assert.Contains(disabledTrigger.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && element.Attribute("TargetName")?.Value == "BaseBackground"
             && element.Attribute("Property")?.Value == "behaviors:BackdropBlurHost.FallbackBrush"
             && element.Attribute("Value")?.Value == "{DynamicResource Brush.Button.Secondary.Disabled}");
         Assert.Contains(disabledTrigger.Elements(), element =>
@@ -158,10 +167,6 @@ public sealed class BackdropBlurStyleContractTests
             && element.Attribute("TargetName")?.Value == "SurfaceContrastLayer"
             && element.Attribute("Property")?.Value == "Background"
             && element.Attribute("Value")?.Value == "{DynamicResource Brush.Button.Secondary.Disabled}");
-        Assert.DoesNotContain(disabledTrigger.Elements(), element =>
-            element.Name.LocalName == "Setter"
-            && element.Attribute("TargetName")?.Value == "BaseBackground"
-            && element.Attribute("Property")?.Value == "Background");
 
         foreach (var styleKey in new[] { "PrimaryDialogButtonStyle", "DangerDialogButtonStyle" })
         {
@@ -175,12 +180,18 @@ public sealed class BackdropBlurStyleContractTests
                 "True",
                 semanticBaseBackground.Attributes().Single(attribute =>
                     attribute.Name.LocalName == "BackdropBlurHost.IsApplied").Value);
-            Assert.Null(semanticBaseBackground.Attribute("Background"));
+            Assert.Equal("{TemplateBinding Background}", semanticBaseBackground.Attribute("Background")?.Value);
 
             var semanticDisabledTrigger = Assert.Single(semanticButtonStyle.Descendants().Where(element =>
                 element.Name.LocalName == "Trigger"
                 && element.Attribute("Property")?.Value == "IsEnabled"
                 && element.Attribute("Value")?.Value == "False"));
+            Assert.Contains(semanticDisabledTrigger.Elements(), element =>
+                element.Name.LocalName == "Setter"
+                && element.Attribute("TargetName")?.Value == "BaseBackground"
+                && element.Attribute("Property")?.Value == "Background"
+                && element.Attribute("Value")?.Value ==
+                    "{DynamicResource Brush.Button.Secondary.Disabled}");
             Assert.Contains(semanticDisabledTrigger.Elements(), element =>
                 element.Name.LocalName == "Setter"
                 && element.Attribute("TargetName")?.Value == "BaseBackground"
@@ -199,10 +210,6 @@ public sealed class BackdropBlurStyleContractTests
                 && element.Attribute("Property")?.Value == "Background"
                 && element.Attribute("Value")?.Value ==
                     "{DynamicResource Brush.Button.Secondary.Disabled}");
-            Assert.DoesNotContain(semanticDisabledTrigger.Elements(), element =>
-                element.Name.LocalName == "Setter"
-                && element.Attribute("TargetName")?.Value == "BaseBackground"
-                && element.Attribute("Property")?.Value == "Background");
             Assert.Single(semanticButtonStyle.Descendants().Where(element =>
                 element.Name.LocalName == "Border"
                 && element.Attribute(xaml + "Name")?.Value == "SurfaceContrastLayer"));
@@ -345,6 +352,20 @@ public sealed class BackdropBlurStyleContractTests
             element.Name.LocalName == "Border"
             && element.Attribute(xaml + "Name")?.Value == "HomeLaunchMenuPanel"
             && element.Attribute("Style")?.Value == "{StaticResource SecondaryMenuPanelStyle}");
+    }
+
+    [Fact]
+    public void DialogHostDisablesSurfaceBackdropBlurForDialogControls()
+    {
+        var document = LoadAppXaml("Controls", "Dialogs", "DialogHost.xaml");
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var overlay = Assert.Single(document.Descendants().Where(element =>
+            element.Name.LocalName == "Grid"
+            && element.Attribute(xaml + "Name")?.Value == "RootOverlay"));
+        var blurSwitch = Assert.Single(overlay.Attributes().Where(attribute =>
+            attribute.Name.LocalName == "BackdropBlurHost.IsBlurSuppressed"));
+
+        Assert.Equal("True", blurSwitch.Value);
     }
 
     private static XDocument LoadAppXaml(params string[] relativeSegments)

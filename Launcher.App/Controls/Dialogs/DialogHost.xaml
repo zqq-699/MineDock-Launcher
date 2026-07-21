@@ -20,9 +20,11 @@
 <UserControl x:Class="Launcher.App.Controls.DialogHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              x:Name="Host"
              Focusable="False">
     <Grid x:Name="RootOverlay"
+          behaviors:BackdropBlurHost.IsBlurSuppressed="True"
           Style="{StaticResource DialogOverlayStyle}">
         <Border Width="{Binding DialogWidth, ElementName=Host}"
                 MaxHeight="{Binding ActualHeight, ElementName=Host}"

@@ -23,6 +23,8 @@
     </ResourceDictionary.MergedDictionaries>
 
     <SolidColorBrush x:Key="Brush.LauncherBackground.Image.DimOverlay" Color="#FF000000" />
-    <sys:Double x:Key="Opacity.LauncherBackground.Image.NonHomeDim">0.35</sys:Double>
+    <SolidColorBrush x:Key="Brush.Surface.WindowBorder" Color="Transparent" />
+    <Thickness x:Key="Thickness.Surface.WindowBorder">0</Thickness>
+    <sys:Double x:Key="Opacity.LauncherBackground.Image.NonHomeDim">0.40</sys:Double>
     <sys:Boolean x:Key="Is.SecondaryMenu.BackdropBlur.Enabled">True</sys:Boolean>
 </ResourceDictionary>

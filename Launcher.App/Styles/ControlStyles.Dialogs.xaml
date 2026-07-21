@@ -312,6 +312,7 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     behaviors:BackdropBlurHost.IsApplied="True"
                                     behaviors:BackdropBlurHost.IsBlurEnabled="{DynamicResource Is.Surface.BackdropBlur.Enabled}"
                                     behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
@@ -375,6 +376,7 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
@@ -401,6 +403,7 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     behaviors:BackdropBlurHost.IsApplied="True"
                                     behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                                     CornerRadius="8" />
@@ -463,6 +466,7 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
@@ -485,6 +489,7 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     behaviors:BackdropBlurHost.IsApplied="True"
                                     behaviors:BackdropBlurHost.FallbackBrush="{TemplateBinding Background}"
                                     CornerRadius="8" />
@@ -547,6 +552,7 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.IsBlurEnabled" Value="{DynamicResource Is.Surface.BackdropBlur.Enabled}" />
                             <Setter TargetName="BaseBackground" Property="behaviors:BackdropBlurHost.FallbackBrush" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="SurfaceContrastLayer" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />

@@ -86,7 +86,7 @@ public sealed class ThemeResourceContractTests
     }
 
     [Theory]
-    [InlineData("Dark.xaml", "#80111111")]
+    [InlineData("Dark.xaml", "#90000000")]
     [InlineData("Light.xaml", "#80FFFFFF")]
     public void ThemeDefinesSecondaryMenuBackdropTint(string fileName, string expectedTint)
     {
@@ -175,9 +175,17 @@ public sealed class ThemeResourceContractTests
         var dimOpacity = Assert.Single(document.Descendants().Where(element =>
             element.Name.LocalName == "Double"
             && element.Attribute(xaml + "Key")?.Value == "Opacity.LauncherBackground.Image.NonHomeDim"));
+        var windowBorder = Assert.Single(document.Descendants().Where(element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && element.Attribute(xaml + "Key")?.Value == "Brush.Surface.WindowBorder"));
+        var windowBorderThickness = Assert.Single(document.Descendants().Where(element =>
+            element.Name.LocalName == "Thickness"
+            && element.Attribute(xaml + "Key")?.Value == "Thickness.Surface.WindowBorder"));
 
         Assert.Equal("#FF000000", dimBrush.Attribute("Color")?.Value);
-        Assert.Equal("0.35", dimOpacity.Value);
+        Assert.Equal("Transparent", windowBorder.Attribute("Color")?.Value);
+        Assert.Equal("0", windowBorderThickness.Value);
+        Assert.Equal("0.40", dimOpacity.Value);
     }
 
     [Fact]

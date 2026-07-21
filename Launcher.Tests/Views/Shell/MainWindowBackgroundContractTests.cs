@@ -11,6 +11,28 @@ namespace Launcher.Tests.Views.Shell;
 public sealed class MainWindowBackgroundContractTests
 {
     [Fact]
+    public void WindowFrameUsesTheBackgroundModeSpecificBorderBrush()
+    {
+        var document = XDocument.Load(Path.Combine(
+            FindRepositoryRoot().FullName,
+            "Launcher.App",
+            "Views",
+            "Shell",
+            "MainWindow.xaml"));
+        var windowFrame = Assert.Single(document.Root!.Elements().Where(element =>
+            element.Name.LocalName == "Border"
+            && element.Attribute("BorderBrush")?.Value ==
+                "{DynamicResource Brush.Surface.WindowBorder}"));
+
+        Assert.Equal(
+            "{DynamicResource Brush.Surface.WindowBorder}",
+            windowFrame.Attribute("BorderBrush")?.Value);
+        Assert.Equal(
+            "{DynamicResource Thickness.Surface.WindowBorder}",
+            windowFrame.Attribute("BorderThickness")?.Value);
+    }
+
+    [Fact]
     public void BackgroundImageFillsWholeWindowAndOnlyHidesPageBackdropWhenActive()
     {
         var document = XDocument.Load(Path.Combine(

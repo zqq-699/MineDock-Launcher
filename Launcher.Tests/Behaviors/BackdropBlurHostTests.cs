@@ -45,6 +45,34 @@ public sealed class BackdropBlurHostTests
         });
     }
 
+    [Fact]
+    public void SuppressedAncestorKeepsChildBorderUnmodified()
+    {
+        RunOnStaThread(() =>
+        {
+            var content = new TextBlock { Text = "Dialog content" };
+            var host = new Border
+            {
+                Background = Brushes.Red,
+                Padding = new Thickness(12),
+                Child = content
+            };
+            var dialogScope = new Grid();
+            BackdropBlurHost.SetIsBlurSuppressed(dialogScope, true);
+            dialogScope.Children.Add(host);
+
+            BackdropBlurHost.SetFallbackBrush(host, Brushes.Blue);
+            BackdropBlurHost.SetIsBlurEnabled(host, true);
+            BackdropBlurHost.SetIsApplied(host, true);
+            host.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+
+            Assert.True(BackdropBlurHost.GetIsBlurSuppressed(host));
+            Assert.Same(content, host.Child);
+            Assert.Equal(new Thickness(12), host.Padding);
+            Assert.Equal(Brushes.Red, host.Background);
+        });
+    }
+
     private static void RunOnStaThread(Action action)
     {
         Exception? failure = null;

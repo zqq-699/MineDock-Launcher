@@ -125,11 +125,11 @@
     <Style x:Key="HomeForegroundNameShadowStyle" TargetType="TextBlock">
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect BlurRadius="8"
+                <DropShadowEffect BlurRadius="12"
                                   Color="{DynamicResource Color.000000}"
                                   Direction="270"
-                                  Opacity="0.82"
-                                  ShadowDepth="2" />
+                                  Opacity="0.92"
+                                  ShadowDepth="3" />
             </Setter.Value>
         </Setter>
     </Style>

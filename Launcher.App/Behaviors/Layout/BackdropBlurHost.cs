@@ -33,6 +33,15 @@ public static class BackdropBlurHost
             typeof(BackdropBlurHost),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsBlurSuppressedProperty =
+        DependencyProperty.RegisterAttached(
+            "IsBlurSuppressed",
+            typeof(bool),
+            typeof(BackdropBlurHost),
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.Inherits));
+
     public static readonly DependencyProperty FallbackBrushProperty =
         DependencyProperty.RegisterAttached(
             "FallbackBrush",
@@ -58,6 +67,12 @@ public static class BackdropBlurHost
 
     public static void SetIsBlurEnabled(DependencyObject element, bool value) =>
         element.SetValue(IsBlurEnabledProperty, value);
+
+    public static bool GetIsBlurSuppressed(DependencyObject element) =>
+        (bool)element.GetValue(IsBlurSuppressedProperty);
+
+    public static void SetIsBlurSuppressed(DependencyObject element, bool value) =>
+        element.SetValue(IsBlurSuppressedProperty, value);
 
     public static Brush? GetFallbackBrush(DependencyObject element) =>
         (Brush?)element.GetValue(FallbackBrushProperty);
@@ -93,6 +108,9 @@ public static class BackdropBlurHost
 
     private static void ApplyBackdrop(Border border)
     {
+        if (GetIsBlurSuppressed(border))
+            return;
+
         if (border.GetValue(BackdropProperty) is BackdropBlurBorder existingBackdrop)
         {
             existingBackdrop.SourceElement = ResolveSourceElement(border);
