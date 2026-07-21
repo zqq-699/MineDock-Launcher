@@ -1,30 +1,30 @@
 {
   "schemaVersion": 1,
-  "appId": "MineDock-Launcher",
+  "appId": "BlockHelm-Launcher",
   "channel": "release",
-  "versionName": "",
-  "versionCode": 0,
-  "publishedAt": "1970-01-01T00:00:00Z",
+  "versionName": "0.9.7",
+  "versionCode": 90799,
+  "publishedAt": "2026-07-21T08:13:27Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "",
+  "releaseNotes": "# 正式版 0.9.7\r\n\r\n* 新增启动器背景模式，支持本地自定义图片和可选的渐进式模糊效果。\r\n* 优化背景材质、窗口表面、对话框、列表、输入控件以及深浅色主题下的共享样式。\r\n* 新增可复用的搜索控件，改进资源中心和设置页面的导航与交互体验。\r\n* 改进主题切换、背景图片生命周期管理和整体代码可维护性。",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
-      "fileName": "",
-      "size": 0,
-      "sha256": "",
+      "fileName": "BlockHelm_Launcher_x64.exe",
+      "size": 10773896,
+      "sha256": "d2d6a3f7ed42e369b729a1435a2e5ae0777531df95a459dd643425d902d92c15",
       "urls": [
         {
           "name": "gitee",
-          "url": "",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.7/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.7/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
