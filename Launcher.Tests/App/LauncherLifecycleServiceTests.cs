@@ -133,14 +133,17 @@ public sealed class LauncherLifecycleServiceTests
     public async Task ShutdownRetriesInstallStagingCleanupAfterBackgroundTasksReleaseTheirLocks()
     {
         var downloadTasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
-        var backgroundTask = Task.Delay(20);
+        var backgroundRelease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backgroundTask = backgroundRelease.Task;
         downloadTasks.TrackBackgroundTask(backgroundTask);
         var installCleanup = new TestInstallCleanupService(() => backgroundTask.IsCompleted);
         var workspaceCleanup = new TestWorkspaceCleanupService(completeImmediately: true);
         var sandboxCleanup = new TestSandboxCleanupService();
         var service = new LauncherShutdownService(downloadTasks, installCleanup, workspaceCleanup, sandboxCleanup);
 
-        await service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
+        var shutdown = service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
+        backgroundRelease.SetResult(true);
+        await shutdown;
 
         Assert.Equal(1, installCleanup.CallCount);
         Assert.True(installCleanup.ObservedPrerequisite);

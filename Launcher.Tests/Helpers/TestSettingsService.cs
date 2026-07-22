@@ -25,13 +25,17 @@ namespace Launcher.Tests.Helpers;
 internal sealed class TestSettingsService : ISettingsService
 {
     private LauncherSettings settings;
+    private int saveCount;
 
     public TestSettingsService(LauncherSettings settings)
     {
         this.settings = settings;
     }
 
-    public int SaveCount { get; private set; }
+    public int SaveCount => Volatile.Read(ref saveCount);
+
+    public TaskCompletionSource<bool> SaveStarted { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -40,8 +44,9 @@ internal sealed class TestSettingsService : ISettingsService
 
     public Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default)
     {
-        SaveCount++;
+        Interlocked.Increment(ref saveCount);
         this.settings = settings;
+        SaveStarted.TrySetResult(true);
         return Task.CompletedTask;
     }
 }

@@ -124,18 +124,6 @@ public sealed class LaunchCommandRunnerTests : TestTempDirectory
         }
     }
 
-    private static async Task WaitForExitAsync(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-                await process.WaitForExitAsync().WaitAsync(ProcessTimeout);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
-
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout, string timeoutMessage)
     {
         var stopwatch = Stopwatch.StartNew();

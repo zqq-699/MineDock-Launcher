@@ -3531,4 +3531,13 @@ The current game folder will be backed up first.</value>
   <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>The server directory “{0}” already exists. Choose another location.</value></data>
   <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>Choose server location</value></data>
   <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>The author restricts third-party downloads, so this server pack cannot be downloaded.</value></data>
+  <data name="Settings_LegalSection" xml:space="preserve"><value>Copyright and Legal Notices</value></data>
+  <data name="Settings_CopyrightNotice" xml:space="preserve"><value>Copyright Notice</value></data>
+  <data name="Settings_CopyrightNoticeDescription" xml:space="preserve"><value>Copyright © 2026 BlockHelm Launcher Developer</value></data>
+  <data name="Settings_OpenSourceLicense" xml:space="preserve"><value>Open Source License</value></data>
+  <data name="Settings_OpenSourceLicenseDescription" xml:space="preserve"><value>This software is released under GNU GPL v3 (GPL-3.0-only)</value></data>
+  <data name="Settings_UserAgreement" xml:space="preserve"><value>User Agreement</value></data>
+  <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>Read the terms and important notices that apply when using this software</value></data>
+  <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>View</value></data>
+  <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>Unable to open the legal document. Check your system browser settings and try again.</value></data>
 </root>

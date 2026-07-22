@@ -18,6 +18,7 @@
  */
 
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +45,7 @@ public class AnimatedComboBox : ComboBox
     private static readonly Duration CloseDuration = TimeSpan.FromMilliseconds(180);
     private static readonly IEasingFunction OpenEasing = new CubicEase { EasingMode = EasingMode.EaseOut };
     private static readonly IEasingFunction CloseEasing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+    private static readonly ConditionalWeakTable<Dispatcher, PopupWheelIsolationState> PopupWheelIsolationStates = new();
 
     public static readonly DependencyProperty IsPopupOpenProperty =
         DependencyProperty.Register(
@@ -89,11 +91,21 @@ public class AnimatedComboBox : ComboBox
     private ContentPresenter? selectionContentPresenter;
     private ScaleTransform? scaleTransform;
     private TranslateTransform? translateTransform;
-    private Window? popupWheelOwner;
+    private InputManager? popupInputManager;
     private bool opensAbove;
     private bool isDropDownDescriptorAttached;
     private long popupOpenGeneration;
     private long popupOpenAnimationStartedGeneration = -1;
+
+    static AnimatedComboBox()
+    {
+        // Popup 与宿主页面属于不同的路由树；在 ScrollViewer 类处理器处提供最后一道外层滚动隔离。
+        EventManager.RegisterClassHandler(
+            typeof(ScrollViewer),
+            Mouse.PreviewMouseWheelEvent,
+            new MouseWheelEventHandler(ScrollViewer_PreviewMouseWheelIsolation),
+            handledEventsToo: true);
+    }
 
     public AnimatedComboBox()
     {
@@ -148,6 +160,11 @@ public class AnimatedComboBox : ComboBox
         AttachPopup();
         AttachPopupSurface();
         AttachPopupListBox();
+        if (IsPopupOpen)
+        {
+            ActivatePopupWheelIsolation();
+            AttachPopupInputGuard();
+        }
         if (popupSurface is not null)
         {
             popupSurface.CacheMode = new BitmapCache();
@@ -192,6 +209,8 @@ public class AnimatedComboBox : ComboBox
         }
 
         var generation = ++popupOpenGeneration;
+        ActivatePopupWheelIsolation();
+        AttachPopupInputGuard();
         IsPopupOpen = true;
         SchedulePopupOpenAnimation(generation);
     }
@@ -227,6 +246,8 @@ public class AnimatedComboBox : ComboBox
             closeTimer?.Stop();
             closeTimer = null;
             IsPopupOpen = false;
+            DeactivatePopupWheelIsolation();
+            DetachPopupInputGuard();
             IsDropDownClosing = false;
             if (popupSurface is not null)
             {
@@ -438,7 +459,8 @@ public class AnimatedComboBox : ComboBox
         closeTimer?.Stop();
         DetachPopupListBox();
         DetachPopupSurface();
-        DetachPopupWheelOwner();
+        DeactivatePopupWheelIsolation();
+        DetachPopupInputGuard();
         DetachPopup();
         DetachDropDownDescriptor();
     }
@@ -493,21 +515,22 @@ public class AnimatedComboBox : ComboBox
 
         popup.Opened -= Popup_Opened;
         popup.Closed -= Popup_Closed;
-        DetachPopupWheelOwner();
+        DetachPopupInputGuard();
         popup = null;
     }
 
     private void Popup_Opened(object? sender, EventArgs e)
     {
         ResolvePopupContentParts();
-        AttachPopupWheelOwner();
+        AttachPopupInputGuard();
         popupListBox?.Focus();
     }
 
     private void Popup_Closed(object? sender, EventArgs e)
     {
         StopPopupScrollAnimation();
-        DetachPopupWheelOwner();
+        DeactivatePopupWheelIsolation();
+        DetachPopupInputGuard();
     }
 
     private void PopupListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -535,25 +558,31 @@ public class AnimatedComboBox : ComboBox
     private void PopupDropDown_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         // Popup 是独立窗口，滚轮事件不会自然路由到宿主控件，需要显式交给内部列表滚动。
-        if (!IsPopupOpen || popupListBox is null)
-            return;
-
-        ScrollPopupList(e);
+        ProcessOpenPopupMouseWheel(e, cursorOverPopup: true);
     }
 
-    private void Owner_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void InputManager_PreProcessInput(object sender, PreProcessInputEventArgs e)
     {
-        // 光标位于 Popup 时阻止背景页面随滚轮移动，保持下拉列表是唯一滚动目标。
-        if (!IsPopupOpen)
-            return;
-
-        if (IsCursorOverPopupSurface())
+        // PreviewMouseWheel 尚未进入任一 PresentationSource 的路由树，在此消费可同时覆盖 Popup 与宿主窗口。
+        if (e.StagingItem.Input is not MouseWheelEventArgs mouseWheel
+            || mouseWheel.RoutedEvent != Mouse.PreviewMouseWheelEvent)
         {
-            ScrollPopupList(e);
             return;
         }
 
+        ProcessOpenPopupMouseWheel(mouseWheel, IsCursorOverPopupSurface());
+    }
+
+    internal bool ProcessOpenPopupMouseWheel(MouseWheelEventArgs e, bool cursorOverPopup)
+    {
+        if (!IsPopupOpen)
+            return false;
+
+        // 先标记已处理，确保列表尚未生成或没有可滚动范围时也不会把事件泄漏给外层页面。
         e.Handled = true;
+        if (cursorOverPopup)
+            ScrollPopupList(e);
+        return true;
     }
 
     private void ScrollPopupList(MouseWheelEventArgs e)
@@ -566,24 +595,77 @@ public class AnimatedComboBox : ComboBox
         SmoothScrollBehavior.HandleMouseWheelFromDescendant(listBox, e, handleWhenUnavailable: true);
     }
 
-    private void AttachPopupWheelOwner()
+    internal void AttachPopupInputGuard()
     {
-        var owner = Window.GetWindow(this);
-        if (ReferenceEquals(popupWheelOwner, owner))
+        var inputManager = InputManager.Current;
+        if (ReferenceEquals(popupInputManager, inputManager))
             return;
 
-        DetachPopupWheelOwner();
-        popupWheelOwner = owner;
-        popupWheelOwner?.AddHandler(Mouse.PreviewMouseWheelEvent, new MouseWheelEventHandler(Owner_PreviewMouseWheel), true);
+        DetachPopupInputGuard();
+        popupInputManager = inputManager;
+        popupInputManager.PreProcessInput += InputManager_PreProcessInput;
     }
 
-    private void DetachPopupWheelOwner()
+    internal void DetachPopupInputGuard()
     {
-        if (popupWheelOwner is null)
+        if (popupInputManager is null)
             return;
 
-        popupWheelOwner.RemoveHandler(Mouse.PreviewMouseWheelEvent, new MouseWheelEventHandler(Owner_PreviewMouseWheel));
-        popupWheelOwner = null;
+        popupInputManager.PreProcessInput -= InputManager_PreProcessInput;
+        popupInputManager = null;
+    }
+
+    internal void ActivatePopupWheelIsolation()
+    {
+        var state = PopupWheelIsolationStates.GetOrCreateValue(Dispatcher);
+        state.ActiveComboBox = new WeakReference<AnimatedComboBox>(this);
+    }
+
+    internal void DeactivatePopupWheelIsolation()
+    {
+        if (!PopupWheelIsolationStates.TryGetValue(Dispatcher, out var state)
+            || state.ActiveComboBox is not { } activeReference
+            || !activeReference.TryGetTarget(out var activeComboBox)
+            || !ReferenceEquals(activeComboBox, this))
+        {
+            return;
+        }
+
+        state.ActiveComboBox = null;
+    }
+
+    private static void ScrollViewer_PreviewMouseWheelIsolation(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer
+            || !PopupWheelIsolationStates.TryGetValue(scrollViewer.Dispatcher, out var state)
+            || state.ActiveComboBox is not { } activeReference
+            || !activeReference.TryGetTarget(out var activeComboBox))
+        {
+            return;
+        }
+
+        if (!activeComboBox.IsPopupOpen)
+        {
+            state.ActiveComboBox = null;
+            return;
+        }
+
+        if (!activeComboBox.IsPopupScrollViewer(scrollViewer))
+            e.Handled = true;
+    }
+
+    private bool IsPopupScrollViewer(DependencyObject scrollViewer)
+    {
+        if (popupListBox is null)
+            return false;
+
+        for (DependencyObject? current = scrollViewer; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, popupListBox))
+                return true;
+        }
+
+        return false;
     }
 
     private bool IsCursorOverPopupSurface()
@@ -628,5 +710,10 @@ public class AnimatedComboBox : ComboBox
     {
         public int X;
         public int Y;
+    }
+
+    private sealed class PopupWheelIsolationState
+    {
+        public WeakReference<AnimatedComboBox>? ActiveComboBox { get; set; }
     }
 }

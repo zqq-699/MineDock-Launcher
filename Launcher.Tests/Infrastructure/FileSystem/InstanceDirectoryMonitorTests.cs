@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.Concurrent;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.FileSystem;
@@ -31,18 +32,27 @@ public sealed class InstanceDirectoryMonitorTests : TestTempDirectory
         var instanceDirectory = Directory.CreateDirectory(Path.Combine(TempRoot, "instance")).FullName;
         var monitor = new InstanceDirectoryMonitor();
         using var watch = monitor.Watch(CreateInstance(instanceDirectory), InstanceDirectoryKind.Mods);
-        var changed = new TaskCompletionSource<InstanceDirectoryChangedEventArgs>(
+        var changes = new ConcurrentQueue<InstanceDirectoryChangedEventArgs>();
+        var targetCreated = new TaskCompletionSource<InstanceDirectoryChangedEventArgs>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        watch.Changed += (_, args) => changed.TrySetResult(args);
+        var outsidePath = Path.Combine(instanceDirectory, "outside.txt");
+        var modsDirectory = Path.Combine(instanceDirectory, "mods");
+        watch.Changed += (_, args) =>
+        {
+            changes.Enqueue(args);
+            if (string.Equals(args.FullPath, modsDirectory, StringComparison.OrdinalIgnoreCase))
+                targetCreated.TrySetResult(args);
+        };
 
-        await File.WriteAllTextAsync(Path.Combine(instanceDirectory, "outside.txt"), "outside");
-        await Task.Delay(250);
-        Assert.False(changed.Task.IsCompleted);
+        await File.WriteAllTextAsync(outsidePath, "outside");
+        Directory.CreateDirectory(modsDirectory);
 
-        var modsDirectory = Directory.CreateDirectory(Path.Combine(instanceDirectory, "mods")).FullName;
-        var change = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var change = await targetCreated.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(modsDirectory, change.FullPath, ignoreCase: true);
+        Assert.DoesNotContain(
+            changes,
+            item => string.Equals(item.FullPath, outsidePath, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

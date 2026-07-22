@@ -82,18 +82,30 @@ public sealed partial class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryS
         Func<string, bool>? fileExists = null,
         Func<string, bool>? directoryExists = null,
         Func<string, string, SearchOption, IEnumerable<string>>? enumerateFiles = null,
+        Func<string, string, SearchOption, IEnumerable<string>>? enumerateDirectories = null,
         Func<string, string?>? getEnvironmentVariable = null,
         Func<string>? getProgramFiles = null,
         Func<string>? getProgramFilesX86 = null,
+        Func<string>? getApplicationData = null,
+        Func<string>? getLocalApplicationData = null,
+        Func<string>? getUserProfile = null,
+        Func<string>? getDocuments = null,
+        Func<IEnumerable<string>>? getRegisteredJavaHomes = null,
         Func<string, string>? resolveIdentityPath = null)
     {
         // 来源优先级保留明确配置，同时安全枚举常见厂商目录作为补充。
         fileExists ??= File.Exists;
         directoryExists ??= Directory.Exists;
         enumerateFiles ??= EnumerateFilesSafely;
+        enumerateDirectories ??= EnumerateDirectoriesSafely;
         getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
         getProgramFiles ??= () => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         getProgramFilesX86 ??= () => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        getApplicationData ??= () => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        getLocalApplicationData ??= () => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        getUserProfile ??= () => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        getDocuments ??= () => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        getRegisteredJavaHomes ??= EnumerateRegisteredJavaHomes;
         resolveIdentityPath ??= ResolveJavaExecutableIdentityPath;
 
         var candidates = new List<JavaRuntimeCandidate>();
@@ -101,7 +113,7 @@ public sealed partial class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryS
 
         foreach (var environmentVariable in new[] { "JAVA_HOME", "JDK_HOME", "JRE_HOME" })
         {
-            var home = getEnvironmentVariable(environmentVariable);
+            var home = NormalizeConfiguredDirectory(getEnvironmentVariable(environmentVariable));
             if (string.IsNullOrWhiteSpace(home))
                 continue;
 
@@ -112,26 +124,36 @@ public sealed partial class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryS
         if (!string.IsNullOrWhiteSpace(pathValue))
         {
             foreach (var pathEntry in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                AddCandidate(candidates, seenExecutablePaths, Path.Combine(pathEntry, "java.exe"), "PATH", fileExists, resolveIdentityPath);
+            {
+                var normalizedPathEntry = NormalizeConfiguredDirectory(pathEntry);
+                if (!string.IsNullOrWhiteSpace(normalizedPathEntry))
+                    AddCandidate(candidates, seenExecutablePaths, Path.Combine(normalizedPathEntry, "java.exe"), "PATH", fileExists, resolveIdentityPath);
+            }
         }
 
-        foreach (var root in GetCommonJavaRoots(getProgramFiles, getProgramFilesX86))
+        foreach (var javaHome in getRegisteredJavaHomes())
         {
-            if (!directoryExists(root))
+            var normalizedJavaHome = NormalizeConfiguredDirectory(javaHome);
+            if (!string.IsNullOrWhiteSpace(normalizedJavaHome))
+                AddCandidate(candidates, seenExecutablePaths, Path.Combine(normalizedJavaHome, "bin", "java.exe"), "RegisteredJava", fileExists, resolveIdentityPath);
+        }
+
+        var searchRoots = GetJavaSearchRoots(
+            minecraftDirectory,
+            getProgramFiles(),
+            getProgramFilesX86(),
+            getApplicationData(),
+            getLocalApplicationData(),
+            getUserProfile(),
+            getDocuments(),
+            enumerateDirectories);
+        foreach (var root in searchRoots)
+        {
+            if (!directoryExists(root.Path))
                 continue;
 
-            foreach (var executablePath in enumerateFiles(root, "java.exe", SearchOption.AllDirectories))
-                AddCandidate(candidates, seenExecutablePaths, executablePath, "ProgramFiles", fileExists, resolveIdentityPath);
-        }
-
-        if (!string.IsNullOrWhiteSpace(minecraftDirectory))
-        {
-            var runtimeRoot = Path.Combine(minecraftDirectory, "runtime");
-            if (directoryExists(runtimeRoot))
-            {
-                foreach (var executablePath in enumerateFiles(runtimeRoot, "java.exe", SearchOption.AllDirectories))
-                    AddCandidate(candidates, seenExecutablePaths, executablePath, "MinecraftRuntime", fileExists, resolveIdentityPath);
-            }
+            foreach (var executablePath in enumerateFiles(root.Path, "java.exe", SearchOption.AllDirectories))
+                AddCandidate(candidates, seenExecutablePaths, executablePath, root.Source, fileExists, resolveIdentityPath);
         }
 
         return CollapseDuplicateCandidates(candidates);

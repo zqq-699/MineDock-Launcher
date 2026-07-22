@@ -152,7 +152,11 @@ private static async Task<JavaRuntimeInfo> CreateRuntimeInfoAsync(
             "JRE_HOME" => 2,
             "PROGRAMFILES" => 3,
             "MINECRAFTRUNTIME" => 4,
-            "PATH" => 5,
+            "OFFICIALMINECRAFTRUNTIME" => 5,
+            "REGISTEREDJAVA" => 6,
+            "USERJAVA" => 7,
+            "THIRDPARTYLAUNCHERRUNTIME" => 8,
+            "PATH" => 9,
             _ => 10
         };
     }

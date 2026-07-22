@@ -51,7 +51,6 @@ public sealed class InstanceContentRefreshWatcherTests
         monitor.Current.Raise("Changed", "first.jar");
 
         await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await Task.Delay(100);
         Assert.Equal(1, refreshCount);
     }
 

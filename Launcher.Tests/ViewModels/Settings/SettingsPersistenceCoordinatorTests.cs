@@ -38,7 +38,7 @@ public sealed class SettingsPersistenceCoordinatorTests
         coordinator.Update(value => value.Theme = "Light");
         coordinator.Update(value => value.AccentColor = "Purple");
 
-        await Task.Delay(550);
+        await service.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(1, service.SaveCount);
         Assert.Equal("Light", settings.Theme);
@@ -46,7 +46,7 @@ public sealed class SettingsPersistenceCoordinatorTests
     }
 
     [Fact]
-    public async Task ImmediateSaveCancelsPendingDebouncedSave()
+    public async Task ImmediateSavePersistsPendingUpdatesOnce()
     {
         var settings = new LauncherSettings();
         var service = new TestSettingsService(settings);
@@ -58,7 +58,6 @@ public sealed class SettingsPersistenceCoordinatorTests
         coordinator.Update(value => value.Theme = "Light");
 
         await coordinator.SaveImmediatelyAsync(value => value.MinecraftDirectory = "C:\\Games\\Minecraft");
-        await Task.Delay(500);
 
         Assert.Equal(1, service.SaveCount);
         Assert.Equal("Light", settings.Theme);

@@ -27,17 +27,12 @@ namespace Launcher.Tests.Infrastructure.CurseForge;
 
 public sealed class CurseForgeApiKeyResolverTests
 {
-    private static readonly SemaphoreSlim EnvironmentGate = new(1, 1);
-
     [Fact]
     public async Task TryResolveAsyncUsesEmbeddedResourceBeforeLocalSecretFileAndEnvironmentVariable()
     {
-        await EnvironmentGate.WaitAsync();
         var tempRoot = CreateTempDirectory();
-        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         try
         {
-            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", "environment-secret");
             await WriteSecretAsync(tempRoot, "current-directory-secret");
             var logger = new CollectingLogger<CurseForgeApiKeyResolver>();
             var resolver = new CurseForgeApiKeyResolver(
@@ -56,21 +51,16 @@ public sealed class CurseForgeApiKeyResolverTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
             TryDeleteDirectory(tempRoot);
-            EnvironmentGate.Release();
         }
     }
 
     [Fact]
     public async Task TryResolveAsyncDoesNotUseLegacySecretsDirectory()
     {
-        await EnvironmentGate.WaitAsync();
         var tempRoot = CreateTempDirectory();
-        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         try
         {
-            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
             var legacySecretsDirectory = Path.Combine(tempRoot, ".secrets");
             Directory.CreateDirectory(legacySecretsDirectory);
             await File.WriteAllTextAsync(Path.Combine(legacySecretsDirectory, "curseforge.key"), "legacy-secret");
@@ -83,9 +73,7 @@ public sealed class CurseForgeApiKeyResolverTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
             TryDeleteDirectory(tempRoot);
-            EnvironmentGate.Release();
         }
     }
 

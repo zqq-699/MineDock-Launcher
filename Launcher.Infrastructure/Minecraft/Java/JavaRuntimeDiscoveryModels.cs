@@ -12,6 +12,10 @@ internal sealed record JavaRuntimeCandidate(
     string Source,
     string IdentityPath);
 
+internal sealed record JavaRuntimeSearchRoot(
+    string Path,
+    string Source);
+
 internal sealed record JavaVersionProbeResult(
     string? Version,
     int? MajorVersion,

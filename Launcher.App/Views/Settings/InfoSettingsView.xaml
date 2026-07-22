@@ -100,36 +100,109 @@
         </GroupBox>
 
         <GroupBox Margin="0,28,0,0"
+                  Header="{x:Static res:Strings.Settings_LegalSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.Settings_CopyrightNotice}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                            <TextBlock Margin="0,4,16,0"
+                                       Text="{x:Static res:Strings.Settings_CopyrightNoticeDescription}"
+                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Margin="20,0,0,0"
+                                VerticalAlignment="Center"
+                                Content="{x:Static res:Strings.Settings_ViewLegalDocumentButton}"
+                                Command="{Binding OpenCopyrightNoticeCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.Settings_OpenSourceLicense}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                            <TextBlock Margin="0,4,16,0"
+                                       Text="{x:Static res:Strings.Settings_OpenSourceLicenseDescription}"
+                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Margin="20,0,0,0"
+                                VerticalAlignment="Center"
+                                Content="{x:Static res:Strings.Settings_ViewLegalDocumentButton}"
+                                Command="{Binding OpenOpenSourceLicenseCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                    </Grid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.Settings_UserAgreement}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                            <TextBlock Margin="0,4,16,0"
+                                       Text="{x:Static res:Strings.Settings_UserAgreementDescription}"
+                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Margin="20,0,0,0"
+                                VerticalAlignment="Center"
+                                Content="{x:Static res:Strings.Settings_ViewLegalDocumentButton}"
+                                Command="{Binding OpenUserAgreementCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </GroupBox>
+
+        <GroupBox Margin="0,28,0,0"
                   Header="{x:Static res:Strings.Settings_ReferenceProjectsSection}"
                   Style="{StaticResource LauncherContentSectionStyle}">
-            <ItemsControl ItemsSource="{Binding ReferenceProjects}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,0,0,18"
-                                    HorizontalAlignment="Stretch">
-                            <TextBlock HorizontalAlignment="Left"
-                                       FontSize="13"
-                                       TextTrimming="CharacterEllipsis">
-                                <Hyperlink Command="{Binding DataContext.OpenReferenceProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                           CommandParameter="{Binding}"
-                                           Style="{StaticResource ReferenceProjectHyperlinkStyle}">
-                                    <Run Text="{Binding Name}" />
-                                </Hyperlink>
-                            </TextBlock>
-                            <TextBlock Margin="0,4,0,0"
-                                       Text="{Binding CopyrightNotice}"
-                                       Foreground="{DynamicResource Brush.Text.Subtle}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap" />
-                            <TextBlock Margin="0,2,0,0"
-                                       Text="{Binding LicenseText}"
-                                       Foreground="{DynamicResource Brush.Text.Subtle}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <ItemsControl ItemsSource="{Binding ReferenceProjects}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,18"
+                                        HorizontalAlignment="Stretch">
+                                <TextBlock HorizontalAlignment="Left"
+                                           FontSize="13"
+                                           TextTrimming="CharacterEllipsis">
+                                    <Hyperlink Command="{Binding DataContext.OpenReferenceProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                               CommandParameter="{Binding}"
+                                               Style="{StaticResource ReferenceProjectHyperlinkStyle}">
+                                        <Run Text="{Binding Name}" />
+                                    </Hyperlink>
+                                </TextBlock>
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding CopyrightNotice}"
+                                           Foreground="{DynamicResource Brush.Text.Subtle}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,2,0,0"
+                                           Text="{Binding LicenseText}"
+                                           Foreground="{DynamicResource Brush.Text.Subtle}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
         </GroupBox>
     </StackPanel>
 </UserControl>

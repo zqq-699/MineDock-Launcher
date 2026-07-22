@@ -86,7 +86,7 @@ public sealed class RequiredSelectionPersistenceTests
     }
 
     [Fact]
-    public async Task InstanceEditorsRestoreRequiredSelectionsWithoutDowngradingModes()
+    public void InstanceEditorsRestoreRequiredSelectionsWithoutDowngradingModes()
     {
         var instance = CreateInstance(
             LaunchSettingsMode.PerInstance,
@@ -107,7 +107,6 @@ public sealed class RequiredSelectionPersistenceTests
         launch.SelectedMemoryModeOption = null;
         java.SelectedInstanceJavaSettingsModeOption = null;
         java.InstanceJavaSettings.SelectedJavaSelectionOption = null;
-        await Task.Delay(200);
 
         Assert.Same(launchMode, launch.SelectedLaunchSettingsModeOption);
         Assert.Same(memoryMode, launch.SelectedMemoryModeOption);

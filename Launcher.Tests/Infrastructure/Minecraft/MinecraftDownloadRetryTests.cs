@@ -326,9 +326,12 @@ public sealed class MinecraftDownloadRetryTests
     public async Task LightweightAssetSingleFlightDownloadsSameTargetOnce()
     {
         var payload = "asset-data"u8.ToArray();
+        var requestStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseRequest = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var handler = new CallbackRequestHandler(async (_, request, token) =>
         {
-            await Task.Delay(50, token);
+            requestStarted.TrySetResult(true);
+            await releaseRequest.Task.WaitAsync(token);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 RequestMessage = request,
@@ -347,7 +350,9 @@ public sealed class MinecraftDownloadRetryTests
             operation.RegisterAsset(destination, sha1, payload.Length);
             var options = new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation);
             var first = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, CancellationToken.None, options: options);
+            await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             var second = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, CancellationToken.None, options: options);
+            releaseRequest.TrySetResult(true);
 
             await Task.WhenAll(first, second);
 

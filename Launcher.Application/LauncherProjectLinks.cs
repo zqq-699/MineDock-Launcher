@@ -24,6 +24,8 @@ public static class LauncherProjectLinks
     public const string GitHubOwner = "zqq-699";
     public const string GitHubRepositoryName = "BlockHelm-Launcher";
     public const string GitHubRepositoryUrl = "https://github.com/" + GitHubOwner + "/" + GitHubRepositoryName;
+    public const string GitHubLicenseUrl = GitHubRepositoryUrl + "/blob/master/LICENSE";
+    public const string UserAgreementUrl = "https://docs.qq.com/markdown/DSmhwTHJ3WXVobHVY";
     public const string GitHubFeatureSuggestionsUrl = GitHubRepositoryUrl + "/discussions/categories/%E6%96%B0%E5%8A%9F%E8%83%BD%E5%BB%BA%E8%AE%AE";
     public const string GitHubIssuesUrl = GitHubRepositoryUrl + "/issues";
     public const string GitHubReleasesUrl = GitHubRepositoryUrl + "/releases";

@@ -1260,4 +1260,13 @@
   <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>服务端目录“{0}”已存在，请选择其他位置。</value></data>
   <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>选择服务端保存位置</value></data>
   <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>作者限制了第三方下载，无法获取此服务端包。</value></data>
+  <data name="Settings_LegalSection" xml:space="preserve"><value>版权及法律声明</value></data>
+  <data name="Settings_CopyrightNotice" xml:space="preserve"><value>版权声明</value></data>
+  <data name="Settings_CopyrightNoticeDescription" xml:space="preserve"><value>Copyright © 2026 BlockHelm Launcher 开发者</value></data>
+  <data name="Settings_OpenSourceLicense" xml:space="preserve"><value>开源协议</value></data>
+  <data name="Settings_OpenSourceLicenseDescription" xml:space="preserve"><value>本软件依据 GNU GPL v3（GPL-3.0-only）发布</value></data>
+  <data name="Settings_UserAgreement" xml:space="preserve"><value>用户协议</value></data>
+  <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>查看使用本软件时适用的条款与重要声明</value></data>
+  <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>查看</value></data>
+  <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>无法打开法律文档，请检查系统浏览器设置后重试。</value></data>
 </root>

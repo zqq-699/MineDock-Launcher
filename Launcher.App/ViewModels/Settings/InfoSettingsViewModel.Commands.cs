@@ -65,6 +65,42 @@ public sealed partial class InfoSettingsViewModel
         }
     }
 
+    [RelayCommand]
+    private void OpenCopyrightNotice()
+    {
+        OpenLegalDocument(LauncherProjectLinks.GitHubRepositoryUrl);
+    }
+
+    [RelayCommand]
+    private void OpenOpenSourceLicense()
+    {
+        OpenLegalDocument(LauncherProjectLinks.GitHubLicenseUrl);
+    }
+
+    [RelayCommand]
+    private void OpenUserAgreement()
+    {
+        OpenLegalDocument(LauncherProjectLinks.UserAgreementUrl);
+    }
+
+    private void OpenLegalDocument(string url)
+    {
+        try
+        {
+            if (externalLinkService.TryOpen(url))
+                return;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to open a legal document link.");
+            ReportVisibleStatus(Strings.Status_OpenLegalDocumentFailed);
+            return;
+        }
+
+        logger.LogWarning("Failed to open a legal document link.");
+        ReportVisibleStatus(Strings.Status_OpenLegalDocumentFailed);
+    }
+
     [RelayCommand(CanExecute = nameof(CanCheckUpdates), AllowConcurrentExecutions = true)]
     private async Task CheckUpdatesAsync()
     {

@@ -44,14 +44,14 @@ public sealed class ResourcesProjectListViewModelTests
         var service = new ControlledCatalogService();
         using var viewModel = CreateViewModel(service);
 
-        viewModel.SelectedLoaderOption = viewModel.LoaderOptions[1];
-        viewModel.SelectedLoaderOption = viewModel.LoaderOptions[2];
+        var olderRefresh = viewModel.RefreshAsync();
+        var latestRefresh = viewModel.RefreshAsync();
         Assert.Equal(2, service.Searches.Count);
 
         service.Searches[1].Completion.SetResult(Result("new"));
-        await WaitUntilAsync(() => viewModel.VisibleProjects.Count == 1);
+        await latestRefresh;
         service.Searches[0].Completion.SetResult(Result("old"));
-        await Task.Delay(50);
+        await olderRefresh;
 
         Assert.Equal("new", Assert.Single(viewModel.VisibleProjects).Title);
     }
@@ -124,13 +124,6 @@ public sealed class ResourcesProjectListViewModelTests
             }
         ]
     };
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition())
-            await Task.Delay(10, timeout.Token);
-    }
 
     private class RecordingCatalogService : IResourceCatalogService
     {

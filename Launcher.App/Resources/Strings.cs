@@ -350,6 +350,15 @@ public static class Strings
     public static string Settings_UpdateChannelReleaseTitle => Get(nameof(Settings_UpdateChannelReleaseTitle));
     public static string Settings_UpdateChannelBetaTitle => Get(nameof(Settings_UpdateChannelBetaTitle));
     public static string Settings_ReferenceProjectsSection => Get(nameof(Settings_ReferenceProjectsSection));
+    public static string Settings_LegalSection => Get(nameof(Settings_LegalSection));
+    public static string Settings_CopyrightNotice => Get(nameof(Settings_CopyrightNotice));
+    public static string Settings_CopyrightNoticeDescription => Get(nameof(Settings_CopyrightNoticeDescription));
+    public static string Settings_OpenSourceLicense => Get(nameof(Settings_OpenSourceLicense));
+    public static string Settings_OpenSourceLicenseDescription => Get(nameof(Settings_OpenSourceLicenseDescription));
+    public static string Settings_UserAgreement => Get(nameof(Settings_UserAgreement));
+    public static string Settings_UserAgreementDescription => Get(nameof(Settings_UserAgreementDescription));
+    public static string Settings_ViewLegalDocumentButton => Get(nameof(Settings_ViewLegalDocumentButton));
+    public static string Status_OpenLegalDocumentFailed => Get(nameof(Status_OpenLegalDocumentFailed));
     public static string Dialog_UpdateAvailableTitle => Get(nameof(Dialog_UpdateAvailableTitle));
     public static string Dialog_FeedbackTitle => Get(nameof(Dialog_FeedbackTitle));
     public static string Dialog_FeedbackFeatureSuggestionsButton => Get(nameof(Dialog_FeedbackFeatureSuggestionsButton));

@@ -21,6 +21,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -30,8 +31,6 @@ namespace Launcher.App.ViewModels.Shell;
 
 public sealed partial class UserAgreementDialogViewModel : ObservableObject
 {
-    private const string UserAgreementUrl = "https://docs.qq.com/markdown/DSmhwTHJ3WXVobHVY";
-
     private readonly ISettingsService settingsService;
     private readonly IExternalLinkService externalLinkService;
     private readonly IApplicationExitService applicationExitService;
@@ -107,7 +106,7 @@ public sealed partial class UserAgreementDialogViewModel : ObservableObject
     {
         try
         {
-            if (externalLinkService.TryOpen(UserAgreementUrl))
+            if (externalLinkService.TryOpen(LauncherProjectLinks.UserAgreementUrl))
                 return;
         }
         catch (Exception exception)

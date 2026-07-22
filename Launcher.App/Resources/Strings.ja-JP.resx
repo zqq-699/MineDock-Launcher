@@ -3531,4 +3531,13 @@
   <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>サーバーディレクトリ「{0}」は既に存在します。別の場所を選択してください。</value></data>
   <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>サーバーの保存先を選択</value></data>
   <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>作者がサードパーティのダウンロードを制限しているため、このサーバーパックを取得できません。</value></data>
+  <data name="Settings_LegalSection" xml:space="preserve"><value>著作権および法的通知</value></data>
+  <data name="Settings_CopyrightNotice" xml:space="preserve"><value>著作権表示</value></data>
+  <data name="Settings_CopyrightNoticeDescription" xml:space="preserve"><value>Copyright © 2026 BlockHelm Launcher 開発者</value></data>
+  <data name="Settings_OpenSourceLicense" xml:space="preserve"><value>オープンソースライセンス</value></data>
+  <data name="Settings_OpenSourceLicenseDescription" xml:space="preserve"><value>本ソフトウェアは GNU GPL v3（GPL-3.0-only）で公開されています</value></data>
+  <data name="Settings_UserAgreement" xml:space="preserve"><value>利用規約</value></data>
+  <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>本ソフトウェアの利用に適用される条件と重要な通知を確認します</value></data>
+  <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>表示</value></data>
+  <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>法的文書を開けません。システムのブラウザー設定を確認して、もう一度お試しください。</value></data>
 </root>

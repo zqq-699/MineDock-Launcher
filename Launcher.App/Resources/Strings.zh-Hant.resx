@@ -3531,4 +3531,13 @@
   <data name="Status_ServerDirectoryExistsFormat" xml:space="preserve"><value>伺服端目錄「{0}」已存在，請選擇其他位置。</value></data>
   <data name="FilePicker_ServerInstallDirectoryTitle" xml:space="preserve"><value>選擇伺服端儲存位置</value></data>
   <data name="Status_ServerDistributionRestricted" xml:space="preserve"><value>作者限制了第三方下載，無法取得此伺服端包。</value></data>
+  <data name="Settings_LegalSection" xml:space="preserve"><value>版權及法律聲明</value></data>
+  <data name="Settings_CopyrightNotice" xml:space="preserve"><value>版權聲明</value></data>
+  <data name="Settings_CopyrightNoticeDescription" xml:space="preserve"><value>Copyright © 2026 BlockHelm Launcher 開發者</value></data>
+  <data name="Settings_OpenSourceLicense" xml:space="preserve"><value>開放原始碼授權條款</value></data>
+  <data name="Settings_OpenSourceLicenseDescription" xml:space="preserve"><value>本軟體依 GNU GPL v3（GPL-3.0-only）發布</value></data>
+  <data name="Settings_UserAgreement" xml:space="preserve"><value>使用者協議</value></data>
+  <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>檢視使用本軟體時適用的條款與重要聲明</value></data>
+  <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>檢視</value></data>
+  <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>無法開啟法律文件，請檢查系統瀏覽器設定後再試一次。</value></data>
 </root>

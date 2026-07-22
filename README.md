@@ -1,187 +1,133 @@
 # BlockHelm Launcher
 
-[中文](#chinese) | [English](#english)
-
-<a id="chinese"></a>
+[中文](#中文) | [English](#english)
 
 ## 中文
 
 ### 简介
 
-`BlockHelm Launcher` 是一个 Minecraft 启动器，目标是把日常启动、实例管理、资源安装和账户管理做得更清楚、更顺手。
+`BlockHelm Launcher` 是一款面向 Minecraft Java 版玩家的现代化启动器，提供从游戏下载、实例管理、账户登录到资源安装、联机和故障诊断的一体化体验。界面简洁直观，支持丰富的个性化设置，让日常启动和游戏内容管理更加轻松。
 
-这是一个 **纯 AI 编写、设计并持续迭代** 的项目。人工主要负责提出需求、判断体验、验收结果和决定下一步方向；代码、界面、文案和功能实现都由 AI 完成。
+### 主要功能
 
-它目前仍在开发中，但已经围绕普通玩家常用的启动器流程做了不少能力：选择游戏、安装版本、管理 Mod 和资源、配置 Java 与内存、处理启动失败，以及切换深色 / 浅色主题。
+#### 游戏安装与启动
 
-### 功能概览
+- 安装原版 Minecraft，以及 `Fabric`、`Forge`、`NeoForge` 和 `Quilt` 加载器。
+- 管理下载任务，支持下载源、并发线程和速度限制设置。
+- 自动检查并补全缺失或损坏的游戏文件。
+- 展示完整的启动进度与状态，并在启动失败时提供原因分析和诊断报告。
 
-#### 启动与实例
+#### 实例管理
 
-- 从首页选择已有游戏实例并启动。
-- 显示启动进度和当前状态。
-- 启动失败时给出反馈，并记录诊断信息。
-- 支持实例创建、重命名、删除和独立设置。
-- 支持实例级 Java、内存、启动参数、启动前命令和退出后命令。
-- 支持实例备份、恢复、删除和备份目录管理。
+- 创建、重命名、删除和启动多个独立游戏实例。
+- 为每个实例单独配置 Java、内存、窗口、启动参数和前后置命令。
+- 备份与恢复实例，并可自定义备份目录。
+- 导入本地游戏和整合包，也可将实例导出为整合包。
 
-#### 账户与外观
+#### 账户与角色
 
-- 支持离线账户。
-- 支持 Microsoft 账户登录。
-- 支持账户列表、当前账户切换、重命名和删除。
-- 支持头像、皮肤、披风相关管理能力。
-- 支持离线账户 UUID 生成方式设置。
+- 支持 Microsoft 正版账户、离线账户和第三方认证账户。
+- 管理多个账户并快速切换当前角色。
+- 支持账户重命名、头像显示、皮肤与披风管理。
+- 提供多种离线账户 UUID 生成方式。
 
-#### 版本与加载器
+#### 资源中心
 
-- 支持安装原版 `Vanilla` 游戏版本。
-- 支持安装 `Fabric` 和 `Forge`。
-- `NeoForge` 和 `Quilt` 已有入口与相关能力铺垫，完整体验仍在继续完善。
-- 支持版本列表、版本筛选、实例命名和重复名称提示。
-- 支持下载任务状态展示。
+- 浏览和搜索 Mod、资源包、光影包、世界与整合包。
+- 支持 Modrinth 和 CurseForge，并可按游戏版本、加载器、来源及分类筛选。
+- 查看项目详情、可用版本和依赖关系，将兼容资源直接安装到指定实例。
+- 自动检查缺失的前置 Mod，并辅助完成依赖安装。
+- 管理本地 Mod、存档、资源包和光影包，支持拖放导入、搜索、批量启用、禁用与删除。
 
-#### 资源管理
+#### 整合包与服务器
 
-- 支持管理实例内的 Mod、存档、资源包和光影包。
-- 支持本地导入 Mod、存档压缩包、资源包和光影包。
-- 支持打开对应资源文件夹。
-- 支持多选、全选、删除等批量操作。
-- 支持本地整合包压缩包导入，并在部分文件需要手动补全时给出提示。
+- 安装和导入 Modrinth、CurseForge 整合包。
+- 导出实例内容，便于分享和迁移游戏配置。
+- 将支持的整合包直接部署为独立 Minecraft 服务端。
+- 对受分发限制的文件提供清晰的手动补全指引。
 
-#### 在线资源
+#### 联机
 
-- 支持在线搜索 Mod、资源包、光影包、世界和整合包。
-- 支持按 Minecraft 版本、加载器、来源和分类筛选。
-- 支持查看资源详情、可用版本和依赖信息。
-- 支持安装兼容资源到指定游戏实例，或下载到本地目录。
-- 支持 Modrinth；CurseForge 相关结果会根据配置情况展示。
-- 支持前置 Mod 检查，并可辅助安装缺少的前置依赖。
+- 自动发现本机已开放到局域网的 Minecraft 世界。
+- 创建联机房间并生成房间代码，或通过房间代码加入其他玩家。
+- 查看房间状态与成员，快速完成跨网络联机。
 
-#### 设置与体验
+#### 外观与设置
 
-- 支持自动发现 Java，也可以手动导入或选择 Java。
-- 支持全局内存设置和实例独立内存设置。
-- 支持游戏下载源选择、下载限速和 Minecraft 目录设置。
-- 支持深色主题、浅色主题、跟随系统和运行时切换。
-- 支持多种强调色。
-- 支持启动器日志目录、诊断日志和错误反馈。
-- 支持检查启动器更新，并在可用时尝试自动更新。
+- 支持深色、浅色和跟随系统主题，并可在运行时切换。
+- 提供多种强调色、亚克力背景和自定义图片背景。
+- 支持简体中文、繁體中文、English 和日本語。
+- 自动发现、下载和管理 Java，也可手动导入本地 Java。
+- 支持全局及实例独立内存设置、Minecraft 目录管理和启动器更新。
 
-### 当前状态
-
-这个项目还在持续开发中。已经可用的功能会继续打磨，未完成的入口会逐步补齐。README 会尽量保持和当前实现一致，避免把计划中的功能写成已经完成。
-
-### 运行方式
-
-环境要求：
+### 系统要求
 
 - Windows 10 / 11
-- .NET 8 SDK
-
-本地运行：
-
-```powershell
-dotnet run --project Launcher.App\Launcher.App.csproj
-```
-
-也可以直接使用：
-
-```powershell
-.\RunLauncher.bat
-```
-
-如果你是开发者，具体开发约定请查看 [AGENTS.md](./AGENTS.md)。
+- Minecraft Java Edition
+- .NET 8 Desktop Runtime
 
 ---
-
-<a id="english"></a>
 
 ## English
 
 ### Overview
 
-`BlockHelm Launcher` is a Minecraft launcher focused on everyday launching, instance management, resource installation, account management, and a clean user experience.
-
-This project is **written, designed, and continuously iterated entirely by AI**. Human involvement is mainly about giving product direction, reviewing the experience, accepting results, and deciding what should be improved next.
-
-It is still under active development, but it already covers many common launcher workflows: launching games, installing versions, managing resources, configuring Java and memory, diagnosing launch failures, and switching between dark and light themes.
+`BlockHelm Launcher` is a modern launcher for Minecraft: Java Edition. It brings game installation, instance management, account sign-in, resource installation, multiplayer, and troubleshooting together in one streamlined experience. Its clean interface and flexible personalization options make everyday launching and content management simple.
 
 ### Features
 
-#### Launching and Instances
+#### Game Installation and Launching
 
-- Select and launch existing game instances from the home page.
-- Show launch progress and current launch status.
-- Provide failure feedback and diagnostic logs when launching fails.
-- Create, rename, delete, and configure instances independently.
-- Configure instance-level Java, memory, launch arguments, pre-launch commands, and post-exit commands.
-- Create, restore, delete, and manage instance backups.
+- Install vanilla Minecraft with `Fabric`, `Forge`, `NeoForge`, or `Quilt`.
+- Manage download tasks and configure download sources, concurrency, and speed limits.
+- Automatically detect and restore missing or damaged game files.
+- Follow detailed launch progress and receive clear analysis and diagnostic reports when a launch fails.
 
-#### Accounts and Appearance
+#### Instance Management
 
-- Offline account support.
-- Microsoft account support.
-- Account list, active account switching, rename, and delete actions.
-- Avatar, skin, and cape related management.
-- Offline account UUID generation options.
+- Create, rename, delete, and launch multiple independent game instances.
+- Configure Java, memory, window options, launch arguments, and pre-launch or post-exit commands per instance.
+- Back up and restore instances with a configurable backup location.
+- Import local games and modpacks, or export an instance as a modpack.
 
-#### Versions and Loaders
+#### Accounts and Profiles
 
-- Install `Vanilla` Minecraft versions.
-- Install `Fabric` and `Forge`.
-- `NeoForge` and `Quilt` have entry points and groundwork in place, with the full experience still being refined.
-- Version lists, filters, instance naming, and duplicate-name feedback.
-- Download task status display.
+- Use Microsoft, offline, and third-party authentication accounts.
+- Manage multiple accounts and quickly switch the active profile.
+- Rename accounts and manage avatars, skins, and capes.
+- Choose from multiple offline UUID generation methods.
 
-#### Resource Management
+#### Resource Center
 
-- Manage instance mods, saves, resource packs, and shader packs.
-- Import local mods, save archives, resource packs, and shader packs.
-- Open resource folders directly.
-- Multi-select, select-all, delete, and other batch actions.
-- Import local modpack archives, with guidance when some files need to be retried or completed manually.
+- Browse and search mods, resource packs, shader packs, worlds, and modpacks.
+- Access Modrinth and CurseForge content with filters for game version, loader, source, and category.
+- View project details, available versions, and dependencies, then install compatible content directly into an instance.
+- Detect missing mod dependencies and assist with installing them.
+- Manage local mods, saves, resource packs, and shader packs with drag-and-drop import, search, and batch actions.
 
-#### Online Resources
+#### Modpacks and Servers
 
-- Search online mods, resource packs, shader packs, worlds, and modpacks.
-- Filter by Minecraft version, loader, source, and category.
-- View project details, available versions, and dependency information.
-- Install compatible resources into a selected game instance, or download them locally.
-- Modrinth is supported; CurseForge results depend on configuration.
-- Check required mod dependencies and help install missing dependencies.
+- Install and import Modrinth and CurseForge modpacks.
+- Export instance content for sharing or migration.
+- Deploy supported modpacks as standalone Minecraft servers.
+- Receive clear instructions when distribution-restricted files must be supplied manually.
 
-#### Settings and Experience
+#### Multiplayer
 
-- Discover Java automatically, or import and select Java manually.
-- Configure global memory and per-instance memory.
-- Choose download sources, speed limits, and the Minecraft directory.
-- Use dark mode, light mode, follow-system behavior, and runtime theme switching.
-- Choose from multiple accent colors.
-- Open launcher log directories and use diagnostic logs for troubleshooting.
-- Check for launcher updates and attempt automatic updates when available.
+- Automatically discover Minecraft worlds opened to LAN on the local computer.
+- Create a multiplayer room and share its code, or join another player with a room code.
+- View room status and members for quick cross-network play.
 
-### Status
+#### Appearance and Settings
 
-BlockHelm Launcher is still under active development. Existing features will continue to be polished, and unfinished entry points will be completed over time. This README aims to describe what is currently present without presenting planned work as finished.
+- Use dark, light, or system themes with runtime switching.
+- Choose from multiple accent colors, acrylic backgrounds, and custom image backgrounds.
+- Available in Simplified Chinese, Traditional Chinese, English, and Japanese.
+- Automatically discover, download, and manage Java, or import a local Java installation manually.
+- Configure global and per-instance memory, manage the Minecraft directory, and receive launcher updates.
 
-### Run
-
-Requirements:
+### System Requirements
 
 - Windows 10 / 11
-- .NET 8 SDK
-
-Run locally:
-
-```powershell
-dotnet run --project Launcher.App\Launcher.App.csproj
-```
-
-Or use:
-
-```powershell
-.\RunLauncher.bat
-```
-
-For repository-specific development rules, see [AGENTS.md](./AGENTS.md).
+- Minecraft: Java Edition
+- .NET 8 Desktop Runtime
