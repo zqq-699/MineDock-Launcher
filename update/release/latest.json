@@ -2,29 +2,29 @@
   "schemaVersion": 1,
   "appId": "BlockHelm-Launcher",
   "channel": "release",
-  "versionName": "0.9.7",
-  "versionCode": 90799,
-  "publishedAt": "2026-07-21T08:13:27Z",
+  "versionName": "0.9.8",
+  "versionCode": 90899,
+  "publishedAt": "2026-07-22T17:09:00Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# 正式版 0.9.7\r\n\r\n* 新增启动器背景模式，支持本地自定义图片和可选的渐进式模糊效果。\r\n* 优化背景材质、窗口表面、对话框、列表、输入控件以及深浅色主题下的共享样式。\r\n* 新增可复用的搜索控件，改进资源中心和设置页面的导航与交互体验。\r\n* 改进主题切换、背景图片生命周期管理和整体代码可维护性。",
+  "releaseNotes": "# 正式版 0.9.8\r\n\r\n* 扩展 Java 自动发现范围，支持系统注册表、官方启动器运行时、常见 Java 发行版目录及第三方启动器运行时。\r\n* 改进 Java 路径识别和目录扫描，在带引号路径、重复安装及无权限目录等场景下提供更稳定的发现结果。\r\n* 修复下拉列表打开时滚轮事件传递到背景页面的问题，优化下拉选择与页面滚动体验。\r\n* 在关于页面新增版权声明、开源协议和用户协议入口，并完善多语言文案与链接管理。\r\n* 重写项目说明，完整介绍游戏下载、实例、账户、资源、整合包、服务器和联机等功能。",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
-      "size": 10773896,
-      "sha256": "d2d6a3f7ed42e369b729a1435a2e5ae0777531df95a459dd643425d902d92c15",
+      "size": 10788232,
+      "sha256": "5564cbea3eb5c6d5d908695e1d07702c43e3ed74d91b335134f7796c0e895575",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.7/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.8/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.7/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.8/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
