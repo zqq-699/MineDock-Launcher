@@ -20,11 +20,16 @@ namespace Launcher.Tests.Infrastructure.Modpacks;
 public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 {
     [Theory]
-    [InlineData("modrinth.index.json", ModpackPackageKind.Modrinth, LoaderKind.Fabric)]
-    [InlineData("manifest.json", ModpackPackageKind.CurseForge, LoaderKind.NeoForge)]
-    public async Task PrepareParsesSupportedPackage(string manifestName, ModpackPackageKind kind, LoaderKind loader)
+    [InlineData("pack.mrpack", "modrinth.index.json", ModpackPackageKind.Modrinth, LoaderKind.Fabric)]
+    [InlineData("pack.zip", "modrinth.index.json", ModpackPackageKind.Modrinth, LoaderKind.Fabric)]
+    [InlineData("pack.zip", "manifest.json", ModpackPackageKind.CurseForge, LoaderKind.NeoForge)]
+    public async Task PrepareParsesSupportedPackage(
+        string archiveFileName,
+        string manifestName,
+        ModpackPackageKind kind,
+        LoaderKind loader)
     {
-        var path = Path.Combine(TempRoot, kind == ModpackPackageKind.Modrinth ? "pack.mrpack" : "pack.zip");
+        var path = Path.Combine(TempRoot, archiveFileName);
         CreateArchive(path, archive => AddEntry(archive, manifestName, kind == ModpackPackageKind.Modrinth
             ? """{"name":"Demo","dependencies":{"minecraft":"1.20.1","fabric-loader":"0.16.10"},"files":[]}"""
             : """{"name":"Demo","minecraft":{"version":"1.20.4","modLoaders":[{"id":"neoforge-20.4.237","primary":true}]},"files":[]}"""));
@@ -34,6 +39,20 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal(kind, prepared.PackageKind);
         Assert.Equal(loader, prepared.Loader);
         Assert.Equal("Demo", prepared.PackageName);
+    }
+
+    [Fact]
+    public async Task RecognizeAcceptsModrinthPackageWithZipExtension()
+    {
+        var path = Path.Combine(TempRoot, "pack.zip");
+        CreateArchive(path, archive => AddEntry(
+            archive,
+            "modrinth.index.json",
+            """{"name":"Demo","dependencies":{"minecraft":"1.20.1","fabric-loader":"0.16.10"},"files":[]}"""));
+
+        var result = await CreateService().RecognizeAsync(path);
+
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]

@@ -27,6 +27,11 @@ namespace Launcher.Infrastructure.Modpacks;
 
 internal static class ModrinthModpackFormatReader
 {
+    public static bool HasManifest(ZipArchive archive)
+    {
+        return FindManifest(archive) is not null;
+    }
+
     public static async Task ValidateAsync(ZipArchive archive, CancellationToken cancellationToken)
     {
         _ = await ReadCoreAsync(
@@ -62,11 +67,7 @@ internal static class ModrinthModpackFormatReader
         bool validateOverrides,
         CancellationToken cancellationToken)
     {
-        var indexEntry = archive.Entries.FirstOrDefault(entry =>
-            string.Equals(
-                ModpackArchiveUtility.NormalizeArchivePath(entry.FullName),
-                "modrinth.index.json",
-                StringComparison.OrdinalIgnoreCase));
+        var indexEntry = FindManifest(archive);
         if (indexEntry is null)
         {
             throw new ModpackImportException(
@@ -95,6 +96,15 @@ internal static class ModrinthModpackFormatReader
             HasOverrides = validateOverrides && ModpackOverrideExtractor.HasModrinthOverrides(archive, environment),
             Files = ParseFiles(index.RootElement, environment)
         };
+    }
+
+    private static ZipArchiveEntry? FindManifest(ZipArchive archive)
+    {
+        return archive.Entries.FirstOrDefault(entry =>
+            string.Equals(
+                ModpackArchiveUtility.NormalizeArchivePath(entry.FullName),
+                "modrinth.index.json",
+                StringComparison.OrdinalIgnoreCase));
     }
 
     private static IReadOnlyList<PreparedModpackDownload> ParseFiles(

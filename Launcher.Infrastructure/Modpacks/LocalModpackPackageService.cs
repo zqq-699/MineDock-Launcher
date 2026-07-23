@@ -241,6 +241,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             await CurseForgeModpackFormatReader.ValidateAsync(archive, cancellationToken).ConfigureAwait(false);
             return ModpackRecognitionResult.Success();
         }
+        if (ModrinthModpackFormatReader.HasManifest(archive))
+        {
+            await ModrinthModpackFormatReader.ValidateAsync(archive, cancellationToken).ConfigureAwait(false);
+            return ModpackRecognitionResult.Success();
+        }
         var embedded = FindEmbeddedModrinthEntries(archive);
         if (embedded.Count == 1)
         {
@@ -280,6 +285,15 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             return await CurseForgeModpackFormatReader.ReadAsync(
                 archive,
                 archivePath,
+                cancellationToken).ConfigureAwait(false);
+        }
+        if (ModrinthModpackFormatReader.HasManifest(archive))
+        {
+            return await ModrinthModpackFormatReader.ReadAsync(
+                archive,
+                archivePath,
+                embeddedEntryName: null,
+                environment,
                 cancellationToken).ConfigureAwait(false);
         }
         var embedded = FindEmbeddedModrinthEntries(archive);
