@@ -126,6 +126,25 @@ public sealed class DownloadHostConcurrencyControllerTests
         Assert.Equal(TimeSpan.FromSeconds(7), executor.GetRetryDelay(rateLimited, attempt: 1));
     }
 
+    [Fact]
+    public void FailedOpportunisticGlobalAdmissionImmediatelyReturnsHostCapacity()
+    {
+        var controller = CreateController(new TestTimeProvider());
+
+        var rejected = controller.TryAcquireAvailable(CurseForgeUri, () => null);
+
+        Assert.Null(rejected);
+        Assert.Equal(0, controller.GetSnapshot(Origin(CurseForgeUri)).ActiveCount);
+
+        using var accepted = controller.TryAcquireAvailable(
+            CurseForgeUri,
+            () => new NoopLease());
+        Assert.NotNull(accepted);
+        Assert.Equal(1, controller.GetSnapshot(Origin(CurseForgeUri)).ActiveCount);
+        accepted.Dispose();
+        Assert.Equal(0, controller.GetSnapshot(Origin(CurseForgeUri)).ActiveCount);
+    }
+
     private static DownloadHostConcurrencyController CreateController(TestTimeProvider clock) => new(
         timeProvider: clock,
         maximumJitter: TimeSpan.Zero,

@@ -53,7 +53,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         var resolvedApiClient = curseForgeApiClient ?? new CurseForgeApiClient(resolvedHttpClient, resolvedLimiter);
         var resolvedApiKeyResolver = curseForgeApiKeyResolver
             ?? new CurseForgeApiKeyResolver(pathProvider, settingsService);
-        var downloader = new ModpackFileDownloader(resolvedHttpClient, downloadSpeedLimitState, resolvedLimiter);
+        var downloader = new ModpackFileDownloader(
+            resolvedHttpClient,
+            downloadSpeedLimitState,
+            resolvedLimiter,
+            this.logger);
         fileResolutionService = new ModpackFileResolutionService(
             resolvedApiClient,
             resolvedApiKeyResolver,

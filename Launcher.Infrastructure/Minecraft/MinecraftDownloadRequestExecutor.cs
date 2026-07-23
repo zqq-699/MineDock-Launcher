@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Xml;
 using Launcher.Application.Services;
@@ -37,7 +38,8 @@ namespace Launcher.Infrastructure.Minecraft;
 internal sealed class MinecraftDownloadRequestExecutor
 {
     internal const long MinimumSegmentedDownloadSize = 8L * 1024 * 1024;
-    internal const int SegmentedDownloadPartCount = 4;
+    internal const long MinimumSegmentedChunkSize = 512L * 1024;
+    internal static readonly TimeSpan SegmentedExpansionScanInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly MinecraftDownloadTransport transport;
     private readonly ILogger logger;
@@ -50,6 +52,7 @@ internal sealed class MinecraftDownloadRequestExecutor
     private readonly BmclApiRequestRateLimiter bmclApiRequestRateLimiter;
     private readonly Func<double> nextRetryJitter;
     private readonly TimeProvider timeProvider;
+    private readonly SegmentedDownloadCoordinator segmentedDownloadCoordinator;
 
     public MinecraftDownloadRequestExecutor(
         HttpClient httpClient,
@@ -62,7 +65,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadHostConcurrencyController? hostConcurrencyController = null,
         Func<double>? nextRetryJitter = null,
         BmclApiRequestRateLimiter? bmclApiRequestRateLimiter = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        SegmentedDownloadCoordinator? segmentedDownloadCoordinator = null)
     {
         this.logger = logger ?? NullLogger.Instance;
         this.bandwidthLimiter = bandwidthLimiter;
@@ -76,10 +80,12 @@ internal sealed class MinecraftDownloadRequestExecutor
         this.bmclApiRequestRateLimiter = bmclApiRequestRateLimiter ?? BmclApiRequestRateLimiter.Shared;
         this.nextRetryJitter = nextRetryJitter ?? Random.Shared.NextDouble;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.segmentedDownloadCoordinator = segmentedDownloadCoordinator ?? SegmentedDownloadCoordinator.Shared;
         transport = new MinecraftDownloadTransport(
             httpClient,
             this.retryOptions,
-            AcquireAdmissionAsync);
+            AcquireAdmissionAsync,
+            TryAcquireOpportunisticAdmission);
     }
 
     public async Task<T> ExecuteAsync<T>(
@@ -236,7 +242,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             if (segmented.Resolution is not null)
                 return segmented.Resolution;
 
-            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.Attempted ? 1 : 0);
+            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.AttemptCount);
 
             var result = await ExecuteCoreAsync(
                 originalUrl,
@@ -326,7 +332,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             if (segmented.Resolution is not null)
                 return segmented.Resolution;
 
-            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.Attempted ? 1 : 0);
+            var sequentialProgress = OffsetAttemptProgress(reportAttemptProgress, segmented.AttemptCount);
 
             var result = await ExecuteCoreAsync(
                 originalUrl,
@@ -363,170 +369,817 @@ internal sealed class MinecraftDownloadRequestExecutor
         if (!ShouldUseSegmentedDownload(candidates, integrity, options))
             return default;
 
-        var resolution = candidates[0];
-        var totalLength = integrity.ExpectedSize!.Value;
-        var ranges = CreateSegmentRanges(totalLength);
-        var tasks = new List<Task>(SegmentedDownloadPartCount);
-        using var segmentCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        try
+        var attemptCount = 0;
+        var failures = new List<DownloadAttemptException>();
+        foreach (var resolution in candidates.Where(IsSegmentableCandidate))
         {
-            session.PrepareSegmentedDownload(totalLength);
-            logger.LogDebug(
-                "Segmented download started. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
-                resolution.ResolvedSourceKind,
-                totalLength,
-                ranges.Count);
-
-            var firstAccepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var firstTask = DownloadSegmentAsync(
-                resolution,
-                ranges[0],
-                session,
-                reportAttemptProgress,
-                sensitiveHeaders,
-                speedMeter,
-                () => firstAccepted.TrySetResult(true),
-                segmentCancellation.Token);
-            tasks.Add(firstTask);
-
-            await Task.WhenAny(firstAccepted.Task, firstTask).ConfigureAwait(false);
-            if (!firstAccepted.Task.IsCompletedSuccessfully)
-                await firstTask.ConfigureAwait(false);
-
-            for (var index = 1; index < ranges.Count; index++)
+            attemptCount++;
+            session.ResetSegmentedDownload();
+            try
             {
-                tasks.Add(DownloadSegmentAsync(
+                var completed = await TryDownloadSegmentedSourceAsync(
                     resolution,
-                    ranges[index],
+                    integrity,
                     session,
-                    reportAttemptProgress,
+                    OffsetAttemptProgress(reportAttemptProgress, attemptCount - 1),
                     sensitiveHeaders,
                     speedMeter,
-                    segmentAccepted: null,
-                    segmentCancellation.Token));
+                    cancellationToken).ConfigureAwait(false);
+                if (completed)
+                    return new SegmentedDownloadAttemptResult(attemptCount, resolution);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                session.ResetSegmentedDownload();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                var failure = ClassifyException(exception);
+                failures.Add(failure);
+                session.ResetSegmentedDownload();
+                logger.LogDebug(
+                    exception,
+                    "Segmented source stopped. ResolvedSourceKind={ResolvedSourceKind} ActualUrl={ActualUrl} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} FinalHost={FinalHost}",
+                    resolution.ResolvedSourceKind,
+                    DownloadUriLogSanitizer.Sanitize(resolution.ActualUrl),
+                    failure.Reason,
+                    failure.Disposition,
+                    failure.StatusCode is null ? null : (int)failure.StatusCode.Value,
+                    failure.FinalHost);
+                if (failure.Disposition is DownloadFailureDisposition.Abort)
+                    throw failure;
+            }
+        }
 
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-            await session.CompleteSegmentedDownloadAsync(cancellationToken).ConfigureAwait(false);
-            logger.LogDebug(
-                "Segmented download completed. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount}",
-                resolution.ResolvedSourceKind,
-                totalLength,
-                ranges.Count);
-            return new SegmentedDownloadAttemptResult(true, resolution);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        if (attemptCount > 0)
         {
-            segmentCancellation.Cancel();
-            await ObserveSegmentTasksAsync(tasks).ConfigureAwait(false);
-            session.ResetSegmentedDownload();
-            throw;
-        }
-        catch (Exception exception)
-        {
-            segmentCancellation.Cancel();
-            await ObserveSegmentTasksAsync(tasks).ConfigureAwait(false);
-            session.ResetSegmentedDownload();
             logger.LogDebug(
-                "Segmented download fell back to the existing single-stream path. ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} SegmentCount={SegmentCount} Reason={Reason}",
-                resolution.ResolvedSourceKind,
-                totalLength,
-                ranges.Count,
-                exception.GetType().Name);
-            return new SegmentedDownloadAttemptResult(true, null);
+                "Segmented download exhausted all compatible candidates and will use the existing single-stream path. CandidateCount={CandidateCount} FailureReasons={FailureReasons} FinalFailureReason={FinalFailureReason} FinalStatusCode={FinalStatusCode} FinalHost={FinalHost}",
+                candidates.Count(IsSegmentableCandidate),
+                failures.Select(failure => failure.Reason).Distinct().Order().ToArray(),
+                failures.LastOrDefault()?.Reason,
+                failures.LastOrDefault()?.StatusCode is { } status ? (int)status : null,
+                failures.LastOrDefault()?.FinalHost);
         }
+        return new SegmentedDownloadAttemptResult(attemptCount, null);
     }
 
-    private Task DownloadSegmentAsync(
+    private async Task<bool> TryDownloadSegmentedSourceAsync(
         ResolvedDownloadRequest resolution,
-        DownloadSegmentRange range,
+        DownloadIntegrityExpectation integrity,
         ResumableDownloadFileSession session,
         Action<int, long, long?>? reportAttemptProgress,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
-        Action? segmentAccepted,
         CancellationToken cancellationToken)
     {
-        return ExecuteAttemptAsync(
+        using var segmentCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var requestedProbeEnd = integrity.ExpectedSize.HasValue
+            ? Math.Min(integrity.ExpectedSize.Value - 1, MinimumSegmentedChunkSize - 1)
+            : MinimumSegmentedChunkSize - 1;
+        var probeRange = new DownloadSegmentRange(
+            0,
+            requestedProbeEnd,
+            integrity.ExpectedSize,
+            ChunkId: 0,
+            OpenEnded: true);
+        var probeAccepted = new TaskCompletionSource<SegmentedProbeResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var prepared = 0;
+        string? strongETag = null;
+
+        var probeTask = ExecuteSegmentAttemptWithRetriesAsync(
             resolution,
-            attempt: 1,
+            probeRange,
             async (context, token) =>
             {
-                ValidateSegmentResponse(context.Response, range);
-                segmentAccepted?.Invoke();
+                if (context.Response.StatusCode == HttpStatusCode.OK)
+                {
+                    if (Volatile.Read(ref prepared) != 0)
+                        throw new SegmentedDownloadNotSupportedException("The source ignored Range after accepting an earlier partial response.");
+                    probeAccepted.TrySetResult(SegmentedProbeResult.Sequential(context.Transport.FinalHost));
+                    await session.WriteAsync(
+                        context.Response,
+                        context.Resolution,
+                        attemptNumber: 1,
+                        reportAttemptProgress,
+                        token).ConfigureAwait(false);
+                    return;
+                }
+
+                var validated = ValidateSegmentResponse(context.Response, probeRange, strongETag);
+                if (Interlocked.CompareExchange(ref prepared, 1, 0) == 0)
+                {
+                    session.PrepareSegmentedDownload(validated.TotalLength);
+                    strongETag = GetStrongETag(context.Response);
+                    probeAccepted.TrySetResult(new SegmentedProbeResult(
+                        false,
+                        validated,
+                        context.Transport.FinalUri,
+                        context.Transport.FinalHost,
+                        context.Transport.HostSnapshot));
+                }
+
                 await session.WriteSegmentAsync(
                     context.Response.Content,
-                    range.Start,
-                    range.End,
+                    validated.Start,
+                    validated.End,
                     attemptNumber: 1,
                     reportAttemptProgress,
-                    token).ConfigureAwait(false);
-                return true;
+                    token,
+                    allowTrailingContent: true).ConfigureAwait(false);
             },
-            noResultStatus: null,
-            cancellationToken,
-            configureRequest: (request, _) => ConfigureSegmentRequest(request, range),
-            allowResponseStatus: null,
+            strongETagProvider: () => strongETag,
             sensitiveHeaders,
             speedMeter,
-            enableSlowBodyWatchdog: true);
+            segmentCancellation.Token);
+
+        await Task.WhenAny(probeAccepted.Task, probeTask).ConfigureAwait(false);
+        if (!probeAccepted.Task.IsCompletedSuccessfully)
+            await probeTask.ConfigureAwait(false);
+
+        var probe = await probeAccepted.Task.ConfigureAwait(false);
+        if (probe.IsSequential)
+        {
+            await probeTask.ConfigureAwait(false);
+            logger.LogDebug(
+                "Segmented probe was ignored and the same HTTP 200 response completed the file. ResolvedSourceKind={ResolvedSourceKind} FinalHost={FinalHost}",
+                resolution.ResolvedSourceKind,
+                probe.FinalHost);
+            return true;
+        }
+
+        var firstRange = probe.Range
+            ?? throw new InvalidOperationException("The segmented probe did not provide a validated range.");
+        var totalLength = firstRange.TotalLength;
+        var remainingStart = firstRange.End + 1;
+        if (remainingStart >= totalLength)
+        {
+            await probeTask.ConfigureAwait(false);
+            await session.CompleteSegmentedDownloadAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+
+        var adaptiveSession = new AdaptiveSegmentDownloadSession(
+            remainingStart,
+            totalLength,
+            MinimumSegmentedChunkSize);
+        var pinnedResolution = PinFinalHttpsResolution(resolution, probe.FinalUri);
+        var hostOrigin = DownloadHostConcurrencyController.NormalizeOrigin(probe.FinalUri!);
+        var usefulWorkerCount = CalculateUsefulSegmentedWorkers(totalLength - remainingStart);
+        var scheduling = segmentedDownloadCoordinator.Register(
+            hostOrigin,
+            usefulWorkerCount,
+            () =>
+            {
+                var snapshot = GetGlobalConcurrencySnapshot();
+                return new SegmentedGlobalConcurrencySnapshot(
+                    snapshot.ActiveCount,
+                    snapshot.WaitingCount,
+                    snapshot.CurrentTarget);
+            },
+            hostConcurrencyController.GetSnapshot);
+        const int initialWorkerCount = 1;
+        var workerTasks = new List<Task>(usefulWorkerCount);
+        var liveWorkers = 0;
+        var peakWorkers = 0;
+        var expansionCount = 0;
+        string? lastExpansionSkipState = null;
+
+        int SpawnWorker(
+            bool additional,
+            AdaptiveDownloadSegment initialSegment,
+            DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission = null,
+            Task? prerequisite = null)
+        {
+            var current = Interlocked.Increment(ref liveWorkers);
+            UpdateMaximum(ref peakWorkers, current);
+            workerTasks.Add(RunAdaptiveSegmentWorkerLaneAsync(
+                prerequisite,
+                pinnedResolution,
+                adaptiveSession,
+                initialSegment,
+                session,
+                reportAttemptProgress,
+                strongETag,
+                sensitiveHeaders,
+                speedMeter,
+                additional,
+                scheduling,
+                preacquiredAdmission,
+                retirementReserved =>
+                {
+                    Interlocked.Decrement(ref liveWorkers);
+                    if (additional)
+                        scheduling.ReleaseAdditionalWorker(retirementReserved);
+                    else
+                        scheduling.ReleaseBaselineWorker();
+                },
+                segmentCancellation.Token));
+            return current;
+        }
+
+        var initialGlobalSnapshot = GetGlobalConcurrencySnapshot();
+        var initialHostSnapshot = hostConcurrencyController.GetSnapshot(hostOrigin);
+        var initialSchedulingSnapshot = scheduling.Snapshot;
+        logger.LogDebug(
+            "Segmented download registered. SessionId={SessionId} ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} InitialWorkerCount={InitialWorkerCount} InitialTargetWorkerCount={InitialTargetWorkerCount} ActiveFileCount={ActiveFileCount} InitialChunkCount={InitialChunkCount} MinimumChunkSize={MinimumChunkSize} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget} FinalHost={FinalHost} StrongETag={HasStrongETag}",
+            scheduling.SessionId,
+            resolution.ResolvedSourceKind,
+            totalLength,
+            initialWorkerCount,
+            initialSchedulingSnapshot.TargetWorkerCount,
+            initialSchedulingSnapshot.ActiveSessionCount,
+            adaptiveSession.TotalChunkCount + 1,
+            MinimumSegmentedChunkSize,
+            initialGlobalSnapshot.ActiveCount,
+            initialGlobalSnapshot.WaitingCount,
+            initialGlobalSnapshot.CurrentTarget,
+            initialHostSnapshot.ActiveCount,
+            initialHostSnapshot.WaitingCount,
+            initialHostSnapshot.CurrentTarget,
+            probe.FinalHost,
+            strongETag is not null);
+
+        try
+        {
+            if (!adaptiveSession.TryTake(out var baselineSegment))
+                throw new InvalidOperationException("The adaptive segmented session did not contain baseline work.");
+            SpawnWorker(
+                additional: false,
+                baselineSegment!,
+                prerequisite: probeTask);
+
+            while (!adaptiveSession.IsComplete || workerTasks.Any(task => !task.IsCompleted))
+            {
+                var failedWorker = workerTasks.FirstOrDefault(task => task.IsFaulted);
+                if (failedWorker is not null)
+                    await failedWorker.ConfigureAwait(false);
+
+                if (!adaptiveSession.IsComplete)
+                {
+                    var addedWorker = false;
+                    string? expansionBlockReason = null;
+                    while (scheduling.TryReserveAdditionalWorker(out var schedule))
+                    {
+                        var opportunityAdmission = TryAcquireOpportunisticAdmission(probe.FinalUri!);
+                        if (opportunityAdmission is null)
+                        {
+                            scheduling.CancelAdditionalWorkerReservation();
+                            expansionBlockReason = "NoIdleAdmission";
+                            break;
+                        }
+
+                        if (!adaptiveSession.TryTakeQueuedOrSplit(
+                                out var workerSegment,
+                                out var split))
+                        {
+                            opportunityAdmission.Dispose();
+                            scheduling.CancelAdditionalWorkerReservation();
+                            expansionBlockReason = "NoAvailableOrSplittableRange";
+                            break;
+                        }
+                        if (split is { } createdSplit)
+                        {
+                            logger.LogDebug(
+                                "Segmented range dynamically split. SessionId={SessionId} SourceChunkId={SourceChunkId} SourceStart={SourceStart} SourceOriginalEnd={SourceOriginalEnd} SourceRetainedEnd={SourceRetainedEnd} NewChunkId={NewChunkId} NewStart={NewStart} NewEnd={NewEnd} SplitKind={SplitKind}",
+                                scheduling.SessionId,
+                                createdSplit.SourceChunkId,
+                                createdSplit.SourceStart,
+                                createdSplit.SourceOriginalEnd,
+                                createdSplit.SourceRetainedEnd,
+                                createdSplit.NewChunkId,
+                                createdSplit.NewStart,
+                                createdSplit.NewEnd,
+                                createdSplit.SourceWasActive ? "InFlightTail" : "QueuedRange");
+                        }
+
+                        var previousWorkers = Volatile.Read(ref liveWorkers);
+                        int currentWorkers;
+                        scheduling.ConfirmAdditionalWorkerActivated();
+                        try
+                        {
+                            currentWorkers = SpawnWorker(
+                                additional: true,
+                                workerSegment!,
+                                opportunityAdmission);
+                            opportunityAdmission = null;
+                        }
+                        catch
+                        {
+                            adaptiveSession.Return(workerSegment!);
+                            opportunityAdmission?.Dispose();
+                            scheduling.CancelAdditionalWorkerReservation(activated: true);
+                            throw;
+                        }
+                        schedule = scheduling.Snapshot;
+                        addedWorker = true;
+                        expansionCount++;
+                        logger.LogDebug(
+                            "Segmented download worker activated by fair scheduler. SessionId={SessionId} PreviousWorkerCount={PreviousWorkerCount} CurrentWorkerCount={CurrentWorkerCount} TargetWorkerCount={TargetWorkerCount} ActiveFileCount={ActiveFileCount} GlobalSegmentedWorkerCount={GlobalSegmentedWorkerCount} GlobalPeakSegmentedWorkerCount={GlobalPeakSegmentedWorkerCount} WorkSource={WorkSource} QueuedChunkCount={QueuedChunkCount} ActiveChunkCount={ActiveChunkCount} ExpansionCount={ExpansionCount} FairnessRounds={FairnessRounds} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget} FinalHost={FinalHost}",
+                            scheduling.SessionId,
+                            previousWorkers,
+                            currentWorkers,
+                            schedule.TargetWorkerCount,
+                            schedule.ActiveSessionCount,
+                            schedule.GlobalSegmentedWorkerCount,
+                            schedule.GlobalPeakSegmentedWorkerCount,
+                            split.HasValue ? "SplitRange" : "QueuedRange",
+                            adaptiveSession.QueuedCount,
+                            adaptiveSession.ActiveCount,
+                            expansionCount,
+                            schedule.FairnessRounds,
+                            schedule.Global.ActiveCount,
+                            schedule.Global.WaitingCount,
+                            schedule.Global.CurrentTarget,
+                            schedule.Host.ActiveCount,
+                            schedule.Host.WaitingCount,
+                            schedule.Host.CurrentTarget,
+                            probe.FinalHost);
+                    }
+
+                    if (!addedWorker)
+                    {
+                        var schedule = scheduling.Snapshot;
+                        var reason = expansionBlockReason
+                            ?? (schedule.Global.WaitingCount > 0
+                            ? "GlobalOrdinaryWaiter"
+                            : schedule.Host.WaitingCount > 0
+                                ? "HostOrdinaryWaiter"
+                                : schedule.LiveWorkerCount >= schedule.TargetWorkerCount
+                                    ? "FairTargetReached"
+                                    : "NoAvailableOrSplittableRange");
+                        var skipState = string.Join(
+                            '|',
+                            reason,
+                            schedule.LiveWorkerCount,
+                            schedule.TargetWorkerCount,
+                            schedule.ActiveSessionCount,
+                            schedule.Global.ActiveCount,
+                            schedule.Global.WaitingCount,
+                            schedule.Global.CurrentTarget,
+                            schedule.Host.ActiveCount,
+                            schedule.Host.WaitingCount,
+                            schedule.Host.CurrentTarget);
+                        if (!string.Equals(skipState, lastExpansionSkipState, StringComparison.Ordinal))
+                        {
+                            lastExpansionSkipState = skipState;
+                            logger.LogTrace(
+                                "Segmented fair scheduler did not add a worker. SessionId={SessionId} Reason={Reason} LiveWorkerCount={LiveWorkerCount} TargetWorkerCount={TargetWorkerCount} ActiveFileCount={ActiveFileCount} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget} FinalHost={FinalHost}",
+                                scheduling.SessionId,
+                                reason,
+                                schedule.LiveWorkerCount,
+                                schedule.TargetWorkerCount,
+                                schedule.ActiveSessionCount,
+                                schedule.Global.ActiveCount,
+                                schedule.Global.WaitingCount,
+                                schedule.Global.CurrentTarget,
+                                schedule.Host.ActiveCount,
+                                schedule.Host.WaitingCount,
+                                schedule.Host.CurrentTarget,
+                                probe.FinalHost);
+                        }
+                    }
+                    else
+                    {
+                        lastExpansionSkipState = null;
+                    }
+                }
+
+                if (!adaptiveSession.IsComplete || workerTasks.Any(task => !task.IsCompleted))
+                {
+                    await Task.Delay(
+                        SegmentedExpansionScanInterval,
+                        timeProvider,
+                        segmentCancellation.Token).ConfigureAwait(false);
+                }
+            }
+
+            await Task.WhenAll(workerTasks).ConfigureAwait(false);
+            await session.CompleteSegmentedDownloadAsync(cancellationToken).ConfigureAwait(false);
+            var completedSchedulingSnapshot = scheduling.Snapshot;
+            logger.LogDebug(
+                "Segmented download completed. SessionId={SessionId} ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} InitialWorkerCount={InitialWorkerCount} PeakWorkerCount={PeakWorkerCount} ExpansionCount={ExpansionCount} CompletedChunkCount={CompletedChunkCount} ActiveFileCount={ActiveFileCount} GlobalPeakSegmentedWorkerCount={GlobalPeakSegmentedWorkerCount} AdditionalWorkersGranted={AdditionalWorkersGranted} AdditionalWorkersReturned={AdditionalWorkersReturned} FairnessRounds={FairnessRounds} FinalHost={FinalHost}",
+                scheduling.SessionId,
+                resolution.ResolvedSourceKind,
+                totalLength,
+                initialWorkerCount,
+                Volatile.Read(ref peakWorkers),
+                expansionCount,
+                adaptiveSession.CompletedChunks + 1,
+                completedSchedulingSnapshot.ActiveSessionCount,
+                completedSchedulingSnapshot.GlobalPeakSegmentedWorkerCount,
+                completedSchedulingSnapshot.AdditionalWorkersGranted,
+                completedSchedulingSnapshot.AdditionalWorkersReturned,
+                completedSchedulingSnapshot.FairnessRounds,
+                probe.FinalHost);
+            return true;
+        }
+        catch
+        {
+            segmentCancellation.Cancel();
+            await ObserveSegmentTasksAsync(workerTasks).ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            var finalSchedulingSnapshot = scheduling.Snapshot;
+            scheduling.Dispose();
+            logger.LogTrace(
+                "Segmented download unregistered. SessionId={SessionId} RemainingActiveFileCount={ActiveFileCount} LiveWorkerCount={LiveWorkerCount} TargetWorkerCount={TargetWorkerCount} AdditionalWorkersGranted={AdditionalWorkersGranted} AdditionalWorkersReturned={AdditionalWorkersReturned} FinalHost={FinalHost}",
+                scheduling.SessionId,
+                Math.Max(0, finalSchedulingSnapshot.ActiveSessionCount - 1),
+                finalSchedulingSnapshot.LiveWorkerCount,
+                finalSchedulingSnapshot.TargetWorkerCount,
+                finalSchedulingSnapshot.AdditionalWorkersGranted,
+                finalSchedulingSnapshot.AdditionalWorkersReturned,
+                probe.FinalHost);
+        }
     }
+
+    private async Task RunAdaptiveSegmentWorkerLaneAsync(
+        Task? prerequisite,
+        ResolvedDownloadRequest resolution,
+        AdaptiveSegmentDownloadSession adaptiveSession,
+        AdaptiveDownloadSegment initialSegment,
+        ResumableDownloadFileSession session,
+        Action<int, long, long?>? reportAttemptProgress,
+        string? strongETag,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        bool additional,
+        SegmentedDownloadCoordinator.Registration scheduling,
+        DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission,
+        Action<bool> workerCompleted,
+        CancellationToken cancellationToken)
+    {
+        var retirementReserved = false;
+        try
+        {
+            if (prerequisite is not null)
+                await prerequisite.ConfigureAwait(false);
+            retirementReserved = await DownloadAdaptiveSegmentWorkerAsync(
+                resolution,
+                adaptiveSession,
+                initialSegment,
+                session,
+                reportAttemptProgress,
+                strongETag,
+                sensitiveHeaders,
+                speedMeter,
+                additional,
+                scheduling,
+                preacquiredAdmission,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            workerCompleted(retirementReserved);
+        }
+    }
+
+    private async Task<bool> DownloadAdaptiveSegmentWorkerAsync(
+        ResolvedDownloadRequest resolution,
+        AdaptiveSegmentDownloadSession adaptiveSession,
+        AdaptiveDownloadSegment initialSegment,
+        ResumableDownloadFileSession session,
+        Action<int, long, long?>? reportAttemptProgress,
+        string? strongETag,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        bool additional,
+        SegmentedDownloadCoordinator.Registration scheduling,
+        DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission,
+        CancellationToken cancellationToken)
+    {
+        AdaptiveDownloadSegment? segment = initialSegment;
+        try
+        {
+            while (segment is not null || adaptiveSession.TryTake(out segment))
+            {
+                var attemptedRequest = false;
+                while (segment!.TryGetAttemptRange(out _))
+                {
+                    if (additional
+                        && attemptedRequest
+                        && scheduling.TryBeginAdditionalWorkerRetirement(out _))
+                    {
+                        adaptiveSession.Return(segment);
+                        return true;
+                    }
+
+                    (DownloadSegmentRange Requested, ValidatedSegmentRange Validated) result;
+                    try
+                    {
+                        var reservedAdmission = preacquiredAdmission;
+                        preacquiredAdmission = null;
+                        result = await ExecuteSegmentAttemptWithRetriesAsync(
+                            resolution,
+                            () =>
+                            {
+                                if (!segment.TryGetAttemptRange(out var current))
+                                    throw new InvalidOperationException("The adaptive segmented range completed before its request was created.");
+                                return new DownloadSegmentRange(
+                                    current.Start,
+                                    current.End,
+                                    current.TotalLength,
+                                    current.ChunkId);
+                            },
+                            async (context, requestedRange, token) =>
+                            {
+                                var responseRange = ValidateSegmentResponse(
+                                    context.Response,
+                                    requestedRange,
+                                    strongETag) with
+                                {
+                                    FinalHost = context.Transport.FinalHost
+                                };
+                                await session.WriteSegmentAsync(
+                                    context.Response.Content,
+                                    responseRange.Start,
+                                    responseRange.End,
+                                    attemptNumber: 1,
+                                    reportAttemptProgress,
+                                    token,
+                                    adaptiveSegment: segment).ConfigureAwait(false);
+                                return (Requested: requestedRange, Validated: responseRange);
+                            },
+                            () => strongETag,
+                            sensitiveHeaders,
+                            speedMeter,
+                            cancellationToken,
+                            opportunisticAdmission: additional,
+                            preacquiredAdmission: reservedAdmission).ConfigureAwait(false);
+                    }
+                    catch (OpportunisticDownloadAdmissionUnavailableException)
+                    {
+                        adaptiveSession.Return(segment);
+                        return false;
+                    }
+                    attemptedRequest = true;
+
+                    if (result.Validated.End < result.Requested.End && !segment.IsComplete)
+                    {
+                        logger.LogTrace(
+                            "Segmented response returned a legal short range; the remaining suffix will continue from the adaptive cursor. ChunkId={ChunkId} RangeStart={RangeStart} RequestedEnd={RequestedEnd} ReturnedEnd={ReturnedEnd} NextOffset={NextOffset} LogicalEnd={LogicalEnd} FinalHost={FinalHost}",
+                            segment.ChunkId,
+                            result.Requested.Start,
+                            result.Requested.End,
+                            result.Validated.End,
+                            segment.NextOffset,
+                            segment.LogicalEnd,
+                            result.Validated.FinalHost);
+                    }
+                }
+
+                adaptiveSession.Complete(segment);
+                segment = null;
+                if (additional
+                    && scheduling.TryBeginAdditionalWorkerRetirement(out _))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            preacquiredAdmission?.Dispose();
+        }
+    }
+
+    private async Task<T> ExecuteSegmentAttemptWithRetriesAsync<T>(
+        ResolvedDownloadRequest resolution,
+        Func<DownloadSegmentRange> rangeProvider,
+        Func<DownloadAttemptContext, DownloadSegmentRange, CancellationToken, Task<T>> operation,
+        Func<string?> strongETagProvider,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        CancellationToken cancellationToken,
+        bool opportunisticAdmission = false,
+        DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission = null)
+    {
+        await using var ownedAdmission = preacquiredAdmission;
+        for (var attempt = 1; attempt <= retryOptions.MaxAttemptsPerSource; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var range = rangeProvider();
+            try
+            {
+                var reservedAdmission = attempt == 1 ? ownedAdmission : null;
+                return await ExecuteAttemptAsync(
+                    resolution,
+                    attempt,
+                    (context, token) => operation(context, range, token),
+                    noResultStatus: null,
+                    cancellationToken,
+                    configureRequest: (request, _) => ConfigureSegmentRequest(request, range, strongETagProvider()),
+                    allowResponseStatus: null,
+                    sensitiveHeaders,
+                    speedMeter,
+                    enableSlowBodyWatchdog: true,
+                    opportunisticAdmission,
+                    preacquiredAdmission: reservedAdmission).ConfigureAwait(false);
+            }
+            catch (OpportunisticDownloadAdmissionUnavailableException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                var failure = ClassifyException(exception);
+                RecordHostResult(resolution, failure);
+                hostHealthTracker.RecordFailure(
+                    resolution.ResolvedSourceKind,
+                    failure.FinalHost ?? GetCandidateHost(resolution),
+                    failure.Reason,
+                    failure.StatusCode);
+                var retry = failure.Disposition is DownloadFailureDisposition.RetryCurrentSource
+                    && attempt < retryOptions.MaxAttemptsPerSource;
+                logger.LogDebug(
+                    failure,
+                    "Segmented range attempt failed. ResolvedSourceKind={ResolvedSourceKind} ChunkId={ChunkId} RangeStart={RangeStart} RangeEnd={RangeEnd} TotalLength={TotalLength} Attempt={Attempt} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} FinalHost={FinalHost} Action={Action}",
+                    resolution.ResolvedSourceKind,
+                    range.ChunkId,
+                    range.Start,
+                    range.End,
+                    range.TotalLength,
+                    attempt,
+                    failure.Reason,
+                    failure.Disposition,
+                    failure.StatusCode is null ? null : (int)failure.StatusCode.Value,
+                    failure.FinalHost,
+                    retry ? "RetryRange" : failure.Disposition is DownloadFailureDisposition.Abort ? "Abort" : "StopSource");
+                if (!retry)
+                    throw failure;
+                await Task.Delay(GetRetryDelay(failure, attempt), cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException("The segmented range retry loop exited unexpectedly.");
+    }
+
+    private Task<T> ExecuteSegmentAttemptWithRetriesAsync<T>(
+        ResolvedDownloadRequest resolution,
+        DownloadSegmentRange range,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
+        Func<string?> strongETagProvider,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        CancellationToken cancellationToken) =>
+        ExecuteSegmentAttemptWithRetriesAsync(
+            resolution,
+            () => range,
+            (context, _, token) => operation(context, token),
+            strongETagProvider,
+            sensitiveHeaders,
+            speedMeter,
+            cancellationToken);
+
+    private Task ExecuteSegmentAttemptWithRetriesAsync(
+        ResolvedDownloadRequest resolution,
+        DownloadSegmentRange range,
+        Func<DownloadAttemptContext, CancellationToken, Task> operation,
+        Func<string?> strongETagProvider,
+        DownloadRequestHeaders? sensitiveHeaders,
+        SpeedMeter? speedMeter,
+        CancellationToken cancellationToken) =>
+        ExecuteSegmentAttemptWithRetriesAsync(
+            resolution,
+            range,
+            async (context, token) =>
+            {
+                await operation(context, token).ConfigureAwait(false);
+                return true;
+            },
+            strongETagProvider,
+            sensitiveHeaders,
+            speedMeter,
+            cancellationToken);
 
     private bool ShouldUseSegmentedDownload(
         IReadOnlyList<ResolvedDownloadRequest> candidates,
         DownloadIntegrityExpectation integrity,
         DownloadFileOptions? options)
     {
-        if (integrity.ExpectedSize is not >= MinimumSegmentedDownloadSize || !integrity.HasStrongHash)
+        if (!integrity.HasStrongHash
+            || integrity.ExpectedSize.HasValue && integrity.ExpectedSize.Value < MinimumSegmentedDownloadSize)
             return false;
         if ((options?.PersistenceMode ?? DownloadPersistenceMode.TaskScopedResumable)
             is not DownloadPersistenceMode.TaskScopedResumable)
             return false;
-        if (GetGlobalConcurrencySnapshot().CurrentTarget < SegmentedDownloadPartCount)
+        if (GetGlobalConcurrencySnapshot().CurrentTarget < 2)
             return false;
-
-        var uri = new Uri(candidates[0].ActualUrl, UriKind.Absolute);
-        return !uri.Host.Equals("bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase);
+        return candidates.Any(IsSegmentableCandidate);
     }
 
-    private static IReadOnlyList<DownloadSegmentRange> CreateSegmentRanges(long totalLength)
+    private static int CalculateUsefulSegmentedWorkers(long remainingLength) =>
+        checked((int)Math.Min(
+            int.MaxValue,
+            Math.Max(
+                1,
+                (remainingLength + MinimumSegmentedChunkSize - 1)
+                / MinimumSegmentedChunkSize)));
+
+    private static void UpdateMaximum(ref int maximum, int value)
     {
-        var ranges = new List<DownloadSegmentRange>(SegmentedDownloadPartCount);
-        var baseLength = totalLength / SegmentedDownloadPartCount;
-        var remainder = totalLength % SegmentedDownloadPartCount;
-        long start = 0;
-        for (var index = 0; index < SegmentedDownloadPartCount; index++)
+        while (true)
         {
-            var length = baseLength + (index < remainder ? 1 : 0);
-            var end = start + length - 1;
-            ranges.Add(new DownloadSegmentRange(start, end, totalLength));
-            start = end + 1;
+            var current = Volatile.Read(ref maximum);
+            if (current >= value
+                || Interlocked.CompareExchange(ref maximum, value, current) == current)
+            {
+                return;
+            }
         }
-        return ranges;
     }
 
-    private static void ConfigureSegmentRequest(HttpRequestMessage request, DownloadSegmentRange range)
+    private static void ConfigureSegmentRequest(
+        HttpRequestMessage request,
+        DownloadSegmentRange range,
+        string? strongETag)
     {
-        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(range.Start, range.End);
+        request.Headers.Range = new RangeHeaderValue(
+            range.Start,
+            range.OpenEnded ? null : range.End);
         request.Headers.AcceptEncoding.Clear();
-        request.Headers.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("identity"));
+        request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        if (!string.IsNullOrWhiteSpace(strongETag))
+            request.Headers.TryAddWithoutValidation("If-Range", strongETag);
     }
 
-    private static void ValidateSegmentResponse(HttpResponseMessage response, DownloadSegmentRange expected)
+    private static ValidatedSegmentRange ValidateSegmentResponse(
+        HttpResponseMessage response,
+        DownloadSegmentRange expected,
+        string? strongETag)
     {
         var contentRange = response.Content.Headers.ContentRange;
-        var expectedLength = expected.End - expected.Start + 1;
         if (response.StatusCode != HttpStatusCode.PartialContent
             || response.Content.Headers.ContentEncoding.Count != 0
             || contentRange is null
             || !string.Equals(contentRange.Unit, "bytes", StringComparison.OrdinalIgnoreCase)
             || contentRange.From != expected.Start
-            || contentRange.To != expected.End
-            || contentRange.Length != expected.TotalLength
-            || response.Content.Headers.ContentLength != expectedLength)
+            || !contentRange.To.HasValue
+            || contentRange.To.Value < expected.Start
+            || !expected.OpenEnded && contentRange.To.Value > expected.End
+            || !contentRange.Length.HasValue
+            || contentRange.Length.Value <= contentRange.To.Value
+            || expected.TotalLength.HasValue && contentRange.Length.Value != expected.TotalLength.Value)
         {
-            throw new SegmentedDownloadNotSupportedException();
+            throw new SegmentedDownloadNotSupportedException("The partial response did not describe the requested byte range.");
         }
+
+        var actualLength = contentRange.To.Value - expected.Start + 1;
+        if (response.Content.Headers.ContentLength.HasValue
+            && response.Content.Headers.ContentLength.Value != actualLength)
+        {
+            throw new SegmentedDownloadNotSupportedException("The partial response Content-Length did not match Content-Range.");
+        }
+
+        var responseETag = GetStrongETag(response);
+        if (strongETag is not null && responseETag is not null
+            && !string.Equals(strongETag, responseETag, StringComparison.Ordinal))
+        {
+            throw new SegmentedDownloadNotSupportedException("The source representation changed during segmented download.");
+        }
+
+        return new ValidatedSegmentRange(
+            expected.Start,
+            expected.OpenEnded ? Math.Min(contentRange.To.Value, expected.End) : contentRange.To.Value,
+            contentRange.Length.Value,
+            null);
+    }
+
+    private static string? GetStrongETag(HttpResponseMessage response)
+    {
+        var entityTag = response.Headers.ETag;
+        return entityTag is not null && !entityTag.IsWeak ? entityTag.ToString() : null;
+    }
+
+    private static bool IsSegmentableCandidate(ResolvedDownloadRequest resolution)
+    {
+        if (!Uri.TryCreate(resolution.ActualUrl, UriKind.Absolute, out var uri))
+            return false;
+        return !uri.Host.Equals("bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase)
+            && !resolution.ResolvedSourceKind.StartsWith("BmclApi", StringComparison.Ordinal);
+    }
+
+    private static ResolvedDownloadRequest PinFinalHttpsResolution(
+        ResolvedDownloadRequest resolution,
+        Uri? finalUri)
+    {
+        if (finalUri is null
+            || !finalUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return resolution;
+        }
+        return resolution with { ActualUrl = finalUri.AbsoluteUri };
     }
 
     private static async Task ObserveSegmentTasksAsync(IEnumerable<Task> tasks)
@@ -550,9 +1203,35 @@ internal sealed class MinecraftDownloadRequestExecutor
             progress(attempt + offset, progressedBytes, totalBytes);
     }
 
-    private readonly record struct DownloadSegmentRange(long Start, long End, long TotalLength);
-    private readonly record struct SegmentedDownloadAttemptResult(bool Attempted, ResolvedDownloadRequest? Resolution);
-    private sealed class SegmentedDownloadNotSupportedException : Exception;
+    private readonly record struct DownloadSegmentRange(
+        long Start,
+        long End,
+        long? TotalLength,
+        int ChunkId,
+        bool OpenEnded = false);
+    private readonly record struct ValidatedSegmentRange(
+        long Start,
+        long End,
+        long TotalLength,
+        string? FinalHost);
+    private readonly record struct SegmentedProbeResult(
+        bool IsSequential,
+        ValidatedSegmentRange? Range,
+        Uri? FinalUri,
+        string? FinalHost,
+        DownloadHostConcurrencySnapshot? HostSnapshot)
+    {
+        public static SegmentedProbeResult Sequential(string finalHost) =>
+            new(true, null, null, finalHost, null);
+    }
+    private readonly record struct SegmentedDownloadAttemptResult(
+        int AttemptCount,
+        ResolvedDownloadRequest? Resolution);
+    private sealed class SegmentedDownloadNotSupportedException(string message)
+        : DownloadAttemptException(
+            DownloadFailureDisposition.SwitchSource,
+            DownloadFailureReason.InvalidContent,
+            message);
 
     /// <summary>
     /// 按解析后的候选源和每源重试次数执行操作，并汇总所有可恢复失败用于最终诊断。
@@ -887,15 +1566,20 @@ internal sealed class MinecraftDownloadRequestExecutor
         Func<HttpStatusCode, bool>? allowResponseStatus,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
-        bool enableSlowBodyWatchdog)
+        bool enableSlowBodyWatchdog,
+        bool opportunisticAdmission = false,
+        DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission = null)
     {
         // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
+        await using var reservedAdmission = preacquiredAdmission;
         await using var transportResult = await transport.SendAsync(
             resolution.ActualUrl,
             cancellationToken,
             configureRequest is null ? null : request => configureRequest(request, resolution),
             sensitiveHeaders,
-            applyColdStartJitter: attempt == 1).ConfigureAwait(false);
+            applyColdStartJitter: attempt == 1,
+            opportunisticAdmission,
+            preacquiredAdmission: reservedAdmission).ConfigureAwait(false);
         using var response = transportResult.Response;
         var globalConcurrency = GetGlobalConcurrencySnapshot();
         var hostConcurrency = transportResult.HostSnapshot;
@@ -1138,6 +1822,18 @@ internal sealed class MinecraftDownloadRequestExecutor
             token => AcquireRateLimitedLeaseAsync(uri, token),
             applyColdStartJitter,
             cancellationToken);
+    }
+
+    private DownloadHostConcurrencyController.DownloadAdmissionLease?
+        TryAcquireOpportunisticAdmission(Uri uri)
+    {
+        if (limiter is not ImportConcurrencyLimiter importLimiter)
+            return null;
+        return hostConcurrencyController.TryAcquireAvailable(
+            uri,
+            () => importLimiter.TryAcquireAvailableDownloadSlot(out var lease)
+                ? lease
+                : null);
     }
 
     private async ValueTask<IImportConcurrencyLease> AcquireRateLimitedLeaseAsync(

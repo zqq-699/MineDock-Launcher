@@ -396,71 +396,65 @@ internal sealed class ModpackFileResolutionService
             targetDirectory ?? context.Instance.InstanceDirectory,
             $"{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.download");
         var sourceUrls = BuildSourceUrls(file);
-        var sourceFailures = new List<Exception>();
-        Exception? lastException = null;
-        string? lastFailureSummary = null;
+        foreach (var sourceUrl in sourceUrls)
+            ValidateSourceUrl(sourceUrl);
+
         var retainTemporaryFile = false;
         try
         {
-            foreach (var sourceUrl in sourceUrls)
+            ModpackFileDownloader.DeleteFileIfExists(tempPath);
+            try
             {
-                ValidateSourceUrl(sourceUrl);
-                ModpackFileDownloader.DeleteFileIfExists(tempPath);
-                try
-                {
-                    var resolution = await DownloadAndVerifyAsync(
-                            context,
-                            file,
-                            sourceUrl,
-                            tempPath,
-                            logScope.BeginSource(reportAttemptProgress),
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                    retainTemporaryFile = true;
-                    return new PackFileDownloadResult(
-                        new PendingPackFileDownload(file, sourceUrl, tempPath, targetPath),
-                        null,
-                        resolution,
-                        null);
-                }
-                catch (OperationCanceledException)
+                var resolution = await DownloadAndVerifyAsync(
+                        context,
+                        file,
+                        sourceUrls,
+                        tempPath,
+                        logScope.BeginSource(reportAttemptProgress),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var completedSourceUrl = resolution.OriginalUrl;
+                retainTemporaryFile = true;
+                return new PackFileDownloadResult(
+                    new PendingPackFileDownload(file, completedSourceUrl, tempPath, targetPath),
+                    null,
+                    resolution,
+                    null);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
+            {
+                logger.LogDebug(
+                    exception,
+                    "Failed to download CurseForge modpack file from all candidates. ProjectId={ProjectId} FileId={FileId} FileName={FileName} CandidateCount={CandidateCount} PrimarySourceUrl={PrimarySourceUrl}",
+                    file.ProjectId,
+                    file.FileId,
+                    file.FileName,
+                    sourceUrls.Count,
+                    DownloadUriLogSanitizer.Sanitize(sourceUrls[0]));
+                if (!file.IsCurseForgeDistributionRestricted
+                    || !IsConfirmedUnavailableDownload(exception))
                 {
                     throw;
                 }
-                catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
-                {
-                    sourceFailures.Add(exception);
-                    lastException = exception;
-                    lastFailureSummary = BuildFailureSummary(exception);
-                    logger.LogDebug(
-                        exception,
-                        "Failed to download CurseForge modpack file. ProjectId={ProjectId} FileId={FileId} FileName={FileName} SourceUrl={SourceUrl}",
-                        file.ProjectId,
-                        file.FileId,
-                        file.FileName,
-                        DownloadUriLogSanitizer.Sanitize(sourceUrl));
-                }
+
+                return new PackFileDownloadResult(
+                    null,
+                    new ManualModpackDownload
+                    {
+                        ProjectId = file.ProjectId,
+                        FileId = file.FileId,
+                        FileName = file.FileName,
+                        DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                        SuggestedUrl = sourceUrls[0],
+                        FailureSummary = BuildFailureSummary(exception)
+                    },
+                    null,
+                    exception);
             }
-            if (!file.IsCurseForgeDistributionRestricted)
-                throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
-            var nonTerminalFailure = sourceFailures.FirstOrDefault(exception => !IsConfirmedUnavailableDownload(exception));
-            if (nonTerminalFailure is not null)
-                throw nonTerminalFailure;
-            if (sourceFailures.Count != sourceUrls.Count)
-                throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
-            return new PackFileDownloadResult(
-                null,
-                new ManualModpackDownload
-                {
-                    ProjectId = file.ProjectId,
-                    FileId = file.FileId,
-                    FileName = file.FileName,
-                    DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
-                    SuggestedUrl = sourceUrls.FirstOrDefault() ?? string.Empty,
-                    FailureSummary = lastFailureSummary ?? "download_failed"
-                },
-                null,
-                lastException);
         }
         finally
         {
@@ -475,13 +469,13 @@ internal sealed class ModpackFileResolutionService
     private async Task<ResolvedDownloadRequest> DownloadAndVerifyAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
-        string sourceUrl,
+        IReadOnlyList<string> sourceUrls,
         string tempPath,
         Action<int, long, long?> reportAttemptProgress,
         CancellationToken cancellationToken)
     {
         return await fileDownloader.DownloadToTemporaryFileAsync(
-            sourceUrl,
+            sourceUrls,
             tempPath,
             context.CurseForgeApiKey,
             context.DownloadSourcePreference,

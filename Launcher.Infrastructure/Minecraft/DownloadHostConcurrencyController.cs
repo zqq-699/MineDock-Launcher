@@ -130,6 +130,45 @@ internal sealed class DownloadHostConcurrencyController
         HttpStatusCode? statusCode = null) =>
         RecordResult(NormalizeOrigin(uri), failureReason, statusCode);
 
+    public DownloadAdmissionLease? TryAcquireAvailable(
+        Uri uri,
+        Func<IImportConcurrencyLease?> tryAcquireGlobal)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(tryAcquireGlobal);
+
+        var now = timeProvider.GetUtcNow();
+        PruneExpired(now);
+        var origin = NormalizeOrigin(uri);
+        var scheduler = hosts.GetOrAdd(
+            origin,
+            _ => new AdaptiveHostScheduler(
+                origin,
+                MinimumHostConcurrency,
+                InitialHostConcurrency,
+                MaximumHostConcurrency,
+                timeProvider,
+                adjustmentWindow));
+        if (!scheduler.TryAcquireAvailable(out var hostLease))
+            return null;
+
+        try
+        {
+            var globalLease = tryAcquireGlobal();
+            if (globalLease is null)
+            {
+                hostLease.Dispose();
+                return null;
+            }
+            return new DownloadAdmissionLease(this, origin, hostLease, globalLease);
+        }
+        catch
+        {
+            hostLease.Dispose();
+            throw;
+        }
+    }
+
     public DownloadHostConcurrencySnapshot GetSnapshot(string origin)
     {
         return hosts.TryGetValue(origin, out var scheduler)
@@ -293,6 +332,23 @@ internal sealed class AdaptiveHostScheduler
         }
         lease = AcquireRegisteredAsync(skipJitter, cancellationToken);
         return true;
+    }
+
+    public bool TryAcquireAvailable(out HostLease lease)
+    {
+        lock (syncRoot)
+        {
+            if (retired || waitingCount != 0 || activeCount >= currentTarget)
+            {
+                lease = null!;
+                return false;
+            }
+
+            activeCount++;
+            lastUsedAt = timeProvider.GetUtcNow();
+            lease = new HostLease(this, skipJitter: true);
+            return true;
+        }
     }
 
     public DownloadHostAdjustment? RecordResult(DownloadHostResultKind result)

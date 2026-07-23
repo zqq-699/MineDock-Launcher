@@ -29,16 +29,21 @@ internal sealed class MinecraftDownloadTransport
     private readonly DownloadRetryOptions retryOptions;
     private readonly Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
         acquireAdmissionAsync;
+    private readonly Func<Uri, DownloadHostConcurrencyController.DownloadAdmissionLease?>?
+        tryAcquireOpportunisticAdmission;
 
     public MinecraftDownloadTransport(
         HttpClient httpClient,
         DownloadRetryOptions retryOptions,
         Func<Uri, bool, CancellationToken, ValueTask<DownloadHostConcurrencyController.DownloadAdmissionLease>>?
-            acquireAdmissionAsync = null)
+            acquireAdmissionAsync = null,
+        Func<Uri, DownloadHostConcurrencyController.DownloadAdmissionLease?>?
+            tryAcquireOpportunisticAdmission = null)
     {
         this.httpClient = httpClient;
         this.retryOptions = retryOptions;
         this.acquireAdmissionAsync = acquireAdmissionAsync;
+        this.tryAcquireOpportunisticAdmission = tryAcquireOpportunisticAdmission;
     }
 
     public async Task<DownloadTransportResult> SendAsync(
@@ -46,10 +51,13 @@ internal sealed class MinecraftDownloadTransport
         CancellationToken cancellationToken,
         Action<HttpRequestMessage>? configureRequest = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
-        bool applyColdStartJitter = false)
+        bool applyColdStartJitter = false,
+        bool opportunisticAdmission = false,
+        DownloadHostConcurrencyController.DownloadAdmissionLease? preacquiredAdmission = null)
     {
         var originalUri = ParseHttpUri(actualUrl);
         var currentUri = originalUri;
+        var suppliedAdmission = preacquiredAdmission;
         var stopwatch = Stopwatch.StartNew();
         var redirects = new List<Uri>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -62,7 +70,17 @@ internal sealed class MinecraftDownloadTransport
             DownloadHostConcurrencyController.DownloadAdmissionLease? admissionLease = null;
             try
             {
-                if (acquireAdmissionAsync is not null)
+                if (suppliedAdmission is not null)
+                {
+                    admissionLease = suppliedAdmission;
+                    suppliedAdmission = null;
+                }
+                else if (opportunisticAdmission)
+                {
+                    admissionLease = tryAcquireOpportunisticAdmission?.Invoke(currentUri)
+                        ?? throw new OpportunisticDownloadAdmissionUnavailableException();
+                }
+                else if (acquireAdmissionAsync is not null)
                 {
                     admissionLease = await acquireAdmissionAsync(
                         currentUri,
@@ -215,4 +233,8 @@ internal sealed class MinecraftDownloadTransport
         var value = (int)statusCode;
         return value is >= 300 and <= 399;
     }
+}
+
+internal sealed class OpportunisticDownloadAdmissionUnavailableException : Exception
+{
 }

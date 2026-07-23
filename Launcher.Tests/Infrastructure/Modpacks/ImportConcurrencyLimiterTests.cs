@@ -68,6 +68,28 @@ public sealed class ImportConcurrencyLimiterTests
         Assert.Equal(0, scheduler.Snapshot.WaitingCount);
     }
 
+    [Fact]
+    public async Task OpportunisticLeaseNeverBypassesOrdinaryQueue()
+    {
+        var scheduler = new FixedDownloadScheduler(maximum: 1);
+        var first = await scheduler.AcquireAsync(CancellationToken.None);
+        var ordinaryWaiter = scheduler.AcquireAsync(CancellationToken.None).AsTask();
+
+        Assert.False(scheduler.TryAcquireAvailable(out var opportunistic));
+        Assert.Null(opportunistic);
+
+        first.Dispose();
+        await using var ordinary = await ordinaryWaiter.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.False(scheduler.TryAcquireAvailable(out opportunistic));
+        Assert.Null(opportunistic);
+
+        ordinary.Dispose();
+        Assert.True(scheduler.TryAcquireAvailable(out opportunistic));
+        opportunistic!.Dispose();
+        Assert.Equal(0, scheduler.Snapshot.ActiveCount);
+        Assert.Equal(0, scheduler.Snapshot.WaitingCount);
+    }
+
     private static void UpdateMaxConcurrency(ref int maxConcurrency, int current)
     {
         while (true)

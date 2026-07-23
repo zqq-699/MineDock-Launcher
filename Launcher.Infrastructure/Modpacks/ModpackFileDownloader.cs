@@ -23,6 +23,7 @@ using System.Security.Cryptography;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Modpacks;
 
@@ -31,19 +32,22 @@ internal sealed class ModpackFileDownloader
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly IImportConcurrencyLimiter limiter;
+    private readonly ILogger logger;
 
     public ModpackFileDownloader(
         HttpClient httpClient,
         IDownloadSpeedLimitState? downloadSpeedLimitState,
-        IImportConcurrencyLimiter limiter)
+        IImportConcurrencyLimiter limiter,
+        ILogger logger)
     {
         this.httpClient = httpClient;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.limiter = limiter;
+        this.logger = logger;
     }
 
     public async Task<ResolvedDownloadRequest> DownloadToTemporaryFileAsync(
-        string sourceUrl,
+        IReadOnlyList<string> sourceUrls,
         string tempFilePath,
         string? curseForgeApiKey,
         DownloadSourcePreference downloadSourcePreference,
@@ -54,16 +58,19 @@ internal sealed class ModpackFileDownloader
         Action<int, long, long?>? reportAttemptProgress,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(sourceUrls);
+        if (sourceUrls.Count == 0)
+            throw new ArgumentException("At least one download source URL is required.", nameof(sourceUrls));
+
         var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
+            logger,
             bandwidthLimiter: unifiedBandwidthLimiter,
             limiter: limiter,
             category: DownloadConcurrencyCategory.Modpack);
         var sensitiveHeaders = !string.IsNullOrWhiteSpace(curseForgeApiKey)
-            && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
-            && string.Equals(sourceUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(sourceUri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase)
+            && sourceUrls.Any(IsCurseForgeApiUrl)
             ? DownloadRequestHeaders.CurseForgeApiKey(curseForgeApiKey)
             : null;
         try
@@ -77,7 +84,7 @@ internal sealed class ModpackFileDownloader
             if (hashes.Count == 0)
             {
                 return await executor.DownloadFileAsync(
-                    sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
+                    sourceUrls, downloadSourcePreference, "ThirdParty", tempFilePath,
                     expectedSha1: null, expectedSize: null,
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
@@ -87,7 +94,7 @@ internal sealed class ModpackFileDownloader
             else
             {
                 return await executor.DownloadFileAsync(
-                    sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
+                    sourceUrls, downloadSourcePreference, "ThirdParty", tempFilePath,
                     new DownloadIntegrityExpectation(expectedSize: null, hashes),
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
@@ -101,6 +108,11 @@ internal sealed class ModpackFileDownloader
             throw new ModpackImportException(ModpackImportFailureReason.HashMismatch, "Downloaded modpack file did not match its expected hash.");
         }
     }
+
+    private static bool IsCurseForgeApiUrl(string sourceUrl) =>
+        Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
+        && string.Equals(sourceUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(sourceUri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase);
 
     public async Task VerifyHashAsync(
         string filePath,
