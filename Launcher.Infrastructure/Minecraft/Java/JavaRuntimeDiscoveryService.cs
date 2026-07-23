@@ -42,10 +42,12 @@ public sealed partial class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryS
         // 候选探测并行执行，最终按规范路径和运行时身份折叠同一安装的多个入口。
         return await Task.Run(async () =>
         {
-            var candidates = CollectCandidatePaths(minecraftDirectory);
+            var candidates = CollectCandidatePaths(minecraftDirectory).ToList();
+            candidates.AddRange(await CollectImportedCandidatesAsync(cancellationToken));
+            var distinctCandidates = CollapseDuplicateCandidates(candidates);
             var runtimes = new List<JavaRuntimeInfo>();
 
-            foreach (var candidate in candidates)
+            foreach (var candidate in distinctCandidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 runtimes.Add(await CreateRuntimeInfoAsync(candidate, cancellationToken));

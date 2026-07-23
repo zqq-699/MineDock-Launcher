@@ -89,17 +89,7 @@ private static void AddCandidate(
             if (string.IsNullOrWhiteSpace(programFilesPath))
                 continue;
 
-            foreach (var vendorDirectory in new[]
-                     {
-                         "Java",
-                         "Eclipse Adoptium",
-                         "Amazon Corretto",
-                         "AdoptOpenJDK",
-                         "Eclipse Foundation",
-                         "Semeru",
-                         "Zulu",
-                         "BellSoft"
-                     })
+            foreach (var vendorDirectory in GetJavaVendorDirectoryNames())
             {
                 AddRoot(roots, programFilesPath, vendorDirectory, "ProgramFiles");
             }
@@ -111,6 +101,13 @@ private static void AddCandidate(
 
             AddRoot(roots, programFilesPath, "Minecraft Launcher", "runtime", "OfficialMinecraftRuntime");
             AddRoot(roots, programFilesPath, "Minecraft", "runtime", "OfficialMinecraftRuntime");
+        }
+
+        if (!string.IsNullOrWhiteSpace(localApplicationData))
+        {
+            var localProgramsDirectory = Path.Combine(localApplicationData, "Programs");
+            foreach (var vendorDirectory in GetJavaVendorDirectoryNames())
+                AddRoot(roots, localProgramsDirectory, vendorDirectory, "UserJava");
         }
 
         AddRoot(roots, userProfile, ".jdks", "UserJava");
@@ -129,6 +126,18 @@ private static void AddCandidate(
             .DistinctBy(root => NormalizePath(root.Path), StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    private static IReadOnlyList<string> GetJavaVendorDirectoryNames() =>
+    [
+        "Java",
+        "Eclipse Adoptium",
+        "Amazon Corretto",
+        "AdoptOpenJDK",
+        "Eclipse Foundation",
+        "Semeru",
+        "Zulu",
+        "BellSoft"
+    ];
 
     private static IEnumerable<string> EnumerateFilesSafely(string path, string searchPattern, SearchOption searchOption)
     {
@@ -179,15 +188,26 @@ private static void AddCandidate(
                              @"SOFTWARE\JavaSoft\JDK"
                          })
                 {
-                    TryCollectRegisteredJavaHomes(hive, view, keyPath, homes);
+                    TryCollectJavaSoftHomes(hive, view, keyPath, homes);
                 }
+
+                foreach (var keyPath in new[]
+                         {
+                             @"SOFTWARE\Eclipse Adoptium",
+                             @"SOFTWARE\AdoptOpenJDK"
+                         })
+                {
+                    TryCollectVendorJavaHomes(hive, view, keyPath, homes);
+                }
+
+                TryCollectUninstallJavaHomes(hive, view, homes);
             }
         }
 
         return homes;
     }
 
-    private static void TryCollectRegisteredJavaHomes(
+    private static void TryCollectJavaSoftHomes(
         RegistryHive hive,
         RegistryView view,
         string keyPath,
@@ -210,6 +230,99 @@ private static void AddCandidate(
         catch
         {
         }
+    }
+
+    private static void TryCollectVendorJavaHomes(
+        RegistryHive hive,
+        RegistryView view,
+        string keyPath,
+        ISet<string> homes)
+    {
+        try
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
+            using var rootKey = baseKey.OpenSubKey(keyPath);
+            if (rootKey is null)
+                return;
+
+            CollectVendorJavaHomes(rootKey, homes, remainingDepth: 5);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void CollectVendorJavaHomes(
+        RegistryKey key,
+        ISet<string> homes,
+        int remainingDepth)
+    {
+        AddRegisteredJavaHome(key.GetValue("Path") as string, homes);
+        AddRegisteredJavaHome(key.GetValue("JavaHome") as string, homes);
+
+        if (remainingDepth <= 0)
+            return;
+
+        foreach (var subKeyName in key.GetSubKeyNames())
+        {
+            try
+            {
+                using var subKey = key.OpenSubKey(subKeyName);
+                if (subKey is not null)
+                    CollectVendorJavaHomes(subKey, homes, remainingDepth - 1);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void TryCollectUninstallJavaHomes(
+        RegistryHive hive,
+        RegistryView view,
+        ISet<string> homes)
+    {
+        try
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
+            using var uninstallKey = baseKey.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+            if (uninstallKey is null)
+                return;
+
+            foreach (var productKeyName in uninstallKey.GetSubKeyNames())
+            {
+                try
+                {
+                    using var productKey = uninstallKey.OpenSubKey(productKeyName);
+                    var displayName = productKey?.GetValue("DisplayName") as string;
+                    if (!LooksLikeJavaRuntimeProduct(displayName))
+                        continue;
+
+                    AddRegisteredJavaHome(productKey?.GetValue("InstallLocation") as string, homes);
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool LooksLikeJavaRuntimeProduct(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return false;
+
+        return displayName.Contains("Java", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("JDK", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("JRE", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("Temurin", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("Adoptium", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("OpenJDK", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("Zulu", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddRegisteredJavaHome(string? javaHome, ISet<string> homes)

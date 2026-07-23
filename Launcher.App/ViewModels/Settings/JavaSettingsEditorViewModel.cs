@@ -191,18 +191,35 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
         try
         {
-            var runtime = await javaRuntimeDiscoveryService.DiscoverExecutableAsync(executablePath);
-            if (!AddJavaRuntime(runtime))
+            var runtime = await javaRuntimeDiscoveryService.ImportExecutableAsync(executablePath);
+            var alreadyExists = !AddJavaRuntime(runtime);
+            var importedRuntime = JavaRuntimes.First(item => IsSameJavaRuntime(item, runtime));
+
+            // 自动模式只扩充持久化候选，不改变用户设置；手动模式下则直接采用刚导入的运行时。
+            if (IsJavaManualSelection)
             {
-                floatingMessageService.Show(Strings.Status_JavaAlreadyExists);
-                return;
+                suppressSelectionChanged = true;
+                try
+                {
+                    savedSelectedJavaExecutablePath = runtime.ExecutablePath;
+                    SelectedJavaRuntime = importedRuntime;
+                }
+                finally
+                {
+                    suppressSelectionChanged = false;
+                }
+
+                RaiseJavaSelectionChanged();
             }
 
-            UpdateJavaRuntimeSelectionAfterListChanged();
+            if (alreadyExists)
+                floatingMessageService.Show(Strings.Status_JavaAlreadyExists);
+
             JavaRuntimeListMessage = JavaRuntimes.Count == 0
                 ? Strings.Settings_JavaListEmpty
                 : string.Empty;
-            statusService.Report(Strings.Status_JavaImported);
+            if (!alreadyExists)
+                statusService.Report(Strings.Status_JavaImported);
         }
         catch (Exception)
         {

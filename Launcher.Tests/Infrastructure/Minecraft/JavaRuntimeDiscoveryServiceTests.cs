@@ -10,11 +10,12 @@
  */
 
 using System.IO;
+using Launcher.Infrastructure;
 using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Tests.Infrastructure.Minecraft;
 
-public sealed class JavaRuntimeDiscoveryServiceTests
+public sealed class JavaRuntimeDiscoveryServiceTests : TestTempDirectory
 {
     [Fact]
     public void SearchRootsCoverOfficialUserAndThirdPartyRuntimes()
@@ -66,6 +67,8 @@ public sealed class JavaRuntimeDiscoveryServiceTests
         AssertRoot(roots, Path.Combine(userProfile, "curseforge", "minecraft", "Install", "runtime"), "ThirdPartyLauncherRuntime");
         AssertRoot(roots, Path.Combine(localApplicationData, ".ftba", "bin", "runtime"), "ThirdPartyLauncherRuntime");
         AssertRoot(roots, Path.Combine(documents, "Curse", "Minecraft", "Install", "runtime"), "ThirdPartyLauncherRuntime");
+        AssertRoot(roots, Path.Combine(localApplicationData, "Programs", "Eclipse Adoptium"), "UserJava");
+        AssertRoot(roots, Path.Combine(localApplicationData, "Programs", "AdoptOpenJDK"), "UserJava");
 
         AssertRoot(roots, Path.Combine(programFiles, "Amazon Corretto"), "ProgramFiles");
         AssertRoot(roots, Path.Combine(programFiles, "Microsoft", "jdk-21.0.7-hotspot"), "ProgramFiles");
@@ -126,6 +129,29 @@ public sealed class JavaRuntimeDiscoveryServiceTests
         var runtimeRoot = Assert.Single(roots.Where(root =>
             string.Equals(root.Path, Path.Combine(minecraftDirectory, "runtime"), StringComparison.OrdinalIgnoreCase)));
         Assert.Equal("MinecraftRuntime", runtimeRoot.Source);
+    }
+
+    [Fact]
+    public async Task ImportedRuntimeCatalogPersistsAndPrunesMissingExecutable()
+    {
+        var executablePath = Path.Combine(TempRoot, "custom-java", "bin", "java.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(executablePath)!);
+        await File.WriteAllBytesAsync(executablePath, [0]);
+        var pathProvider = new LauncherPathProvider(TempRoot);
+        var importingService = new JavaRuntimeDiscoveryService(pathProvider);
+
+        await importingService.ImportExecutableAsync(executablePath);
+
+        var reloadedService = new JavaRuntimeDiscoveryService(pathProvider);
+        var importedCandidate = Assert.Single(await reloadedService.CollectImportedCandidatesAsync());
+        Assert.Equal(Path.GetFullPath(executablePath), importedCandidate.ExecutablePath);
+        Assert.Equal("ManualImport", importedCandidate.Source);
+
+        File.Delete(executablePath);
+        Assert.Empty(await reloadedService.CollectImportedCandidatesAsync());
+
+        var prunedCatalogService = new JavaRuntimeDiscoveryService(pathProvider);
+        Assert.Empty(await prunedCatalogService.CollectImportedCandidatesAsync());
     }
 
     private static void AssertRoot(

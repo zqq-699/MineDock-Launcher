@@ -30,4 +30,11 @@ public interface IJavaRuntimeDiscoveryService
     Task<JavaRuntimeInfo> DiscoverExecutableAsync(
         string executablePath,
         CancellationToken cancellationToken = default);
+
+    async Task<JavaRuntimeInfo> ImportExecutableAsync(
+        string executablePath,
+        CancellationToken cancellationToken = default)
+    {
+        return await DiscoverExecutableAsync(executablePath, cancellationToken);
+    }
 }
