@@ -53,6 +53,7 @@ public sealed class LauncherSettings
     public bool DefaultAutoRepairMissingFiles { get; set; } = true;
     public bool DefaultMinimizeLauncherAfterLaunch { get; set; }
     public bool DefaultLaunchFullScreen { get; set; }
+    public string DefaultAutoJoinServerAddress { get; set; } = string.Empty;
     public string DefaultPreLaunchCommand { get; set; } = string.Empty;
     public bool DefaultWaitForPreLaunchCommand { get; set; } = true;
     public string DefaultPostExitCommand { get; set; } = string.Empty;

@@ -654,6 +654,7 @@ public static class Strings
     public static string GameSettings_LaunchAutoRepairOption => Get(nameof(GameSettings_LaunchAutoRepairOption));
     public static string GameSettings_LaunchMinimizeLauncherOption => Get(nameof(GameSettings_LaunchMinimizeLauncherOption));
     public static string GameSettings_LaunchFullScreenOption => Get(nameof(GameSettings_LaunchFullScreenOption));
+    public static string GameSettings_LaunchAutoJoinServerOption => Get(nameof(GameSettings_LaunchAutoJoinServerOption));
     public static string GameSettings_AdvancedLaunchSettingsSection => Get(nameof(GameSettings_AdvancedLaunchSettingsSection));
     public static string GameSettings_PreLaunchCommandOption => Get(nameof(GameSettings_PreLaunchCommandOption));
     public static string GameSettings_WaitForPreLaunchCommandOption => Get(nameof(GameSettings_WaitForPreLaunchCommandOption));

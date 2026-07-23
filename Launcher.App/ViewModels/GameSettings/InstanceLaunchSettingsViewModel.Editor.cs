@@ -49,6 +49,7 @@ private void LoadEditorFromInstance()
             LaunchAutoRepairMissingFilesEnabled = selectedInstance?.AutoRepairMissingFiles ?? true;
             LaunchMinimizeLauncherAfterLaunchEnabled = selectedInstance?.MinimizeLauncherAfterLaunch ?? false;
             LaunchFullScreenEnabled = selectedInstance?.LaunchFullScreen ?? false;
+            LaunchAutoJoinServerAddress = selectedInstance?.AutoJoinServerAddress ?? string.Empty;
             LaunchPreLaunchCommand = selectedInstance?.PreLaunchCommand ?? string.Empty;
             LaunchWaitForPreLaunchCommand = selectedInstance?.WaitForPreLaunchCommand ?? true;
             LaunchPostExitCommand = selectedInstance?.PostExitCommand ?? string.Empty;
@@ -80,6 +81,7 @@ private void LoadEditorFromInstance()
         LaunchAutoRepairMissingFilesEnabled = globalSettings.DefaultAutoRepairMissingFiles;
         LaunchMinimizeLauncherAfterLaunchEnabled = globalSettings.DefaultMinimizeLauncherAfterLaunch;
         LaunchFullScreenEnabled = globalSettings.DefaultLaunchFullScreen;
+        LaunchAutoJoinServerAddress = globalSettings.DefaultAutoJoinServerAddress;
         LaunchPreLaunchCommand = globalSettings.DefaultPreLaunchCommand;
         LaunchWaitForPreLaunchCommand = globalSettings.DefaultWaitForPreLaunchCommand;
         LaunchPostExitCommand = globalSettings.DefaultPostExitCommand;

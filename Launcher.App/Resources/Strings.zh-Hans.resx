@@ -850,6 +850,7 @@
   <data name="GameSettings_LaunchAutoRepairOption" xml:space="preserve"><value>缺失文件自动补全</value></data>
   <data name="GameSettings_LaunchMinimizeLauncherOption" xml:space="preserve"><value>启动后最小化启动器</value></data>
   <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve"><value>全屏启动</value></data>
+  <data name="GameSettings_LaunchAutoJoinServerOption" xml:space="preserve"><value>启动后自动加入服务器</value></data>
   <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve"><value>高级启动设置</value></data>
   <data name="GameSettings_PreLaunchCommandOption" xml:space="preserve"><value>启动前执行命令</value></data>
   <data name="GameSettings_WaitForPreLaunchCommandOption" xml:space="preserve"><value>等待命令执行完毕再启动</value></data>

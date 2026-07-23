@@ -58,6 +58,9 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
     private bool launchFullScreenEnabled;
 
     [ObservableProperty]
+    private string launchAutoJoinServerAddress = string.Empty;
+
+    [ObservableProperty]
     private string launchPreLaunchCommand = string.Empty;
 
     [ObservableProperty]
@@ -244,6 +247,8 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
     partial void OnLaunchMinimizeLauncherAfterLaunchEnabledChanged(bool value) => ScheduleSaveUnlessSuppressed();
 
     partial void OnLaunchFullScreenEnabledChanged(bool value) => ScheduleSaveUnlessSuppressed();
+
+    partial void OnLaunchAutoJoinServerAddressChanged(string value) => ScheduleSaveUnlessSuppressed();
 
     partial void OnLaunchPreLaunchCommandChanged(string value) => ScheduleSaveUnlessSuppressed();
 

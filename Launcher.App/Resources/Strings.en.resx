@@ -2480,6 +2480,9 @@ Longer content wraps automatically.</value>
   <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve">
     <value>Start in fullscreen</value>
   </data>
+  <data name="GameSettings_LaunchAutoJoinServerOption" xml:space="preserve">
+    <value>Automatically join server after launch</value>
+  </data>
   <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve">
     <value>Advanced Launch Settings</value>
   </data>

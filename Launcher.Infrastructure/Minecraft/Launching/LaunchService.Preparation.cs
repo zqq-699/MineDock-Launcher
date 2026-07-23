@@ -183,8 +183,29 @@ public sealed partial class LaunchService
             extraJvmArguments.Add(MArgument.FromCommandLine(resolvedSettings.JvmArguments));
         if (extraJvmArguments.Count > 0)
             launchOption.ExtraJvmArguments = extraJvmArguments;
+
+        var extraGameArguments = new List<MArgument>();
         if (!string.IsNullOrWhiteSpace(resolvedSettings.GameArguments))
-            launchOption.ExtraGameArguments = [MArgument.FromCommandLine(resolvedSettings.GameArguments)];
+            extraGameArguments.Add(MArgument.FromCommandLine(resolvedSettings.GameArguments));
+        var autoJoinArgument = MinecraftAutoJoinArgumentBuilder.Create(
+            resolvedSettings.AutoJoinServerAddress,
+            instance.MinecraftVersion);
+        if (autoJoinArgument.Status is MinecraftAutoJoinArgumentStatus.InvalidAddress)
+        {
+            logger.LogWarning(
+                "Configured auto-join server address is invalid; continuing launch without auto-join. InstanceId={InstanceId}",
+                instance.Id);
+        }
+        else if (autoJoinArgument.Argument is not null)
+        {
+            extraGameArguments.Add(autoJoinArgument.Argument);
+            logger.LogInformation(
+                "Auto-join server launch argument added. InstanceId={InstanceId} Mode={Mode}",
+                instance.Id,
+                autoJoinArgument.UsesQuickPlay ? "QuickPlay" : "Legacy");
+        }
+        if (extraGameArguments.Count > 0)
+            launchOption.ExtraGameArguments = extraGameArguments;
 
         var process = await launcher.BuildProcessAsync(
                 resolvedSettings.VersionName,

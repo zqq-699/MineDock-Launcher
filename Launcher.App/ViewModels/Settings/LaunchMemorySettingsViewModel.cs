@@ -60,6 +60,7 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
     [ObservableProperty] private bool defaultAutoRepairMissingFiles = true;
     [ObservableProperty] private bool defaultMinimizeLauncherAfterLaunch;
     [ObservableProperty] private bool defaultLaunchFullScreen;
+    [ObservableProperty] private string defaultAutoJoinServerAddress = string.Empty;
     [ObservableProperty] private string defaultPreLaunchCommand = string.Empty;
     [ObservableProperty] private bool defaultWaitForPreLaunchCommand = true;
     [ObservableProperty] private string defaultPostExitCommand = string.Empty;
@@ -88,6 +89,7 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
             DefaultAutoRepairMissingFiles = settings.DefaultAutoRepairMissingFiles;
             DefaultMinimizeLauncherAfterLaunch = settings.DefaultMinimizeLauncherAfterLaunch;
             DefaultLaunchFullScreen = settings.DefaultLaunchFullScreen;
+            DefaultAutoJoinServerAddress = settings.DefaultAutoJoinServerAddress;
             DefaultPreLaunchCommand = settings.DefaultPreLaunchCommand;
             DefaultWaitForPreLaunchCommand = settings.DefaultWaitForPreLaunchCommand;
             DefaultPostExitCommand = settings.DefaultPostExitCommand;
@@ -163,6 +165,7 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
     partial void OnDefaultAutoRepairMissingFilesChanged(bool value) => PersistAndNotify();
     partial void OnDefaultMinimizeLauncherAfterLaunchChanged(bool value) => PersistAndNotify();
     partial void OnDefaultLaunchFullScreenChanged(bool value) => PersistAndNotify();
+    partial void OnDefaultAutoJoinServerAddressChanged(string value) => PersistAndNotify();
     partial void OnDefaultPreLaunchCommandChanged(string value) => PersistAndNotify();
     partial void OnDefaultWaitForPreLaunchCommandChanged(bool value) => PersistAndNotify();
     partial void OnDefaultPostExitCommandChanged(string value) => PersistAndNotify();
@@ -182,6 +185,7 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
             settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;
             settings.DefaultMinimizeLauncherAfterLaunch = DefaultMinimizeLauncherAfterLaunch;
             settings.DefaultLaunchFullScreen = DefaultLaunchFullScreen;
+            settings.DefaultAutoJoinServerAddress = NormalizeText(DefaultAutoJoinServerAddress);
             settings.DefaultPreLaunchCommand = NormalizeText(DefaultPreLaunchCommand);
             settings.DefaultWaitForPreLaunchCommand = DefaultWaitForPreLaunchCommand;
             settings.DefaultPostExitCommand = NormalizeText(DefaultPostExitCommand);

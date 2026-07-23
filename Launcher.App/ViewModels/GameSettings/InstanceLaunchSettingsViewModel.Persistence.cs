@@ -50,6 +50,7 @@ private void ScheduleSaveUnlessSuppressed()
         var autoRepairMissingFiles = LaunchAutoRepairMissingFilesEnabled;
         var minimizeLauncherAfterLaunch = LaunchMinimizeLauncherAfterLaunchEnabled;
         var launchFullScreen = LaunchFullScreenEnabled;
+        var autoJoinServerAddress = NormalizeSettingText(LaunchAutoJoinServerAddress);
         var preLaunchCommand = NormalizeSettingText(LaunchPreLaunchCommand);
         var waitForPreLaunchCommand = LaunchWaitForPreLaunchCommand;
         var postExitCommand = NormalizeSettingText(LaunchPostExitCommand);
@@ -73,6 +74,7 @@ private void ScheduleSaveUnlessSuppressed()
                 autoRepairMissingFiles,
                 minimizeLauncherAfterLaunch,
                 launchFullScreen,
+                autoJoinServerAddress,
                 preLaunchCommand,
                 waitForPreLaunchCommand,
                 postExitCommand,
@@ -91,6 +93,7 @@ private void ScheduleSaveUnlessSuppressed()
         bool autoRepairMissingFiles,
         bool minimizeLauncherAfterLaunch,
         bool launchFullScreen,
+        string autoJoinServerAddress,
         string preLaunchCommand,
         bool waitForPreLaunchCommand,
         string postExitCommand,
@@ -107,6 +110,7 @@ private void ScheduleSaveUnlessSuppressed()
                 autoRepairMissingFiles,
                 minimizeLauncherAfterLaunch,
                 launchFullScreen,
+                autoJoinServerAddress,
                 preLaunchCommand,
                 waitForPreLaunchCommand,
                 postExitCommand,
@@ -123,6 +127,7 @@ private void ScheduleSaveUnlessSuppressed()
         instance.AutoRepairMissingFiles = autoRepairMissingFiles;
         instance.MinimizeLauncherAfterLaunch = minimizeLauncherAfterLaunch;
         instance.LaunchFullScreen = launchFullScreen;
+        instance.AutoJoinServerAddress = autoJoinServerAddress;
         instance.PreLaunchCommand = preLaunchCommand;
         instance.WaitForPreLaunchCommand = waitForPreLaunchCommand;
         instance.PostExitCommand = postExitCommand;

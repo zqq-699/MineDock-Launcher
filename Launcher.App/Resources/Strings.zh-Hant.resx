@@ -2480,6 +2480,9 @@
   <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve">
     <value>全螢啟動</value>
   </data>
+  <data name="GameSettings_LaunchAutoJoinServerOption" xml:space="preserve">
+    <value>啟動後自動加入伺服器</value>
+  </data>
   <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve">
     <value>進階啟動設定</value>
   </data>

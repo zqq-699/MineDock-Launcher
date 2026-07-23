@@ -108,6 +108,7 @@ private async Task RefreshEnabledModCountAsync(GameInstance? instance)
         bool AutoRepairMissingFiles,
         bool MinimizeLauncherAfterLaunch,
         bool LaunchFullScreen,
+        string AutoJoinServerAddress,
         string PreLaunchCommand,
         bool WaitForPreLaunchCommand,
         string PostExitCommand,
@@ -124,6 +125,7 @@ private async Task RefreshEnabledModCountAsync(GameInstance? instance)
                 instance.AutoRepairMissingFiles,
                 instance.MinimizeLauncherAfterLaunch,
                 instance.LaunchFullScreen,
+                instance.AutoJoinServerAddress,
                 instance.PreLaunchCommand,
                 instance.WaitForPreLaunchCommand,
                 instance.PostExitCommand,
@@ -139,6 +141,7 @@ private async Task RefreshEnabledModCountAsync(GameInstance? instance)
             bool autoRepairMissingFiles,
             bool minimizeLauncherAfterLaunch,
             bool launchFullScreen,
+            string autoJoinServerAddress,
             string preLaunchCommand,
             bool waitForPreLaunchCommand,
             string postExitCommand,
@@ -152,6 +155,7 @@ private async Task RefreshEnabledModCountAsync(GameInstance? instance)
                 && AutoRepairMissingFiles == autoRepairMissingFiles
                 && MinimizeLauncherAfterLaunch == minimizeLauncherAfterLaunch
                 && LaunchFullScreen == launchFullScreen
+                && string.Equals(AutoJoinServerAddress, autoJoinServerAddress, StringComparison.Ordinal)
                 && string.Equals(PreLaunchCommand, preLaunchCommand, StringComparison.Ordinal)
                 && WaitForPreLaunchCommand == waitForPreLaunchCommand
                 && string.Equals(PostExitCommand, postExitCommand, StringComparison.Ordinal)
@@ -168,6 +172,7 @@ private async Task RefreshEnabledModCountAsync(GameInstance? instance)
             instance.AutoRepairMissingFiles = AutoRepairMissingFiles;
             instance.MinimizeLauncherAfterLaunch = MinimizeLauncherAfterLaunch;
             instance.LaunchFullScreen = LaunchFullScreen;
+            instance.AutoJoinServerAddress = AutoJoinServerAddress;
             instance.PreLaunchCommand = PreLaunchCommand;
             instance.WaitForPreLaunchCommand = WaitForPreLaunchCommand;
             instance.PostExitCommand = PostExitCommand;

@@ -43,6 +43,7 @@
                                   LaunchAutoRepairMissingFilesEnabled="{Binding LaunchAutoRepairMissingFilesEnabled, Mode=TwoWay}"
                                   LaunchMinimizeLauncherAfterLaunchEnabled="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}"
                                   LaunchFullScreenEnabled="{Binding LaunchFullScreenEnabled, Mode=TwoWay}"
+                                  LaunchAutoJoinServerAddress="{Binding LaunchAutoJoinServerAddress, Mode=TwoWay}"
                                   LaunchPreLaunchCommand="{Binding LaunchPreLaunchCommand, Mode=TwoWay}"
                                   LaunchWaitForPreLaunchCommand="{Binding LaunchWaitForPreLaunchCommand, Mode=TwoWay}"
                                   LaunchPostExitCommand="{Binding LaunchPostExitCommand, Mode=TwoWay}"

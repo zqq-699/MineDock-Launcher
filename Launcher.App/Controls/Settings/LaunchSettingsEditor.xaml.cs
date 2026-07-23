@@ -102,6 +102,9 @@ public partial class LaunchSettingsEditor : UserControl
     public static readonly DependencyProperty LaunchFullScreenEnabledProperty =
         DependencyProperty.Register(nameof(LaunchFullScreenEnabled), typeof(bool), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
+    public static readonly DependencyProperty LaunchAutoJoinServerAddressProperty =
+        DependencyProperty.Register(nameof(LaunchAutoJoinServerAddress), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
     public static readonly DependencyProperty LaunchPreLaunchCommandProperty =
         DependencyProperty.Register(nameof(LaunchPreLaunchCommand), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
@@ -306,6 +309,12 @@ public partial class LaunchSettingsEditor : UserControl
     {
         get => (bool)GetValue(LaunchFullScreenEnabledProperty);
         set => SetValue(LaunchFullScreenEnabledProperty, value);
+    }
+
+    public string LaunchAutoJoinServerAddress
+    {
+        get => (string)GetValue(LaunchAutoJoinServerAddressProperty);
+        set => SetValue(LaunchAutoJoinServerAddressProperty, value);
     }
 
     public string LaunchPreLaunchCommand

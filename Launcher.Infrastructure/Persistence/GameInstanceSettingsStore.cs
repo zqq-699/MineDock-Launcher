@@ -298,6 +298,7 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
             AutoRepairMissingFiles = instance.AutoRepairMissingFiles,
             MinimizeLauncherAfterLaunch = instance.MinimizeLauncherAfterLaunch,
             LaunchFullScreen = instance.LaunchFullScreen,
+            AutoJoinServerAddress = instance.AutoJoinServerAddress,
             CreatedAt = instance.CreatedAt,
             UpdatedAt = instance.UpdatedAt
         };

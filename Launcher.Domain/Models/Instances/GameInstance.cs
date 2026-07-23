@@ -49,6 +49,7 @@ public sealed class GameInstance
     public bool AutoRepairMissingFiles { get; set; } = true;
     public bool MinimizeLauncherAfterLaunch { get; set; }
     public bool LaunchFullScreen { get; set; }
+    public string AutoJoinServerAddress { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

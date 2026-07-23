@@ -172,7 +172,7 @@
                                   Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
                     </Grid>
 
-                    <Grid Margin="0">
+                    <Grid Style="{StaticResource SettingsOptionRowStyle}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -185,6 +185,21 @@
                                   IsChecked="{Binding LaunchFullScreenEnabled, ElementName=Root, Mode=TwoWay}"
                                   IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
                                   Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="220" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchAutoJoinServerOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding LaunchAutoJoinServerAddress, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                 Style="{StaticResource LauncherDialogTextBoxStyle}" />
                     </Grid>
                 </StackPanel>
             </Border>
