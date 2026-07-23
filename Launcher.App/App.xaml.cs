@@ -112,6 +112,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<ILauncherBackgroundImageLoader, LauncherBackgroundImageLoader>();
             services.AddSingleton<IExternalLinkService, ExternalLinkService>();
             services.AddSingleton<IApplicationExitService, ApplicationExitService>();
+            services.AddSingleton<IInfoReferenceProjectCatalog, EmbeddedInfoReferenceProjectCatalog>();
             services.AddSingleton<IAccountDialogService, AccountDialogService>();
             services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
             services.AddSingleton<IThemeService, ThemeService>();

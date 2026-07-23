@@ -137,6 +137,8 @@ public sealed class RequiredSelectionPersistenceTests
             Stub<ILauncherUpdateService>(),
             Stub<ILauncherSelfUpdateService>(),
             Stub<IApplicationExitService>(),
+            new EmbeddedInfoReferenceProjectCatalog(
+                NullLogger<EmbeddedInfoReferenceProjectCatalog>.Instance),
             launcherBackground: launcherBackground);
     }
 

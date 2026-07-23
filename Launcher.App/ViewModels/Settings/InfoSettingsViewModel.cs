@@ -17,10 +17,10 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Reflection;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application;
@@ -48,93 +48,6 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     private string? updateDialogReleasePageUrl;
     private string? updateDialogDownloadUrl;
     private bool isUpdateCheckRunning;
-    private static readonly ReadOnlyCollection<InfoReferenceProjectItem> RuntimeReferenceProjects = new(
-    [
-        new InfoReferenceProjectItem(
-            "CommunityToolkit.Mvvm",
-            "8.4.2",
-            "https://github.com/CommunityToolkit/dotnet",
-            "Copyright (c) .NET Foundation and Contributors. All rights reserved.",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Microsoft.Extensions.DependencyInjection",
-            "10.0.9",
-            "https://github.com/dotnet/dotnet",
-            "Copyright (c) Microsoft Corporation. All rights reserved.",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Microsoft.Extensions.DependencyInjection.Abstractions",
-            "10.0.9",
-            "https://github.com/dotnet/dotnet",
-            "Copyright (c) Microsoft Corporation. All rights reserved.",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Microsoft.Extensions.Logging",
-            "10.0.9",
-            "https://github.com/dotnet/dotnet",
-            "Copyright (c) Microsoft Corporation. All rights reserved.",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Microsoft.Extensions.Logging.Abstractions",
-            "10.0.9",
-            "https://github.com/dotnet/dotnet",
-            "Copyright (c) Microsoft Corporation. All rights reserved.",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Serilog",
-            "4.2.0",
-            "https://github.com/serilog/serilog",
-            "Copyright (c) Serilog Contributors",
-            "Apache-2.0 License"),
-        new InfoReferenceProjectItem(
-            "Serilog.Extensions.Logging",
-            "8.0.0",
-            "https://github.com/serilog/serilog-extensions-logging",
-            "Copyright (c) Microsoft, Serilog Contributors",
-            "Apache-2.0 License"),
-        new InfoReferenceProjectItem(
-            "Serilog.Sinks.File",
-            "6.0.0",
-            "https://github.com/serilog/serilog-sinks-file",
-            "Copyright (c) Serilog Contributors",
-            "Apache-2.0 License"),
-        new InfoReferenceProjectItem(
-            "CmlLib.Core",
-            "4.0.6",
-            "https://github.com/CmlLib/CmlLib.Core",
-            "Copyright (c) 2023 AlphaBs",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "CmlLib.Core.Auth.Microsoft",
-            "3.3.1",
-            "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft",
-            "Copyright (c) 2023 AlphaBs",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "SharpCompress",
-            "0.39.0",
-            "https://github.com/adamhathcock/sharpcompress",
-            "Copyright (c) 2025 Adam Hathcock",
-            "MIT License"),
-        new InfoReferenceProjectItem(
-            "Terracotta | 陶瓦联机",
-            TerracottaProjectMetadata.ReferencedVersion,
-            TerracottaProjectMetadata.RepositoryUrl,
-            "Copyright (c) Terracotta contributors",
-            "AGPL-3.0-or-later License with exception"),
-        new InfoReferenceProjectItem(
-            "EasyTier",
-            EasyTierProjectMetadata.ReferencedVersion,
-            EasyTierProjectMetadata.RepositoryUrl,
-            "Copyright (c) EasyTier contributors",
-            "LGPL-3.0 License"),
-        new InfoReferenceProjectItem(
-            "IconPark",
-            "1.0.0",
-            "https://github.com/bytedance/IconPark",
-            "Copyright 2019-present Bytedance Inc.",
-            "Apache-2.0 License")
-    ]);
 
     internal InfoSettingsViewModel(
         SettingsPersistenceCoordinator persistence,
@@ -144,6 +57,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         ILauncherUpdateService launcherUpdateService,
         ILauncherSelfUpdateService launcherSelfUpdateService,
         IApplicationExitService applicationExitService,
+        IInfoReferenceProjectCatalog referenceProjectCatalog,
         ILogger<InfoSettingsViewModel>? logger = null)
         : base(persistence)
     {
@@ -155,6 +69,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         this.applicationExitService = applicationExitService;
         this.logger = logger ?? NullLogger<InfoSettingsViewModel>.Instance;
         LauncherVersionText = ResolveLauncherVersion();
+        ReferenceProjects = referenceProjectCatalog.GetProjects();
         UpdateChannelOptions =
         [
             new(LauncherUpdateChannel.Release, Strings.Settings_UpdateChannelReleaseTitle),
@@ -165,7 +80,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     public string LauncherVersionText { get; }
 
-    public IReadOnlyList<InfoReferenceProjectItem> ReferenceProjects => RuntimeReferenceProjects;
+    public IReadOnlyList<InfoReferenceProjectItem> ReferenceProjects { get; }
 
     public ObservableCollection<SettingsUpdateChannelOption> UpdateChannelOptions { get; }
 

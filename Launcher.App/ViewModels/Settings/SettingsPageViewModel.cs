@@ -55,6 +55,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ILauncherUpdateService launcherUpdateService,
         ILauncherSelfUpdateService launcherSelfUpdateService,
         IApplicationExitService applicationExitService,
+        IInfoReferenceProjectCatalog infoReferenceProjectCatalog,
         ILogger<SettingsFeedbackDialogViewModel>? feedbackDialogLogger = null,
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
         ILogger<SettingsPageViewModel>? logger = null,
@@ -100,6 +101,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             launcherUpdateService,
             launcherSelfUpdateService,
             applicationExitService,
+            infoReferenceProjectCatalog,
             infoSettingsLogger);
         ControlList = new ControlListSettingsViewModel(persistence);
 

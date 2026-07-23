@@ -21,6 +21,7 @@ using System.Reflection;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application;
@@ -56,7 +57,7 @@ public sealed partial class InfoSettingsViewModel
 
         try
         {
-            if (!externalLinkService.TryOpen(project.Url))
+            if (!externalLinkService.TryOpen(project.ProjectUrl))
                 ReportVisibleStatus(Strings.Status_OpenReferenceProjectFailed);
         }
         catch (Exception)

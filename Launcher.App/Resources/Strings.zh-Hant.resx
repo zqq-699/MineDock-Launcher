@@ -916,6 +916,9 @@
   <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve">
     <value>選擇圖片</value>
   </data>
+  <data name="Settings_BackgroundImageSelectionDescription" xml:space="preserve">
+    <value>啟動器會讀取資料夾內的圖片並隨機顯示</value>
+  </data>
   <data name="Settings_BackgroundImageControlBlurLabel" xml:space="preserve">
     <value>啟用控制項模糊</value>
   </data>

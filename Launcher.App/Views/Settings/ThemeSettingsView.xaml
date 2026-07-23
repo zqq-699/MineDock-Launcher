@@ -129,22 +129,30 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{x:Static res:Strings.Settings_BackgroundImageSelectionLabel}"
-                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.Settings_BackgroundImageSelectionLabel}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                            <TextBlock Margin="0,4,16,0"
+                                       Text="{x:Static res:Strings.Settings_BackgroundImageSelectionDescription}"
+                                       Style="{StaticResource SettingsDescriptionTextStyle}" />
+                        </StackPanel>
 
                         <Button Grid.Column="1"
+                                VerticalAlignment="Center"
                                 Content="{x:Static res:Strings.Settings_BackgroundImageOpenFolderButton}"
                                 Command="{Binding OpenLauncherBackgroundImageFolderCommand}"
                                 Style="{StaticResource LauncherDialogButtonStyle}" />
 
                         <Button Grid.Column="2"
                                 Margin="10,0,0,0"
+                                VerticalAlignment="Center"
                                 Content="{x:Static res:Strings.Settings_BackgroundImageRefreshButton}"
                                 Command="{Binding RefreshLauncherBackgroundImageCommand}"
                                 Style="{StaticResource LauncherDialogButtonStyle}" />
 
                         <Button Grid.Column="3"
                                 Margin="10,0,0,0"
+                                VerticalAlignment="Center"
                                 Content="{x:Static res:Strings.Settings_BackgroundImageClearButton}"
                                 Command="{Binding ClearLauncherBackgroundImagesCommand}"
                                 Style="{StaticResource LauncherDangerDialogButtonStyle}" />

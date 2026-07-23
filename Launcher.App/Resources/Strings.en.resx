@@ -916,6 +916,9 @@
   <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve">
     <value>Select Image</value>
   </data>
+  <data name="Settings_BackgroundImageSelectionDescription" xml:space="preserve">
+    <value>The launcher reads images in the folder and displays one at random.</value>
+  </data>
   <data name="Settings_BackgroundImageControlBlurLabel" xml:space="preserve">
     <value>Enable Control Blur</value>
   </data>

@@ -1,0 +1,86 @@
+[
+  {
+    "name": "CommunityToolkit.Mvvm",
+    "copyrightNotice": "Copyright (c) .NET Foundation and Contributors. All rights reserved.",
+    "projectUrl": "https://github.com/CommunityToolkit/dotnet",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Microsoft.Extensions.DependencyInjection",
+    "copyrightNotice": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "projectUrl": "https://github.com/dotnet/dotnet",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Microsoft.Extensions.DependencyInjection.Abstractions",
+    "copyrightNotice": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "projectUrl": "https://github.com/dotnet/dotnet",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Microsoft.Extensions.Logging",
+    "copyrightNotice": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "projectUrl": "https://github.com/dotnet/dotnet",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Microsoft.Extensions.Logging.Abstractions",
+    "copyrightNotice": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "projectUrl": "https://github.com/dotnet/dotnet",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Serilog",
+    "copyrightNotice": "Copyright (c) Serilog Contributors",
+    "projectUrl": "https://github.com/serilog/serilog",
+    "licenseText": "Apache-2.0 License"
+  },
+  {
+    "name": "Serilog.Extensions.Logging",
+    "copyrightNotice": "Copyright (c) Microsoft, Serilog Contributors",
+    "projectUrl": "https://github.com/serilog/serilog-extensions-logging",
+    "licenseText": "Apache-2.0 License"
+  },
+  {
+    "name": "Serilog.Sinks.File",
+    "copyrightNotice": "Copyright (c) Serilog Contributors",
+    "projectUrl": "https://github.com/serilog/serilog-sinks-file",
+    "licenseText": "Apache-2.0 License"
+  },
+  {
+    "name": "CmlLib.Core",
+    "copyrightNotice": "Copyright (c) 2023 AlphaBs",
+    "projectUrl": "https://github.com/CmlLib/CmlLib.Core",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "CmlLib.Core.Auth.Microsoft",
+    "copyrightNotice": "Copyright (c) 2023 AlphaBs",
+    "projectUrl": "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "SharpCompress",
+    "copyrightNotice": "Copyright (c) Adam Hathcock",
+    "projectUrl": "https://github.com/adamhathcock/sharpcompress",
+    "licenseText": "MIT License"
+  },
+  {
+    "name": "Terracotta | 陶瓦联机",
+    "copyrightNotice": "Copyright (c) Terracotta contributors",
+    "projectUrl": "https://github.com/burningtnt/Terracotta",
+    "licenseText": "AGPL-3.0-or-later License with exception"
+  },
+  {
+    "name": "EasyTier",
+    "copyrightNotice": "Copyright (c) EasyTier contributors",
+    "projectUrl": "https://github.com/EasyTier/EasyTier",
+    "licenseText": "LGPL-3.0 License"
+  },
+  {
+    "name": "IconPark",
+    "copyrightNotice": "Copyright 2019-present Bytedance Inc.",
+    "projectUrl": "https://github.com/bytedance/IconPark",
+    "licenseText": "Apache-2.0 License"
+  }
+]

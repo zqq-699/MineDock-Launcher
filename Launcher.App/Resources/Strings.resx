@@ -320,6 +320,7 @@
   <data name="Settings_BackgroundEffectAcrylicTitle" xml:space="preserve"><value>亚克力</value></data>
   <data name="Settings_BackgroundEffectImageTitle" xml:space="preserve"><value>图片</value></data>
   <data name="Settings_BackgroundImageSelectionLabel" xml:space="preserve"><value>选择图片</value></data>
+  <data name="Settings_BackgroundImageSelectionDescription" xml:space="preserve"><value>启动器会读取文件夹内的图片并随机展示</value></data>
   <data name="Settings_BackgroundImageControlBlurLabel" xml:space="preserve"><value>开启控件模糊</value></data>
   <data name="Settings_BackgroundImageOpenFolderButton" xml:space="preserve"><value>打开文件夹</value></data>
   <data name="Settings_BackgroundImageRefreshButton" xml:space="preserve"><value>换一张</value></data>
