@@ -153,8 +153,9 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 expectedSize,
                 cancellationToken,
                 reportProgress,
-            options: options,
-            speedMeter: speedMeter).ConfigureAwait(false);
+                options: options,
+                speedMeter: speedMeter,
+                reportTransferredBytes: logScope.ReportTransferredBytes).ConfigureAwait(false);
             logScope.Complete(resolution);
         }
         catch (OperationCanceledException)

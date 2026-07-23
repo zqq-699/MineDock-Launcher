@@ -149,7 +149,8 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 cancellationToken,
                 reportAttemptProgress: logScope.BeginSource(),
                 options: options,
-                speedMeter: speedMeter).ConfigureAwait(false);
+                speedMeter: speedMeter,
+                reportTransferredBytes: logScope.ReportTransferredBytes).ConfigureAwait(false);
                 logScope.Complete(resolution);
             }
             catch (OperationCanceledException)

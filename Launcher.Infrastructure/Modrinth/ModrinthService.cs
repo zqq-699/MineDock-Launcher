@@ -348,7 +348,8 @@ public sealed class ModrinthService : IModrinthService
                     DownloadPersistenceMode.TaskScopedResumable,
                     OperationContext: null,
                     ManagedRoot: modsDirectory),
-                speedMeter: SpeedMeterProgress.TryGet(progress))
+                speedMeter: SpeedMeterProgress.TryGet(progress),
+                reportTransferredBytes: logScope.ReportTransferredBytes)
             .ConfigureAwait(false);
             logScope.Complete(resolution);
         }

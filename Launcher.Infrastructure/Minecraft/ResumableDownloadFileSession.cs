@@ -229,7 +229,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         Action<int, long, long?>? reportAttemptProgress,
         CancellationToken cancellationToken,
         bool allowTrailingContent = false,
-        AdaptiveDownloadSegment? adaptiveSegment = null)
+        AdaptiveDownloadSegment? adaptiveSegment = null,
+        Action<long>? reportTransferredBytes = null)
     {
         var destination = segmentedDestination
             ?? throw new InvalidOperationException("The segmented download temporary file was not prepared.");
@@ -258,6 +259,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 if (read == 0)
                     throw new DownloadBodyInterruptedException("A segmented response ended before its requested range was complete.");
 
+                reportTransferredBytes?.Invoke(read);
                 var accepted = adaptiveSegment?.ReserveWrite(offset, read) ?? read;
                 if (accepted == 0)
                 {
@@ -386,7 +388,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         ResolvedDownloadRequest resolution,
         int attemptNumber,
         Action<int, long, long?>? reportAttemptProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<long>? reportTransferredBytes = null)
     {
         if (IsComplete)
             return;
@@ -439,6 +442,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     var read = await ReadNetworkAsync(source, buffer, cancellationToken).ConfigureAwait(false);
                     if (read == 0)
                         break;
+                    reportTransferredBytes?.Invoke(read);
                     capacityLease?.BeforeWrite(read);
                     await WriteLocalAsync(destination, buffer, read, cancellationToken).ConfigureAwait(false);
                     foreach (var hasher in hashers.Values)

@@ -279,7 +279,8 @@ internal sealed partial class LoaderInstallerArtifactService
                         cancellationToken,
                         reportAttemptProgress: logScope.BeginSource(),
                         options: CreateDownloadOptions(library.Artifact, operationContext, minecraftDirectory),
-                        speedMeter: speedMeter).ConfigureAwait(false);
+                        speedMeter: speedMeter,
+                        reportTransferredBytes: logScope.ReportTransferredBytes).ConfigureAwait(false);
                     logScope.Complete(resolution);
                 }
                 catch (OperationCanceledException)

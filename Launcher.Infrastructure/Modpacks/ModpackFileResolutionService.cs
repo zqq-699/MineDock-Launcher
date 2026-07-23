@@ -411,6 +411,7 @@ internal sealed class ModpackFileResolutionService
                         sourceUrls,
                         tempPath,
                         logScope.BeginSource(reportAttemptProgress),
+                        logScope.ReportTransferredBytes,
                         cancellationToken)
                     .ConfigureAwait(false);
                 var completedSourceUrl = resolution.OriginalUrl;
@@ -472,6 +473,7 @@ internal sealed class ModpackFileResolutionService
         IReadOnlyList<string> sourceUrls,
         string tempPath,
         Action<int, long, long?> reportAttemptProgress,
+        Action<long> reportTransferredBytes,
         CancellationToken cancellationToken)
     {
         return await fileDownloader.DownloadToTemporaryFileAsync(
@@ -484,6 +486,7 @@ internal sealed class ModpackFileResolutionService
             context.DownloadSpeedLimitMbPerSecond,
             context.SpeedMeter,
             reportAttemptProgress,
+            reportTransferredBytes,
             cancellationToken).ConfigureAwait(false);
     }
 

@@ -181,21 +181,20 @@ internal static class DownloadResponseThrottler
                 cancellationToken,
                 timeProvider ?? TimeProvider.System)
             : originalStream;
-        if (speedMeter is not null || reportBodyBytes is not null)
+        if (reportBodyBytes is not null)
         {
             networkStream = new ObservedReadStream(
                 networkStream,
-                read =>
-                {
-                    speedMeter?.ReportBytes(read);
-                    reportBodyBytes?.Invoke(read);
-                });
+                reportBodyBytes);
         }
         Stream consumedStream = new ThrottledReadStream(
             networkStream,
             originalContent,
             bandwidthLimiter,
             completionLease);
+        if (speedMeter is not null)
+            consumedStream = new SpeedMeasuredReadStream(consumedStream, speedMeter);
+
         var throttledContent = new StreamContent(consumedStream);
         foreach (var header in originalContent.Headers)
             throttledContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
@@ -219,7 +218,7 @@ internal static class DownloadResponseThrottler
     }
 
     /// <summary>
-    /// Observes each successful network read exactly once, before any file
+    /// Observes each successful raw response read exactly once, before any file
     /// writer, progress adapter, hash verifier, or throttling delay can report it.
     /// </summary>
     private sealed class ObservedReadStream : Stream
@@ -282,6 +281,111 @@ internal static class DownloadResponseThrottler
         {
             if (read > 0)
                 reportBodyBytes(read);
+        }
+    }
+
+    /// <summary>
+    /// Measures bytes delivered to the consumer over the complete read duration,
+    /// including network waits and any configured bandwidth-throttling delay.
+    /// </summary>
+    private sealed class SpeedMeasuredReadStream(Stream innerStream, SpeedMeter speedMeter) : Stream
+    {
+        public override bool CanRead => innerStream.CanRead;
+        public override bool CanSeek => innerStream.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => innerStream.Length;
+        public override long Position { get => innerStream.Position; set => innerStream.Position = value; }
+        public override void Flush() => innerStream.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var observation = speedMeter.BeginRead();
+            var read = 0;
+            try
+            {
+                read = innerStream.Read(buffer, offset, count);
+                return read;
+            }
+            finally
+            {
+                speedMeter.CompleteRead(observation, read);
+            }
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var observation = speedMeter.BeginRead();
+            var read = 0;
+            try
+            {
+                read = innerStream.Read(buffer);
+                return read;
+            }
+            finally
+            {
+                speedMeter.CompleteRead(observation, read);
+            }
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            var observation = speedMeter.BeginRead();
+            var read = 0;
+            try
+            {
+                read = await innerStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                return read;
+            }
+            finally
+            {
+                speedMeter.CompleteRead(observation, read);
+            }
+        }
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            var observation = speedMeter.BeginRead();
+            var read = 0;
+            try
+            {
+                read = await innerStream.ReadAsync(
+                    buffer.AsMemory(offset, count),
+                    cancellationToken).ConfigureAwait(false);
+                return read;
+            }
+            finally
+            {
+                speedMeter.CompleteRead(observation, read);
+            }
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            innerStream.Seek(offset, origin);
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override void Write(ReadOnlySpan<byte> buffer) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                innerStream.Dispose();
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await innerStream.DisposeAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
         }
     }
 

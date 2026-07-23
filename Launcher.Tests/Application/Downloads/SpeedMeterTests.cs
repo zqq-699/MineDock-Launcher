@@ -41,6 +41,30 @@ public sealed class SpeedMeterTests
         Assert.Equal(64L * 1024 * 1024, Assert.Single(reports).DownloadSpeedTelemetry!.BytesPerSecond);
     }
 
+    [Fact]
+    public void InFlightReadKeepsItsOriginalMeasurementWindowAcrossEmptyTicks()
+    {
+        var clock = new ManualTimeProvider();
+        using var scheduler = new SpeedMeterScheduler(clock);
+        var reports = new List<LauncherProgress>();
+        var meter = new SpeedMeter(new InlineProgress(reports), scheduler);
+
+        var observation = meter.BeginRead();
+        clock.Advance(TimeSpan.FromMilliseconds(500));
+        scheduler.Tick();
+
+        Assert.Empty(reports);
+        Assert.Equal(1, scheduler.ActiveMeterCount);
+
+        clock.Advance(TimeSpan.FromSeconds(3.5));
+        meter.CompleteRead(observation, 128 * 1024);
+        scheduler.Tick();
+
+        Assert.Equal(
+            32 * 1024,
+            Assert.Single(reports).DownloadSpeedTelemetry!.BytesPerSecond);
+    }
+
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
     {
         public void Report(LauncherProgress value) => reports.Add(value);

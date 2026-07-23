@@ -169,6 +169,7 @@ internal sealed class ResourceProjectStorage
                 progress,
                 speedMeter,
                 logScope.BeginSource(CreateProgressReporter(version, progress)),
+                logScope.ReportTransferredBytes,
                 cancellationToken).ConfigureAwait(false);
             MinecraftPathGuard.EnsureSafeFileDestination(
                 target,
@@ -269,6 +270,7 @@ internal sealed class ResourceProjectStorage
         IProgress<LauncherProgress>? progress,
         SpeedMeter? speedMeter,
         Action<int, long, long?> reportAttemptProgress,
+        Action<long> reportTransferredBytes,
         CancellationToken cancellationToken)
     {
         var settings = settingsService is null
@@ -296,7 +298,8 @@ internal sealed class ResourceProjectStorage
                     cancellationToken,
                     reportAttemptProgress: reportAttemptProgress,
                     options: new DownloadFileOptions(ManagedRoot: Path.GetDirectoryName(tempPath)),
-                    speedMeter: speedMeter).ConfigureAwait(false);
+                    speedMeter: speedMeter,
+                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
             }
             else
             {
@@ -310,7 +313,8 @@ internal sealed class ResourceProjectStorage
                     cancellationToken,
                     reportAttemptProgress: reportAttemptProgress,
                     options: new DownloadFileOptions(ManagedRoot: Path.GetDirectoryName(tempPath)),
-                    speedMeter: speedMeter).ConfigureAwait(false);
+                    speedMeter: speedMeter,
+                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
             }
         }
         catch (DownloadLocalFileException exception)

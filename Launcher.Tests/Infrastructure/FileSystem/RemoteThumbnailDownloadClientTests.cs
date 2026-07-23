@@ -223,11 +223,21 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
         private int metadataLeaseCount;
         private int modpackLeaseCount;
         private int runtimeLeaseCount;
+        private int activeDownloadLeases;
 
         public int MaximumActiveMetadataLeases => Volatile.Read(ref maximumActiveMetadataLeases);
         public int MetadataLeaseCount => Volatile.Read(ref metadataLeaseCount);
         public int ModpackLeaseCount => Volatile.Read(ref modpackLeaseCount);
         public int RuntimeLeaseCount => Volatile.Read(ref runtimeLeaseCount);
+        public DownloadConcurrencySnapshot DownloadSnapshot =>
+            new(Volatile.Read(ref activeDownloadLeases), WaitingCount: 0, CurrentTarget: 64);
+
+        public bool TryAcquireAvailableDownloadSlot(out IImportConcurrencyLease? lease)
+        {
+            Interlocked.Increment(ref activeDownloadLeases);
+            lease = new RecordingLease(() => Interlocked.Decrement(ref activeDownloadLeases));
+            return true;
+        }
 
         public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(
             CancellationToken cancellationToken = default)
@@ -244,14 +254,18 @@ public sealed class RemoteThumbnailDownloadClientTests : TestTempDirectory
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref modpackLeaseCount);
-            return ValueTask.FromResult<IImportConcurrencyLease>(new RecordingLease(static () => { }));
+            Interlocked.Increment(ref activeDownloadLeases);
+            return ValueTask.FromResult<IImportConcurrencyLease>(
+                new RecordingLease(() => Interlocked.Decrement(ref activeDownloadLeases)));
         }
 
         public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref runtimeLeaseCount);
-            return ValueTask.FromResult<IImportConcurrencyLease>(new RecordingLease(static () => { }));
+            Interlocked.Increment(ref activeDownloadLeases);
+            return ValueTask.FromResult<IImportConcurrencyLease>(
+                new RecordingLease(() => Interlocked.Decrement(ref activeDownloadLeases)));
         }
 
         public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(

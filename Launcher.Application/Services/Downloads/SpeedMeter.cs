@@ -121,6 +121,8 @@ internal sealed class SpeedMeter
     private readonly SpeedMeterScheduler scheduler;
     private long pendingBytes;
     private long sampleStartedAt;
+    private long readGeneration;
+    private int activeReads;
     private int state;
     private bool isVisible;
 
@@ -137,36 +139,43 @@ internal sealed class SpeedMeter
         if (bytes <= 0)
             return;
 
-        var observedState = Volatile.Read(ref state);
-        if (observedState is Paused or Stopped)
+        var observation = BeginRead();
+        CompleteRead(observation, bytes);
+    }
+
+    internal long BeginRead()
+    {
+        lock (lifecycleLock)
+        {
+            if (state is Paused or Stopped)
+                return -1;
+
+            activeReads++;
+            if (state == Idle)
+            {
+                state = Active;
+                sampleStartedAt = scheduler.GetTimestamp();
+                scheduler.Activate(this);
+            }
+            return readGeneration;
+        }
+    }
+
+    internal void CompleteRead(long observation, long bytes)
+    {
+        if (observation < 0)
             return;
 
-        Interlocked.Add(ref pendingBytes, bytes);
-        var spinner = new SpinWait();
-        while (true)
+        lock (lifecycleLock)
         {
-            observedState = Volatile.Read(ref state);
-            switch (observedState)
-            {
-                case Active:
-                    return;
-                case Sampling:
-                    spinner.SpinOnce();
-                    continue;
-                case Idle:
-                    if (Interlocked.CompareExchange(ref state, Active, Idle) != Idle)
-                        continue;
-                    Interlocked.Exchange(ref sampleStartedAt, scheduler.GetTimestamp());
-                    scheduler.Activate(this);
-                    if (Volatile.Read(ref state) != Active)
-                        scheduler.Deactivate(this);
-                    return;
-                case Paused:
-                case Stopped:
-                    return;
-                default:
-                    throw new InvalidOperationException("Unknown speed meter state.");
-            }
+            if (observation != readGeneration)
+                return;
+
+            activeReads = Math.Max(0, activeReads - 1);
+            if (state is Paused or Stopped || bytes <= 0)
+                return;
+
+            pendingBytes += bytes;
         }
     }
 
@@ -174,8 +183,11 @@ internal sealed class SpeedMeter
     {
         lock (lifecycleLock)
         {
-            var previous = Interlocked.Exchange(ref state, Paused);
-            Interlocked.Exchange(ref pendingBytes, 0);
+            var previous = state;
+            state = Paused;
+            readGeneration++;
+            activeReads = 0;
+            pendingBytes = 0;
             if (previous is Active or Sampling)
                 scheduler.Deactivate(this);
             ClearVisibleValue();
@@ -186,10 +198,10 @@ internal sealed class SpeedMeter
     {
         lock (lifecycleLock)
         {
-            if (Volatile.Read(ref state) != Paused)
+            if (state != Paused)
                 return;
-            Interlocked.Exchange(ref pendingBytes, 0);
-            Volatile.Write(ref state, Idle);
+            pendingBytes = 0;
+            state = Idle;
         }
     }
 
@@ -197,10 +209,13 @@ internal sealed class SpeedMeter
     {
         lock (lifecycleLock)
         {
-            var previous = Interlocked.Exchange(ref state, Stopped);
+            var previous = state;
             if (previous == Stopped)
                 return;
-            Interlocked.Exchange(ref pendingBytes, 0);
+            state = Stopped;
+            readGeneration++;
+            activeReads = 0;
+            pendingBytes = 0;
             if (previous is Active or Sampling)
                 scheduler.Deactivate(this);
             ClearVisibleValue(force: true);
@@ -211,24 +226,39 @@ internal sealed class SpeedMeter
     {
         lock (lifecycleLock)
         {
-            if (Interlocked.CompareExchange(ref state, Sampling, Active) != Active)
+            if (state != Active)
                 return;
+            state = Sampling;
 
-            var bytes = Interlocked.Exchange(ref pendingBytes, 0);
-            var startedAt = Interlocked.Exchange(ref sampleStartedAt, now);
+            var bytes = pendingBytes;
+            pendingBytes = 0;
+            var startedAt = sampleStartedAt;
             if (bytes <= 0)
             {
-                Volatile.Write(ref state, Idle);
+                if (activeReads > 0)
+                {
+                    state = Active;
+                    ClearVisibleValue();
+                    return;
+                }
+
+                state = Idle;
+                sampleStartedAt = now;
                 scheduler.Deactivate(this);
                 ClearVisibleValue();
                 return;
             }
 
-            Volatile.Write(ref state, Active);
             var elapsed = scheduler.GetElapsedTime(startedAt, now);
             if (elapsed <= TimeSpan.Zero)
+            {
+                pendingBytes += bytes;
+                state = Active;
                 return;
+            }
 
+            sampleStartedAt = now;
+            state = Active;
             var bytesPerSecond = (long)Math.Round(
                 bytes / elapsed.TotalSeconds,
                 MidpointRounding.AwayFromZero);

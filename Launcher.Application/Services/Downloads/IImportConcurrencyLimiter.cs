@@ -21,6 +21,19 @@ namespace Launcher.Application.Services;
 
 public interface IImportConcurrencyLimiter
 {
+    /// <summary>
+    /// Gets a consistent snapshot of the shared scheduler used by metadata,
+    /// modpack, and runtime download leases.
+    /// </summary>
+    DownloadConcurrencySnapshot DownloadSnapshot { get; }
+
+    /// <summary>
+    /// Atomically acquires a download slot without waiting. Implementations must
+    /// return <see langword="false"/> when an ordinary waiter exists or the
+    /// current target has already been reached.
+    /// </summary>
+    bool TryAcquireAvailableDownloadSlot(out IImportConcurrencyLease? lease);
+
     ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default);
 
     ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default);
@@ -29,5 +42,10 @@ public interface IImportConcurrencyLimiter
 
     ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default);
 }
+
+public readonly record struct DownloadConcurrencySnapshot(
+    int ActiveCount,
+    int WaitingCount,
+    int CurrentTarget);
 
 public interface IImportConcurrencyLease : IDisposable, IAsyncDisposable;

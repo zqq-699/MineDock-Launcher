@@ -8,25 +8,25 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class AdaptiveSegmentDownloadSession
 {
-    private const double TailSplitFraction = 0.4d;
+    internal const double TailSplitFraction = 0.4d;
 
     private readonly object syncRoot = new();
     private readonly List<AdaptiveDownloadSegment> queued = [];
     private readonly HashSet<AdaptiveDownloadSegment> active = [];
-    private readonly long minimumSegmentSize;
+    private readonly long splitThreshold;
     private readonly long totalLength;
     private int nextChunkId = 1;
     private int completedChunks;
 
-    public AdaptiveSegmentDownloadSession(long start, long totalLength, long minimumSegmentSize)
+    public AdaptiveSegmentDownloadSession(long start, long totalLength, long splitThreshold)
     {
         if (start < 0 || totalLength <= start)
             throw new ArgumentOutOfRangeException(nameof(start));
-        if (minimumSegmentSize <= 0)
-            throw new ArgumentOutOfRangeException(nameof(minimumSegmentSize));
+        if (splitThreshold <= 0)
+            throw new ArgumentOutOfRangeException(nameof(splitThreshold));
 
         this.totalLength = totalLength;
-        this.minimumSegmentSize = minimumSegmentSize;
+        this.splitThreshold = splitThreshold;
         queued.Add(new AdaptiveDownloadSegment(nextChunkId++, start, totalLength - 1, totalLength));
     }
 
@@ -173,7 +173,7 @@ internal sealed class AdaptiveSegmentDownloadSession
 
         if (largest is null
             || !largest.TrySplitTail(
-                minimumSegmentSize,
+                splitThreshold,
                 TailSplitFraction,
                 nextChunkId,
                 out var suffix,
@@ -310,7 +310,7 @@ internal sealed class AdaptiveDownloadSegment
     }
 
     public bool TrySplitTail(
-        long minimumSegmentSize,
+        long splitThreshold,
         double tailFraction,
         int suffixChunkId,
         out AdaptiveDownloadSegment suffix,
@@ -324,16 +324,14 @@ internal sealed class AdaptiveDownloadSegment
             originalEnd = logicalEnd;
             retainedEnd = logicalEnd;
             var remaining = logicalEnd - nextOffset + 1;
-            if (remaining < checked(minimumSegmentSize * 2))
+            if (remaining < splitThreshold || remaining < 2)
             {
                 suffix = null!;
                 return false;
             }
 
-            var tailLength = Math.Max(
-                minimumSegmentSize,
-                checked((long)Math.Floor(remaining * tailFraction)));
-            tailLength = Math.Min(tailLength, remaining - minimumSegmentSize);
+            var tailLength = checked((long)Math.Floor(remaining * tailFraction));
+            tailLength = Math.Clamp(tailLength, 1, remaining - 1);
             var splitStart = logicalEnd - tailLength + 1;
             retainedEnd = splitStart - 1;
             logicalEnd = retainedEnd;

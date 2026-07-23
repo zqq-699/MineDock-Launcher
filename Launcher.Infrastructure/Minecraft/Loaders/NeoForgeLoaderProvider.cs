@@ -452,7 +452,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             expectedSize: null,
             cancellationToken,
             reportAttemptProgress: logScope.BeginSource(),
-            speedMeter: speedMeter);
+            speedMeter: speedMeter,
+            reportTransferredBytes: logScope.ReportTransferredBytes);
             logScope.Complete(resolution);
         }
         catch (OperationCanceledException)

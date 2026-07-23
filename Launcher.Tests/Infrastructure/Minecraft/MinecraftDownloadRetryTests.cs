@@ -300,6 +300,13 @@ public sealed class MinecraftDownloadRetryTests
         var executor = CreateExecutor(client, CreateSlowBodyOptions(), timeProvider: clock);
         var directory = CreateTempDirectory();
         var destination = Path.Combine(directory, "client.jar");
+        var logScope = new ForegroundDownloadLogScope(
+            logger: null,
+            "Test",
+            "client.jar",
+            destination,
+            "https://example.test/client.jar",
+            expectedBytes: 8);
 
         try
         {
@@ -310,11 +317,14 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
                 8,
-                CancellationToken.None);
+                CancellationToken.None,
+                reportAttemptProgress: logScope.BeginSource(),
+                reportTransferredBytes: logScope.ReportTransferredBytes);
 
             Assert.Equal(2, handler.RequestUris.Count);
             Assert.Equal(handler.RequestUris[0], handler.RequestUris[1]);
             Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
+            Assert.Equal(8, logScope.TransferredBytes);
         }
         finally
         {

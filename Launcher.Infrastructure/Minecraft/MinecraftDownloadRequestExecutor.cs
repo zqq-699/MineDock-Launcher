@@ -38,7 +38,7 @@ namespace Launcher.Infrastructure.Minecraft;
 internal sealed class MinecraftDownloadRequestExecutor
 {
     internal const long MinimumSegmentedDownloadSize = 8L * 1024 * 1024;
-    internal const long MinimumSegmentedChunkSize = 512L * 1024;
+    internal const long SegmentedSplitThreshold = 256L * 1024;
     internal static readonly TimeSpan SegmentedExpansionScanInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly MinecraftDownloadTransport transport;
@@ -147,7 +147,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
         DownloadFileOptions? options = null,
-        SpeedMeter? speedMeter = null) =>
+        SpeedMeter? speedMeter = null,
+        Action<long>? reportTransferredBytes = null) =>
         DownloadFileAsync(
             [originalUrl],
             preference,
@@ -159,7 +160,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             reportAttemptProgress,
             sensitiveHeaders,
             options,
-            speedMeter);
+            speedMeter,
+            reportTransferredBytes);
 
     public Task<ResolvedDownloadRequest> DownloadFileAsync(
         IReadOnlyList<string> originalUrls,
@@ -172,7 +174,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
         DownloadFileOptions? options = null,
-        SpeedMeter? speedMeter = null)
+        SpeedMeter? speedMeter = null,
+        Action<long>? reportTransferredBytes = null)
     {
         var fileCandidates = ResolveFileCandidates(originalUrls, preference, categoryHint);
         var originalUrl = fileCandidates[0].OriginalUrl;
@@ -201,7 +204,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                             context.AttemptNumber,
                             reportAttemptProgress,
                             token,
-                            managedRoot).ConfigureAwait(false);
+                            managedRoot,
+                            reportTransferredBytes).ConfigureAwait(false);
                         return context.Resolution;
                     },
                     noResultStatus: null,
@@ -238,6 +242,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 reportAttemptProgress,
                 sensitiveHeaders,
                 speedMeter,
+                reportTransferredBytes,
                 cancellationToken).ConfigureAwait(false);
             if (segmented.Resolution is not null)
                 return segmented.Resolution;
@@ -255,7 +260,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                         context.Resolution,
                         context.AttemptNumber,
                         sequentialProgress,
-                        token).ConfigureAwait(false);
+                        token,
+                        reportTransferredBytes).ConfigureAwait(false);
                     return context.Resolution;
                 },
                 noResultStatus: null,
@@ -281,7 +287,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadRequestHeaders? sensitiveHeaders = null,
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadFileOptions? options = null,
-        SpeedMeter? speedMeter = null) =>
+        SpeedMeter? speedMeter = null,
+        Action<long>? reportTransferredBytes = null) =>
         DownloadFileAsync(
             [originalUrl],
             preference,
@@ -292,7 +299,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             sensitiveHeaders,
             reportAttemptProgress,
             options,
-            speedMeter);
+            speedMeter,
+            reportTransferredBytes);
 
     public Task<ResolvedDownloadRequest> DownloadFileAsync(
         IReadOnlyList<string> originalUrls,
@@ -304,7 +312,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadRequestHeaders? sensitiveHeaders = null,
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadFileOptions? options = null,
-        SpeedMeter? speedMeter = null)
+        SpeedMeter? speedMeter = null,
+        Action<long>? reportTransferredBytes = null)
     {
         var fileCandidates = ResolveFileCandidates(originalUrls, preference, categoryHint);
         var originalUrl = fileCandidates[0].OriginalUrl;
@@ -328,6 +337,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 reportAttemptProgress,
                 sensitiveHeaders,
                 speedMeter,
+                reportTransferredBytes,
                 cancellationToken).ConfigureAwait(false);
             if (segmented.Resolution is not null)
                 return segmented.Resolution;
@@ -340,7 +350,13 @@ internal sealed class MinecraftDownloadRequestExecutor
                 categoryHint,
                 async (context, token) =>
                 {
-                    await session.WriteAsync(context.Response, context.Resolution, context.AttemptNumber, sequentialProgress, token).ConfigureAwait(false);
+                    await session.WriteAsync(
+                        context.Response,
+                        context.Resolution,
+                        context.AttemptNumber,
+                        sequentialProgress,
+                        token,
+                        reportTransferredBytes).ConfigureAwait(false);
                     return context.Resolution;
                 },
                 noResultStatus: null,
@@ -364,6 +380,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<int, long, long?>? reportAttemptProgress,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
+        Action<long>? reportTransferredBytes,
         CancellationToken cancellationToken)
     {
         if (!ShouldUseSegmentedDownload(candidates, integrity, options))
@@ -384,6 +401,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                     OffsetAttemptProgress(reportAttemptProgress, attemptCount - 1),
                     sensitiveHeaders,
                     speedMeter,
+                    reportTransferredBytes,
                     cancellationToken).ConfigureAwait(false);
                 if (completed)
                     return new SegmentedDownloadAttemptResult(attemptCount, resolution);
@@ -432,12 +450,13 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<int, long, long?>? reportAttemptProgress,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
+        Action<long>? reportTransferredBytes,
         CancellationToken cancellationToken)
     {
         using var segmentCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var requestedProbeEnd = integrity.ExpectedSize.HasValue
-            ? Math.Min(integrity.ExpectedSize.Value - 1, MinimumSegmentedChunkSize - 1)
-            : MinimumSegmentedChunkSize - 1;
+            ? Math.Min(integrity.ExpectedSize.Value - 1, SegmentedSplitThreshold - 1)
+            : SegmentedSplitThreshold - 1;
         var probeRange = new DownloadSegmentRange(
             0,
             requestedProbeEnd,
@@ -464,7 +483,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                         context.Resolution,
                         attemptNumber: 1,
                         reportAttemptProgress,
-                        token).ConfigureAwait(false);
+                        token,
+                        reportTransferredBytes).ConfigureAwait(false);
                     return;
                 }
 
@@ -488,7 +508,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                     attemptNumber: 1,
                     reportAttemptProgress,
                     token,
-                    allowTrailingContent: true).ConfigureAwait(false);
+                    allowTrailingContent: true,
+                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
             },
             strongETagProvider: () => strongETag,
             sensitiveHeaders,
@@ -524,7 +545,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         var adaptiveSession = new AdaptiveSegmentDownloadSession(
             remainingStart,
             totalLength,
-            MinimumSegmentedChunkSize);
+            SegmentedSplitThreshold);
         var pinnedResolution = PinFinalHttpsResolution(resolution, probe.FinalUri);
         var hostOrigin = DownloadHostConcurrencyController.NormalizeOrigin(probe.FinalUri!);
         var usefulWorkerCount = CalculateUsefulSegmentedWorkers(totalLength - remainingStart);
@@ -562,6 +583,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 initialSegment,
                 session,
                 reportAttemptProgress,
+                reportTransferredBytes,
                 strongETag,
                 sensitiveHeaders,
                 speedMeter,
@@ -584,7 +606,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         var initialHostSnapshot = hostConcurrencyController.GetSnapshot(hostOrigin);
         var initialSchedulingSnapshot = scheduling.Snapshot;
         logger.LogDebug(
-            "Segmented download registered. SessionId={SessionId} ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} InitialWorkerCount={InitialWorkerCount} InitialTargetWorkerCount={InitialTargetWorkerCount} ActiveFileCount={ActiveFileCount} InitialChunkCount={InitialChunkCount} MinimumChunkSize={MinimumChunkSize} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget} FinalHost={FinalHost} StrongETag={HasStrongETag}",
+            "Segmented download registered. SessionId={SessionId} ResolvedSourceKind={ResolvedSourceKind} FileSize={FileSize} InitialWorkerCount={InitialWorkerCount} InitialTargetWorkerCount={InitialTargetWorkerCount} ActiveFileCount={ActiveFileCount} InitialChunkCount={InitialChunkCount} SplitThreshold={SplitThreshold} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive} HostWaiting={HostWaiting} HostTarget={HostTarget} FinalHost={FinalHost} StrongETag={HasStrongETag}",
             scheduling.SessionId,
             resolution.ResolvedSourceKind,
             totalLength,
@@ -592,7 +614,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             initialSchedulingSnapshot.TargetWorkerCount,
             initialSchedulingSnapshot.ActiveSessionCount,
             adaptiveSession.TotalChunkCount + 1,
-            MinimumSegmentedChunkSize,
+            SegmentedSplitThreshold,
             initialGlobalSnapshot.ActiveCount,
             initialGlobalSnapshot.WaitingCount,
             initialGlobalSnapshot.CurrentTarget,
@@ -805,6 +827,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         AdaptiveDownloadSegment initialSegment,
         ResumableDownloadFileSession session,
         Action<int, long, long?>? reportAttemptProgress,
+        Action<long>? reportTransferredBytes,
         string? strongETag,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
@@ -825,6 +848,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 initialSegment,
                 session,
                 reportAttemptProgress,
+                reportTransferredBytes,
                 strongETag,
                 sensitiveHeaders,
                 speedMeter,
@@ -845,6 +869,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         AdaptiveDownloadSegment initialSegment,
         ResumableDownloadFileSession session,
         Action<int, long, long?>? reportAttemptProgress,
+        Action<long>? reportTransferredBytes,
         string? strongETag,
         DownloadRequestHeaders? sensitiveHeaders,
         SpeedMeter? speedMeter,
@@ -902,7 +927,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                                     attemptNumber: 1,
                                     reportAttemptProgress,
                                     token,
-                                    adaptiveSegment: segment).ConfigureAwait(false);
+                                    adaptiveSegment: segment,
+                                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
                                 return (Requested: requestedRange, Validated: responseRange);
                             },
                             () => strongETag,
@@ -1080,12 +1106,13 @@ internal sealed class MinecraftDownloadRequestExecutor
     }
 
     private static int CalculateUsefulSegmentedWorkers(long remainingLength) =>
-        checked((int)Math.Min(
+        (int)Math.Min(
             int.MaxValue,
             Math.Max(
-                1,
-                (remainingLength + MinimumSegmentedChunkSize - 1)
-                / MinimumSegmentedChunkSize)));
+                1d,
+                Math.Ceiling(
+                    remainingLength
+                    / (SegmentedSplitThreshold * AdaptiveSegmentDownloadSession.TailSplitFraction))));
 
     private static void UpdateMaximum(ref int maximum, int value)
     {
@@ -1827,11 +1854,9 @@ internal sealed class MinecraftDownloadRequestExecutor
     private DownloadHostConcurrencyController.DownloadAdmissionLease?
         TryAcquireOpportunisticAdmission(Uri uri)
     {
-        if (limiter is not ImportConcurrencyLimiter importLimiter)
-            return null;
         return hostConcurrencyController.TryAcquireAvailable(
             uri,
-            () => importLimiter.TryAcquireAvailableDownloadSlot(out var lease)
+            () => limiter.TryAcquireAvailableDownloadSlot(out var lease)
                 ? lease
                 : null);
     }
@@ -1879,13 +1904,8 @@ internal sealed class MinecraftDownloadRequestExecutor
 
     private (int ActiveCount, int WaitingCount, int CurrentTarget) GetGlobalConcurrencySnapshot()
     {
-        if (limiter is ImportConcurrencyLimiter importLimiter)
-        {
-            var snapshot = importLimiter.DownloadSnapshot;
-            return (snapshot.ActiveCount, snapshot.WaitingCount, snapshot.CurrentTarget);
-        }
-
-        return (0, 0, 0);
+        var snapshot = limiter.DownloadSnapshot;
+        return (snapshot.ActiveCount, snapshot.WaitingCount, snapshot.CurrentTarget);
     }
 
     private sealed class DownloadAttemptTelemetry

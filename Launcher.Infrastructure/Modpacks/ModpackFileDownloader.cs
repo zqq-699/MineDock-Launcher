@@ -56,6 +56,7 @@ internal sealed class ModpackFileDownloader
         int downloadSpeedLimitMbPerSecond,
         SpeedMeter? speedMeter,
         Action<int, long, long?>? reportAttemptProgress,
+        Action<long>? reportTransferredBytes,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourceUrls);
@@ -89,7 +90,8 @@ internal sealed class ModpackFileDownloader
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
                     speedMeter: speedMeter,
-                    reportAttemptProgress: reportAttemptProgress).ConfigureAwait(false);
+                    reportAttemptProgress: reportAttemptProgress,
+                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
             }
             else
             {
@@ -99,7 +101,8 @@ internal sealed class ModpackFileDownloader
                     cancellationToken: cancellationToken,
                     sensitiveHeaders: sensitiveHeaders,
                     speedMeter: speedMeter,
-                    reportAttemptProgress: reportAttemptProgress).ConfigureAwait(false);
+                    reportAttemptProgress: reportAttemptProgress,
+                    reportTransferredBytes: reportTransferredBytes).ConfigureAwait(false);
             }
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)

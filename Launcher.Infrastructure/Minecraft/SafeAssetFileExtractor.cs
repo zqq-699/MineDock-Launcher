@@ -98,7 +98,8 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 options: operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1())
                     ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext, path.Assets)
                     : new DownloadFileOptions(ManagedRoot: path.Assets),
-                speedMeter: speedMeter).ConfigureAwait(false);
+                speedMeter: speedMeter,
+                reportTransferredBytes: logScope.ReportTransferredBytes).ConfigureAwait(false);
                 logScope.Complete(resolution);
             }
             catch (OperationCanceledException)

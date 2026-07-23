@@ -8,6 +8,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
@@ -117,6 +118,32 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
 
         Assert.True(handler.RequestCount > 5);
         Assert.Null(handler.RangeHeaders.Last());
+        Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
+        AssertNoPendingFiles(destination);
+    }
+
+    [Fact]
+    public async Task AlternativeLimiterImplementationKeepsSegmentedDownloadEnabled()
+    {
+        var handler = new RecordingRequestHandler((_, request, _) =>
+            Task.FromResult(CreatePartialResponse(request, LargePayload)));
+        using var client = CreateClient(handler);
+        var concreteLimiter = new ImportConcurrencyLimiter();
+        concreteLimiter.SetMaximumDownloadConcurrency(4);
+        IImportConcurrencyLimiter limiter = new DelegatingConcurrencyLimiter(concreteLimiter);
+        var destination = Path.Combine(TempRoot, "interface-limiter.jar");
+
+        await CreateExecutor(client, limiter).DownloadFileAsync(
+            DownloadUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destination,
+            Sha1(LargePayload),
+            LargePayload.Length,
+            CancellationToken.None);
+
+        Assert.True(handler.RequestCount > 1);
+        Assert.All(handler.RangeHeaders, range => Assert.NotNull(range));
         Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
         AssertNoPendingFiles(destination);
     }
@@ -280,7 +307,7 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
             LargePayload.Length,
             CancellationToken.None);
 
-        Assert.True(handler.RequestCount > LargePayload.Length / MinecraftDownloadRequestExecutor.MinimumSegmentedChunkSize);
+        Assert.True(handler.RequestCount > LargePayload.Length / MinecraftDownloadRequestExecutor.SegmentedSplitThreshold);
         Assert.All(handler.RangeHeaders, range => Assert.NotNull(range));
         Assert.Equal(LargePayload, await File.ReadAllBytesAsync(destination));
     }
@@ -786,7 +813,7 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
                 return CreatePartialResponse(
                     request,
                     LargePayload,
-                    maximumBytes: checked((int)MinecraftDownloadRequestExecutor.MinimumSegmentedChunkSize));
+                    maximumBytes: checked((int)MinecraftDownloadRequestExecutor.SegmentedSplitThreshold));
             }
 
             var start = range.From!.Value;
@@ -992,7 +1019,7 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
         var session = new AdaptiveSegmentDownloadSession(
             start: 0,
             totalLength: 8 * 1024 * 1024,
-            MinecraftDownloadRequestExecutor.MinimumSegmentedChunkSize);
+            MinecraftDownloadRequestExecutor.SegmentedSplitThreshold);
         Assert.True(session.TrySplitLargest(out _));
         var chunkCountBeforeTake = session.TotalChunkCount;
 
@@ -1004,17 +1031,47 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
         session.Return(segment!);
     }
 
+    [Fact]
+    public void SplitThresholdDoesNotConstrainResultingSegmentSizes()
+    {
+        var threshold = MinecraftDownloadRequestExecutor.SegmentedSplitThreshold;
+        var session = new AdaptiveSegmentDownloadSession(
+            start: 0,
+            totalLength: threshold,
+            threshold);
+
+        Assert.True(session.TrySplitLargest(out var split));
+        Assert.True(split.SourceRetainedEnd - split.SourceStart + 1 < threshold);
+        Assert.True(split.NewEnd - split.NewStart + 1 < threshold);
+    }
+
+    [Fact]
+    public void RangeBelowSplitThresholdIsNotSplit()
+    {
+        var threshold = MinecraftDownloadRequestExecutor.SegmentedSplitThreshold;
+        var session = new AdaptiveSegmentDownloadSession(
+            start: 0,
+            totalLength: threshold - 1,
+            threshold);
+
+        Assert.False(session.TrySplitLargest(out _));
+    }
+
     private static MinecraftDownloadRequestExecutor CreateExecutor(
         HttpClient client,
-        ImportConcurrencyLimiter? limiter = null,
+        IImportConcurrencyLimiter? limiter = null,
         int maxAttemptsPerSource = 1)
     {
-        var effectiveLimiter = limiter ?? new ImportConcurrencyLimiter();
+        var effectiveLimiter = limiter;
         if (limiter is null)
-            effectiveLimiter.SetMaximumDownloadConcurrency(64);
+        {
+            var defaultLimiter = new ImportConcurrencyLimiter();
+            defaultLimiter.SetMaximumDownloadConcurrency(64);
+            effectiveLimiter = defaultLimiter;
+        }
         return new MinecraftDownloadRequestExecutor(
             client,
-            limiter: effectiveLimiter,
+            limiter: effectiveLimiter!,
             category: DownloadConcurrencyCategory.Runtime,
             retryOptions: new DownloadRetryOptions
             {
@@ -1098,7 +1155,7 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
         Assert.True(ranges.Length > 4);
         var probe = Assert.Single(ranges.Where(range => range.To is null));
         Assert.Equal(0, probe.From);
-        long next = MinecraftDownloadRequestExecutor.MinimumSegmentedChunkSize;
+        long next = MinecraftDownloadRequestExecutor.SegmentedSplitThreshold;
         foreach (var range in ranges.Where(range => range.To is not null).OrderBy(range => range.From))
         {
             Assert.True(
@@ -1172,6 +1229,41 @@ public sealed class SegmentedDownloadTests : TestTempDirectory
         string? Range,
         bool HasSensitiveHeader,
         string? IfRange);
+
+    private sealed class DelegatingConcurrencyLimiter(ImportConcurrencyLimiter inner)
+        : IImportConcurrencyLimiter
+    {
+        public DownloadConcurrencySnapshot DownloadSnapshot
+        {
+            get
+            {
+                var snapshot = inner.DownloadSnapshot;
+                return new DownloadConcurrencySnapshot(
+                    snapshot.ActiveCount,
+                    snapshot.WaitingCount,
+                    snapshot.CurrentTarget);
+            }
+        }
+
+        public bool TryAcquireAvailableDownloadSlot(out IImportConcurrencyLease? lease) =>
+            inner.TryAcquireAvailableDownloadSlot(out lease);
+
+        public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(
+            CancellationToken cancellationToken = default) =>
+            inner.AcquireMetadataSlotAsync(cancellationToken);
+
+        public ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(
+            CancellationToken cancellationToken = default) =>
+            inner.AcquireModpackDownloadSlotAsync(cancellationToken);
+
+        public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(
+            CancellationToken cancellationToken = default) =>
+            inner.AcquireRuntimeDownloadSlotAsync(cancellationToken);
+
+        public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(
+            CancellationToken cancellationToken = default) =>
+            inner.AcquireHashSlotAsync(cancellationToken);
+    }
 
     private sealed class BlockingReadStream : Stream
     {

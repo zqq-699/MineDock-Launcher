@@ -50,6 +50,21 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter, IDow
     internal bool TryAcquireAvailableDownloadSlot(out IImportConcurrencyLease? lease) =>
         downloadScheduler.TryAcquireAvailable(out lease);
 
+    DownloadConcurrencySnapshot IImportConcurrencyLimiter.DownloadSnapshot
+    {
+        get
+        {
+            var snapshot = downloadScheduler.Snapshot;
+            return new DownloadConcurrencySnapshot(
+                snapshot.ActiveCount,
+                snapshot.WaitingCount,
+                snapshot.CurrentTarget);
+        }
+    }
+
+    bool IImportConcurrencyLimiter.TryAcquireAvailableDownloadSlot(out IImportConcurrencyLease? lease) =>
+        TryAcquireAvailableDownloadSlot(out lease);
+
     private static async ValueTask<IImportConcurrencyLease> AcquireFixedAsync(SemaphoreSlim semaphore, CancellationToken cancellationToken)
     {
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);

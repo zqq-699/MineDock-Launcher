@@ -62,6 +62,12 @@ internal sealed class ForegroundDownloadLogScope
 
     public long TransferredBytes => Interlocked.Read(ref transferredBytes);
 
+    public void ReportTransferredBytes(long bytes)
+    {
+        if (bytes > 0)
+            Interlocked.Add(ref transferredBytes, bytes);
+    }
+
     public int AttemptCount
     {
         get
@@ -209,7 +215,6 @@ internal sealed class ForegroundDownloadLogScope
             if (currentBytes <= previousBytes)
                 return;
 
-            transferredBytes += currentBytes - previousBytes;
             progressedBytes[key] = currentBytes;
         }
     }
