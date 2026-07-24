@@ -180,7 +180,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="162" />
-                            <ColumnDefinition Width="46" />
+                            <ColumnDefinition Width="56" />
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Text="{x:Static res:Strings.Settings_BackgroundOpacityLabel}"
@@ -199,6 +199,7 @@
                                    Margin="12,0,0,0"
                                    Text="{Binding LauncherBackgroundOpacityText}"
                                    Style="{StaticResource ReadOnlyFieldTextStyle}"
+                                   TextWrapping="NoWrap"
                                    VerticalAlignment="Center" />
                     </Grid>
                 </StackPanel>
