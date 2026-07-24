@@ -331,6 +331,9 @@
   <data name="Resources_ModDetailsSourceLabel" xml:space="preserve">
     <value>來源</value>
   </data>
+  <data name="Resources_ModDetailsRelatedWebsitesLabel" xml:space="preserve">
+    <value>相關網站</value>
+  </data>
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
     <value>下載次數</value>
   </data>
@@ -2224,6 +2227,9 @@
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>開啟專案連結失敗</value>
+  </data>
+  <data name="Status_OpenRelatedWebsiteFailed" xml:space="preserve">
+    <value>開啟相關網站失敗</value>
   </data>
   <data name="Status_OpenResourceDetailsFailed" xml:space="preserve">
     <value>無法開啟資源詳情，請稍後再試</value>

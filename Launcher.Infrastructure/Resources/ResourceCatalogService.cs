@@ -34,6 +34,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
     private readonly IReadOnlyDictionary<ResourceProjectSource, IResourceProviderClient> providers;
     private readonly ResourceProjectStorage storage;
     private readonly ResourceThumbnailCacheService thumbnailCache;
+    private readonly McresBhlClient mcresBhlClient;
     private readonly ILogger<ResourceCatalogService> logger;
 
     public ResourceCatalogService(
@@ -44,7 +45,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         ICurseForgeApiKeyResolver? curseForgeApiKeyResolver = null,
         ILocalSaveService? localSaveService = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        IImportConcurrencyLimiter? limiter = null)
+        IImportConcurrencyLimiter? limiter = null,
+        IMcresBhlApiKeyResolver? mcresBhlApiKeyResolver = null)
     {
         var resolvedPathProvider = pathProvider ?? new LauncherPathProvider();
         var resolvedHttpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
@@ -52,6 +54,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         var keyResolver = curseForgeApiKeyResolver
             ?? new CurseForgeApiKeyResolver(resolvedPathProvider, settingsService);
         var resolvedLocalSaveService = localSaveService ?? new LocalSaveService(resolvedPathProvider);
+        var resolvedMcresBhlApiKeyResolver = mcresBhlApiKeyResolver
+            ?? new McresBhlApiKeyResolver(resolvedPathProvider, settingsService);
 
         if (!resolvedHttpClient.DefaultRequestHeaders.UserAgent.Any())
             resolvedHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BHL/0.1 (BlockHelm-Launcher)");
@@ -62,6 +66,10 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
             new CurseForgeResourceClient(resolvedHttpClient, keyResolver, this.logger)
         };
         providers = clients.ToDictionary(client => client.Source);
+        mcresBhlClient = new McresBhlClient(
+            resolvedHttpClient,
+            resolvedMcresBhlApiKeyResolver,
+            this.logger);
         storage = new ResourceProjectStorage(
             resolvedHttpClient,
             resolvedLocalSaveService,
@@ -95,6 +103,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
             ? provider.GetProjectAsync(reference, cancellationToken)
             : Task.FromResult<ResourceProject?>(null);
     }
+
+    public Task<ResourceProjectRelatedWebsite?> GetRelatedWebsiteAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken = default) =>
+        mcresBhlClient.GetRelatedWebsiteAsync(reference, cancellationToken);
 
     public Task<ResourceCatalogSearchResult> SearchModsAsync(
         ResourceCatalogSearchRequest request,

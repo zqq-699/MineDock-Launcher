@@ -1,0 +1,79 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build win-x64 artifact
+    runs-on: windows-latest
+
+    env:
+      PUBLISH_DIR: publish/BlockHelm-Launcher-win-x64-fdd-single
+      ASSET_PATH: publish/BlockHelm-Launcher-win-x64-fdd-single/BlockHelm_Launcher_x64.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Prepare embedded API keys
+        shell: pwsh
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          BHL_API_KEY: ${{ secrets.BHL_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CURSEFORGE_API_KEY)) {
+            throw "Repository secret CURSEFORGE_API_KEY is not configured."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:BHL_API_KEY)) {
+            throw "Repository secret BHL_API_KEY is not configured."
+          }
+
+          New-Item -ItemType Directory -Force ".local-secrets" | Out-Null
+          Set-Content -Path ".local-secrets/curseforge.key" -Value $env:CURSEFORGE_API_KEY.Trim() -NoNewline -Encoding utf8
+          Set-Content -Path ".local-secrets/mcres-bhl.key" -Value $env:BHL_API_KEY.Trim() -NoNewline -Encoding utf8
+
+      - name: Restore
+        run: dotnet restore Launcher.sln
+
+      - name: Test
+        run: dotnet test Launcher.sln --no-restore
+
+      - name: Clean publish output
+        shell: pwsh
+        run: |
+          if (Test-Path $env:PUBLISH_DIR) {
+            Remove-Item $env:PUBLISH_DIR -Recurse -Force
+          }
+
+      - name: Build win-x64 single file
+        run: dotnet publish Launcher.App/Launcher.App.csproj -c Release -p:PublishProfile=WinX64FrameworkDependentSingleFile
+
+      - name: Verify build artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:ASSET_PATH)) {
+            throw "Expected build artifact was not created: $($env:ASSET_PATH)"
+          }
+
+          $file = Get-Item $env:ASSET_PATH
+          $hash = Get-FileHash -Algorithm SHA256 $env:ASSET_PATH
+          Write-Host "Build artifact ready. File=$($file.Name) Size=$($file.Length) SHA256=$($hash.Hash)"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockHelm-Launcher-win-x64-${{ github.run_number }}
+          path: ${{ env.ASSET_PATH }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

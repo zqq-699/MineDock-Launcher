@@ -179,6 +179,7 @@ public static class Strings
     public static string Resources_ModDetailsVersionLabel => Get(nameof(Resources_ModDetailsVersionLabel));
     public static string Resources_ModDetailsLoaderLabel => Get(nameof(Resources_ModDetailsLoaderLabel));
     public static string Resources_ModDetailsSourceLabel => Get(nameof(Resources_ModDetailsSourceLabel));
+    public static string Resources_ModDetailsRelatedWebsitesLabel => Get(nameof(Resources_ModDetailsRelatedWebsitesLabel));
     public static string Resources_ModDetailsDownloadsLabel => Get(nameof(Resources_ModDetailsDownloadsLabel));
     public static string Resources_ModDetailsTagsLabel => Get(nameof(Resources_ModDetailsTagsLabel));
     public static string Resources_ModDetailsDependenciesLabel => Get(nameof(Resources_ModDetailsDependenciesLabel));
@@ -1101,6 +1102,7 @@ public static class Strings
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
     public static string Status_OpenFeedbackPageFailed => Get(nameof(Status_OpenFeedbackPageFailed));
     public static string Status_OpenReferenceProjectFailed => Get(nameof(Status_OpenReferenceProjectFailed));
+    public static string Status_OpenRelatedWebsiteFailed => Get(nameof(Status_OpenRelatedWebsiteFailed));
     public static string Status_OpenResourceDetailsFailed => Get(nameof(Status_OpenResourceDetailsFailed));
     public static string Status_UpdateCheckUnavailable => Get(nameof(Status_UpdateCheckUnavailable));
     public static string Status_CheckingUpdates => Get(nameof(Status_CheckingUpdates));

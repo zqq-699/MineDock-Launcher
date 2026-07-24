@@ -325,6 +325,24 @@
                                     </TextBlock>
                                 </Grid>
 
+                                <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}"
+                                      Visibility="{Binding DataContext.Details.HasRelatedWebsite, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="128" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Static res:Strings.Resources_ModDetailsRelatedWebsitesLabel}"
+                                               Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
+                                    <TextBlock Grid.Column="1"
+                                               Style="{StaticResource ResourcesModDetailValueTextStyle}">
+                                        <Hyperlink Command="{Binding DataContext.Parent.OpenRelatedWebsiteCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                   CommandParameter="{Binding DataContext.Details.RelatedWebsite, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                   Style="{StaticResource ResourcesModDetailHyperlinkStyle}">
+                                            <Run Text="{Binding DataContext.Details.RelatedWebsite.Name, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </Grid>
+
                                 <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="128" />

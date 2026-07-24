@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDownloadConcurrencyLimitState>(_ => ImportConcurrencyLimiter.Shared);
         services.AddSingleton<ICustomFileDownloadService, CustomFileDownloadService>();
         services.AddSingleton<ICurseForgeApiKeyResolver, CurseForgeApiKeyResolver>();
+        services.AddSingleton<IMcresBhlApiKeyResolver, McresBhlApiKeyResolver>();
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IAccountStateService, JsonAccountStateService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();

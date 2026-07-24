@@ -185,6 +185,41 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenRelatedWebsite))]
+    private void OpenRelatedWebsite(ResourceProjectRelatedWebsite? website)
+    {
+        if (website is null || externalLinkService is null)
+            return;
+
+        try
+        {
+            if (externalLinkService.TryOpen(website.Url))
+                return;
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(
+                exception,
+                "Failed to open resource project related website. Source={Source} ProjectId={ProjectId}",
+                website.Source,
+                website.ProjectId);
+        }
+
+        statusService?.Report(Strings.Status_OpenRelatedWebsiteFailed);
+    }
+
+    private bool CanOpenRelatedWebsite(ResourceProjectRelatedWebsite? website)
+    {
+        if (externalLinkService is null
+            || !Uri.TryCreate(website?.Url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && uri.Host.Equals("www.mcresource.cn", StringComparison.OrdinalIgnoreCase);
+    }
+
     public ObservableCollection<ResourcesSectionItem> Sections { get; }
 
     public ResourcesModPageViewModel ModPage { get; }

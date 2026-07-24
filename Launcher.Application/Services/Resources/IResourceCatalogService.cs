@@ -23,6 +23,13 @@ namespace Launcher.Application.Services;
 
 public interface IResourceCatalogService
 {
+    Task<ResourceProjectRelatedWebsite?> GetRelatedWebsiteAsync(
+        ResourceProjectReference reference,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<ResourceProjectRelatedWebsite?>(null);
+    }
+
     Task<ResourceProject?> GetProjectAsync(
         ResourceProjectReference reference,
         CancellationToken cancellationToken = default)

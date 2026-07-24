@@ -36,6 +36,7 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private CancellationTokenSource? dependenciesCancellation;
+    private CancellationTokenSource? relatedWebsiteCancellation;
 
     internal ResourcesProjectDetailsViewModel(
         ResourcesOnlineProjectPageOptions options,
@@ -58,11 +59,17 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     [ObservableProperty]
     private bool isLoadingDependencies;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRelatedWebsite))]
+    private ResourceProjectRelatedWebsite? relatedWebsite;
+
     public ObservableCollection<ResourcesModProjectItemViewModel> RequiredDependencies { get; } = [];
 
     public bool CanGoBackToDependencyParent => backStack.Count > 0;
 
     public bool HasRequiredDependencies => RequiredDependencies.Count > 0;
+
+    public bool HasRelatedWebsite => RelatedWebsite is not null;
 
     public string InfoSectionText => options.DetailsInfoSectionText;
 
@@ -100,8 +107,10 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     public void Reset()
     {
         CancelDependenciesLoad();
+        CancelRelatedWebsiteLoad();
         backStack.Clear();
         CurrentProject = null;
+        RelatedWebsite = null;
         RequiredDependencies.Clear();
         IsLoadingDependencies = false;
         NotifyStateChanged();
@@ -110,15 +119,72 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     public void Dispose()
     {
         CancelDependenciesLoad();
+        CancelRelatedWebsiteLoad();
     }
 
     private void SelectCore(ResourcesModProjectItemViewModel project)
     {
+        CancelRelatedWebsiteLoad();
+        RelatedWebsite = null;
         CurrentProject = project;
         RequiredDependencies.Clear();
         NotifyStateChanged();
         ProjectChanged?.Invoke(project);
         _ = LoadDependenciesAsync(project);
+        _ = LoadRelatedWebsiteAsync(project);
+    }
+
+    private async Task LoadRelatedWebsiteAsync(ResourcesModProjectItemViewModel project)
+    {
+        var replacement = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref relatedWebsiteCancellation, replacement);
+        previous?.Cancel();
+        previous?.Dispose();
+        var cancellationToken = replacement.Token;
+
+        if (resourceCatalogService is null
+            || project.Project.Kind is not (
+                ResourceProjectKind.ResourcePack
+                or ResourceProjectKind.ShaderPack
+                or ResourceProjectKind.World))
+        {
+            return;
+        }
+
+        try
+        {
+            var website = await resourceCatalogService.GetRelatedWebsiteAsync(
+                new ResourceProjectReference(
+                    project.Project.Kind,
+                    project.Project.Source,
+                    project.Project.ProjectId),
+                cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            uiDispatcher.Invoke(() =>
+            {
+                if (!cancellationToken.IsCancellationRequested && ReferenceEquals(CurrentProject, project))
+                    RelatedWebsite = website;
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+            uiDispatcher.Invoke(() =>
+            {
+                if (ReferenceEquals(CurrentProject, project))
+                    RelatedWebsite = null;
+            });
+            logger?.LogWarning(
+                exception,
+                "Failed to load resource project related website. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                project.Project.Kind,
+                project.Project.Source,
+                project.Project.ProjectId);
+        }
     }
 
     private async Task LoadDependenciesAsync(ResourcesModProjectItemViewModel project)
@@ -241,6 +307,13 @@ public sealed partial class ResourcesProjectDetailsViewModel : ObservableObject,
     private void CancelDependenciesLoad()
     {
         var cancellation = Interlocked.Exchange(ref dependenciesCancellation, null);
+        cancellation?.Cancel();
+        cancellation?.Dispose();
+    }
+
+    private void CancelRelatedWebsiteLoad()
+    {
+        var cancellation = Interlocked.Exchange(ref relatedWebsiteCancellation, null);
         cancellation?.Cancel();
         cancellation?.Dispose();
     }

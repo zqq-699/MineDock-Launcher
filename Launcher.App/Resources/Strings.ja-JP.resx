@@ -331,6 +331,9 @@
   <data name="Resources_ModDetailsSourceLabel" xml:space="preserve">
     <value>提供元</value>
   </data>
+  <data name="Resources_ModDetailsRelatedWebsitesLabel" xml:space="preserve">
+    <value>関連サイト</value>
+  </data>
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
     <value>ダウンロード数</value>
   </data>
@@ -2224,6 +2227,9 @@
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>プロジェクトリンクを開けませんでした</value>
+  </data>
+  <data name="Status_OpenRelatedWebsiteFailed" xml:space="preserve">
+    <value>関連サイトを開けませんでした</value>
   </data>
   <data name="Status_OpenResourceDetailsFailed" xml:space="preserve">
     <value>リソースの詳細を開けませんでした。しばらくしてからもう一度お試しください。</value>

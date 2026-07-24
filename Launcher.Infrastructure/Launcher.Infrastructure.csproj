@@ -17,6 +17,9 @@
     <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key"
                       Condition="Exists('$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key')"
                       LogicalName="Launcher.Infrastructure.CurseForge.curseforge.key" />
+    <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\.local-secrets\mcres-bhl.key"
+                      Condition="Exists('$(MSBuildProjectDirectory)\..\.local-secrets\mcres-bhl.key')"
+                      LogicalName="Launcher.Infrastructure.Resources.mcres-bhl.key" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,6 +37,11 @@
   <Target Name="WarnMissingCurseForgeEmbeddedKey" BeforeTargets="CoreCompile"
           Condition="!Exists('$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key')">
     <Warning Text="CurseForge API key file was not found at $(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key. The launcher will be built without an embedded CurseForge key." />
+  </Target>
+
+  <Target Name="WarnMissingMcresBhlEmbeddedKey" BeforeTargets="CoreCompile"
+          Condition="!Exists('$(MSBuildProjectDirectory)\..\.local-secrets\mcres-bhl.key')">
+    <Warning Text="MCRES BHL API key file was not found at $(MSBuildProjectDirectory)\..\.local-secrets\mcres-bhl.key. The launcher will be built without an embedded MCRES BHL key." />
   </Target>
 
 </Project>
