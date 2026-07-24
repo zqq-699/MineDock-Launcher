@@ -1,0 +1,41 @@
+name: "缺陷 / Bug"
+description: "用于提交 Bug 和异常问题"
+title: "[Bug] "
+labels:
+  - "bug"
+  - "待处理"
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈 Bug 🙏  
+        请尽量填写清晰，方便复现和修复。
+        在填写前，请确认您已搜索相关关键词，确保无人提交过相同反馈。
+        
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题概述
+      placeholder: 简要描述问题现象
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 看到 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 日志与错误报告
+      description: 请上传相关启动器日志和崩溃报告。如有崩溃报告请上传完整 .zip 压缩包文件。
+    validations:
+      required: true

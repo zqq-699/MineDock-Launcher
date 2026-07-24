@@ -1,0 +1,34 @@
+name: "新功能 / Feature"
+description: "用于提交新的功能需求或需求变更"
+title: "[新功能] "
+labels:
+  - "新功能"
+  - "待处理"
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提交新需求 🙏  
+        请尽量填写清晰，方便后续评估。
+        在填写前，请确认您已搜索相关关键词，确保无人提交过相同提议。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 功能描述
+      description: 希望新增什么功能，对于新功能的期望。
+      placeholder: |
+        新功能描述...
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他信息
+      description: 补充其他相关信息
+      placeholder: |
+        补充其他相关信息...
+    validations:
+      required: false
