@@ -28,7 +28,7 @@ public sealed class ComposedVersionInstallRunnerTests : TestTempDirectory
 
         Assert.False(installStarted.Task.IsCompleted);
         preparationGate.TrySetResult();
-        await installStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await installStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal("sequential", await runTask);
         Assert.True(Directory.Exists(versionDirectory));

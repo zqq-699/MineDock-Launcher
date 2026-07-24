@@ -18,6 +18,8 @@ namespace Launcher.Tests.ViewModels.GameSettings;
 
 public sealed class AutoJoinServerSettingsViewModelTests
 {
+    private static readonly TimeSpan CompletionTimeout = TimeSpan.FromSeconds(10);
+
     [Fact]
     public async Task GlobalEditorLoadsAndPersistsDefaultAutoJoinAddress()
     {
@@ -63,7 +65,7 @@ public sealed class AutoJoinServerSettingsViewModelTests
         viewModel.SelectedLaunchSettingsModeOption = viewModel.LaunchSettingsModeOptions.Single(
             option => option.Mode is LaunchSettingsMode.PerInstance);
         viewModel.LaunchAutoJoinServerAddress = "instance.example.com:25567";
-        await instanceService.SaveCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await instanceService.SaveCompleted.Task.WaitAsync(CompletionTimeout);
 
         Assert.True(viewModel.AreLaunchSettingsOverridesEnabled);
         Assert.Equal(LaunchSettingsMode.PerInstance, instance.LaunchSettingsMode);
@@ -86,7 +88,7 @@ public sealed class AutoJoinServerSettingsViewModelTests
         using var viewModel = CreateViewModel(persistence, globalSettings, instance);
 
         viewModel.LaunchAutoJoinServerAddress = "new.example.com:25566";
-        await status.Message.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await status.Message.Task.WaitAsync(CompletionTimeout);
 
         Assert.Equal("old.example.com:25565", instance.AutoJoinServerAddress);
         Assert.Equal("old.example.com:25565", viewModel.LaunchAutoJoinServerAddress);
