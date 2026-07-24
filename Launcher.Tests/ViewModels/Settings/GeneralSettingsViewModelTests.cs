@@ -120,6 +120,7 @@ public sealed class GeneralSettingsViewModelTests
         public string? PickShaderPackArchive() => null;
         public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind) => null;
         public string? PickLaunchDiagnosticExportArchive(string instanceName) => null;
+        public string? PickCustomDownloadDestination(string defaultFileName) => null;
     }
 
     private sealed class PassthroughInstanceFolderService : IInstanceFolderService

@@ -994,6 +994,58 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="CustomFileDownloadDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="460"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding DataContext.SettingsPage.Download.CustomFileDownload.IsDialogOpen, ElementName=RootWindow}"
+                                 DataContext="{Binding DataContext.SettingsPage.Download.CustomFileDownload, ElementName=RootWindow}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_CustomFileDownloadTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <StackPanel Grid.Row="1"
+                                Style="{StaticResource DialogFormPanelStyle}">
+                        <TextBlock Text="{x:Static res:Strings.Dialog_CustomFileDownloadAddressLabel}"
+                                   Style="{StaticResource DialogFieldLabelTextStyle}" />
+                        <TextBox Text="{Binding Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource LauncherDialogTextBoxStyle}" />
+                        <TextBlock Text="{Binding AddressValidationMessage}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource DialogValidationTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasAddressValidationError}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                        <Button Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Dialog_CustomFileDownloadDownloadButton}"
+                                Command="{Binding DownloadCommand}"
+                                IsDefault="True"
+                                Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="LauncherUpdateDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

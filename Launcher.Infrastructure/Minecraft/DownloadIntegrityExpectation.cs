@@ -13,17 +13,28 @@ internal sealed class DownloadIntegrityExpectation
 {
     private readonly IReadOnlyDictionary<HashAlgorithmName, byte[]> requiredHashes;
 
-    public DownloadIntegrityExpectation(long? expectedSize, IEnumerable<(HashAlgorithmName Algorithm, string Value)> hashes)
+    public DownloadIntegrityExpectation(
+        long? expectedSize,
+        IEnumerable<(HashAlgorithmName Algorithm, string Value)> hashes)
+        : this(expectedSize, hashes, allowMissingHashes: false)
+    {
+    }
+
+    private DownloadIntegrityExpectation(
+        long? expectedSize,
+        IEnumerable<(HashAlgorithmName Algorithm, string Value)> hashes,
+        bool allowMissingHashes)
     {
         ExpectedSize = expectedSize;
         requiredHashes = hashes
             .Where(value => !string.IsNullOrWhiteSpace(value.Value))
             .ToDictionary(value => value.Algorithm, value => Convert.FromHexString(value.Value.Trim()));
-        if (requiredHashes.Count == 0)
+        if (!allowMissingHashes && requiredHashes.Count == 0)
             throw new InvalidDataException("A resumable download requires at least one expected hash.");
     }
 
     public long? ExpectedSize { get; }
+    public bool IsVerifiable => requiredHashes.Count > 0;
     public bool HasStrongHash => requiredHashes.Keys.Any(IsStrong);
     public string Fingerprint => string.Join(
         ";",
@@ -32,6 +43,9 @@ internal sealed class DownloadIntegrityExpectation
 
     public static DownloadIntegrityExpectation Sha1(string value, long? expectedSize) =>
         new(expectedSize, [(HashAlgorithmName.SHA1, value)]);
+
+    public static DownloadIntegrityExpectation Unverified() =>
+        new(expectedSize: null, hashes: [], allowMissingHashes: true);
 
     public IReadOnlyDictionary<HashAlgorithmName, IncrementalHash> CreateHashers() =>
         requiredHashes.Keys.ToDictionary(algorithm => algorithm, IncrementalHash.CreateHash);
@@ -44,6 +58,8 @@ internal sealed class DownloadIntegrityExpectation
 
     public async Task<bool> VerifyFileAsync(string path, CancellationToken cancellationToken)
     {
+        if (!IsVerifiable)
+            return false;
         if (ExpectedSize.HasValue && new FileInfo(path).Length != ExpectedSize.Value)
             return false;
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -70,6 +86,8 @@ internal sealed class DownloadIntegrityExpectation
 
     public bool VerifyFile(string path, CancellationToken cancellationToken)
     {
+        if (!IsVerifiable)
+            return false;
         if (ExpectedSize.HasValue && new FileInfo(path).Length != ExpectedSize.Value)
             return false;
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);

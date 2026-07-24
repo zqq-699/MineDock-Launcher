@@ -1266,4 +1266,21 @@
   <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>查看使用本软件时适用的条款与重要声明</value></data>
   <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>查看</value></data>
   <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>无法打开法律文档，请检查系统浏览器设置后重试。</value></data>
+  <data name="Status_ResourceProjectDownloadAlreadyRunning" xml:space="preserve">
+    <value>这个资源已有正在进行的下载任务。</value>
+  </data>
+  <data name="Settings_CustomFileDownloadSection" xml:space="preserve"><value>下载自定义文件</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskLabel" xml:space="preserve"><value>新建下载任务</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskButton" xml:space="preserve"><value>新建任务</value></data>
+  <data name="Dialog_CustomFileDownloadTitle" xml:space="preserve"><value>新建下载任务</value></data>
+  <data name="Dialog_CustomFileDownloadAddressLabel" xml:space="preserve"><value>地址：</value></data>
+  <data name="Dialog_CustomFileDownloadAddressValidation" xml:space="preserve"><value>请输入有效的 HTTP 或 HTTPS 文件地址。</value></data>
+  <data name="Dialog_CustomFileDownloadDownloadButton" xml:space="preserve"><value>下载</value></data>
+  <data name="FilePicker_CustomFileDownloadTitle" xml:space="preserve"><value>保存自定义下载文件</value></data>
+  <data name="FilePicker_CustomFileDownloadFilter" xml:space="preserve"><value>所有文件 (*.*)|*.*</value></data>
+  <data name="Status_CustomFileDownloadPreparing" xml:space="preserve"><value>正在准备下载...</value></data>
+  <data name="Status_CustomFileDownloadStartedFormat" xml:space="preserve"><value>已开始下载 {0}</value></data>
+  <data name="Status_CustomFileDownloading" xml:space="preserve"><value>正在下载...</value></data>
+  <data name="Status_CustomFileDownloadCompleted" xml:space="preserve"><value>下载完成</value></data>
+  <data name="Status_CustomFileDownloadFailed" xml:space="preserve"><value>下载失败，请检查网络或保存位置后重试。</value></data>
 </root>

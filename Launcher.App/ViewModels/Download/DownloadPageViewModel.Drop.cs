@@ -78,6 +78,7 @@ private bool CanHandleLocalImportDropCore(IReadOnlyList<string> paths)
         public string? PickShaderPackArchive() => null;
         public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind) => null;
         public string? PickLaunchDiagnosticExportArchive(string instanceName) => null;
+        public string? PickCustomDownloadDestination(string defaultFileName) => null;
         public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
 

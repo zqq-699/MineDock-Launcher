@@ -3546,4 +3546,21 @@ The current game folder will be backed up first.</value>
   <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>Read the terms and important notices that apply when using this software</value></data>
   <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>View</value></data>
   <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>Unable to open the legal document. Check your system browser settings and try again.</value></data>
+  <data name="Status_ResourceProjectDownloadAlreadyRunning" xml:space="preserve">
+    <value>A download task for this resource is already running.</value>
+  </data>
+  <data name="Settings_CustomFileDownloadSection" xml:space="preserve"><value>Download Custom File</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskLabel" xml:space="preserve"><value>New download task</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskButton" xml:space="preserve"><value>New task</value></data>
+  <data name="Dialog_CustomFileDownloadTitle" xml:space="preserve"><value>New Download Task</value></data>
+  <data name="Dialog_CustomFileDownloadAddressLabel" xml:space="preserve"><value>Address:</value></data>
+  <data name="Dialog_CustomFileDownloadAddressValidation" xml:space="preserve"><value>Enter a valid HTTP or HTTPS file address.</value></data>
+  <data name="Dialog_CustomFileDownloadDownloadButton" xml:space="preserve"><value>Download</value></data>
+  <data name="FilePicker_CustomFileDownloadTitle" xml:space="preserve"><value>Save Custom Download</value></data>
+  <data name="FilePicker_CustomFileDownloadFilter" xml:space="preserve"><value>All files (*.*)|*.*</value></data>
+  <data name="Status_CustomFileDownloadPreparing" xml:space="preserve"><value>Preparing download...</value></data>
+  <data name="Status_CustomFileDownloadStartedFormat" xml:space="preserve"><value>Started downloading {0}</value></data>
+  <data name="Status_CustomFileDownloading" xml:space="preserve"><value>Downloading...</value></data>
+  <data name="Status_CustomFileDownloadCompleted" xml:space="preserve"><value>Download complete</value></data>
+  <data name="Status_CustomFileDownloadFailed" xml:space="preserve"><value>Download failed. Check the network or save location and try again.</value></data>
 </root>

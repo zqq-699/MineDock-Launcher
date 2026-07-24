@@ -90,28 +90,50 @@ private async Task<bool> InstallDependenciesAsync(
     }
 
     private async Task<RequiredDependenciesDialogChoice> RequestDependenciesDialogAsync(
-        IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items)
+        IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items,
+        CancellationToken cancellationToken)
     {
         // 异步 continuation 避免按钮事件完成 Task 时同步重入后续安装并阻塞 UI 调用栈。
-        pendingDependenciesChoice?.TrySetResult(RequiredDependenciesDialogChoice.Cancel);
+        // 下载任务并行执行，但共享依赖确认界面按请求顺序逐个显示。
+        await dependencyDialogGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var completion = new TaskCompletionSource<RequiredDependenciesDialogChoice>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingDependenciesChoice = completion;
-        uiDispatcher.Invoke(() =>
+        try
         {
-            RequiredDependencyDialogItems.Clear();
-            foreach (var item in items)
-                RequiredDependencyDialogItems.Add(item);
-            IsRequiredDependenciesDialogOpen = true;
-        });
-        return await completion.Task.ConfigureAwait(false);
+            uiDispatcher.Invoke(() =>
+            {
+                pendingDependenciesChoice = completion;
+                RequiredDependencyDialogItems.Clear();
+                foreach (var item in items)
+                    RequiredDependencyDialogItems.Add(item);
+                IsRequiredDependenciesDialogOpen = true;
+            });
+            return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            uiDispatcher.Invoke(() =>
+            {
+                if (!ReferenceEquals(pendingDependenciesChoice, completion))
+                    return;
+
+                pendingDependenciesChoice = null;
+                IsRequiredDependenciesDialogOpen = false;
+                RequiredDependencyDialogItems.Clear();
+            });
+            dependencyDialogGate.Release();
+        }
     }
 
     private void ResolveDependenciesDialog(RequiredDependenciesDialogChoice choice)
     {
-        uiDispatcher.Invoke(() => IsRequiredDependenciesDialogOpen = false);
-        pendingDependenciesChoice?.TrySetResult(choice);
-        pendingDependenciesChoice = null;
+        TaskCompletionSource<RequiredDependenciesDialogChoice>? completion = null;
+        uiDispatcher.Invoke(() =>
+        {
+            IsRequiredDependenciesDialogOpen = false;
+            completion = pendingDependenciesChoice;
+        });
+        completion?.TrySetResult(choice);
     }
 
     private void CompleteModpackImport(InstallOperationContext context, ModpackImportResult result)

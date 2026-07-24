@@ -48,6 +48,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ISystemMemoryService systemMemoryService,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
+        ICustomFileDownloadService customFileDownloadService,
         IInstanceFolderService instanceFolderService,
         IFloatingMessageService floatingMessageService,
         IThemeService themeService,
@@ -59,6 +60,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ILogger<SettingsFeedbackDialogViewModel>? feedbackDialogLogger = null,
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
         ILogger<SettingsPageViewModel>? logger = null,
+        ILogger<CustomFileDownloadViewModel>? customFileDownloadLogger = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
         ILauncherLogLevelController? logLevelController = null,
         LauncherBackgroundViewModel? launcherBackground = null)
@@ -74,7 +76,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             downloadTasksPage,
             logLevelController,
             resolvedLogger);
-        Download = new DownloadSettingsViewModel(persistence);
+        var resolvedDownloadTasksPage = downloadTasksPage ?? new DownloadTasksPageViewModel();
+        Download = new DownloadSettingsViewModel(
+            persistence,
+            new CustomFileDownloadViewModel(
+                customFileDownloadService,
+                filePickerService,
+                floatingMessageService,
+                resolvedDownloadTasksPage,
+                customFileDownloadLogger));
         Language = new LanguageSettingsViewModel(persistence);
         LaunchMemory = new LaunchMemorySettingsViewModel(persistence, systemMemoryService);
         Java = new JavaSettingsViewModel(

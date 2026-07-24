@@ -18,7 +18,9 @@ internal enum DownloadPersistenceMode
 internal sealed record DownloadFileOptions(
     DownloadPersistenceMode PersistenceMode = DownloadPersistenceMode.TaskScopedResumable,
     MinecraftDownloadOperationContext? OperationContext = null,
-    string? ManagedRoot = null)
+    string? ManagedRoot = null,
+    bool AllowUnverifiedSegmentedDownload = false,
+    bool UseHiddenTemporaryFile = true)
 {
     public string? ResolveManagedRoot(string destinationPath)
     {

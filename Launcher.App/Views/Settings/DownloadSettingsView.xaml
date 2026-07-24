@@ -116,5 +116,28 @@
                 </StackPanel>
             </Border>
         </GroupBox>
+
+        <GroupBox Margin="0,28,0,0"
+                  Header="{x:Static res:Strings.Settings_CustomFileDownloadSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Settings_CustomFileDownloadNewTaskLabel}"
+                               Style="{StaticResource SettingsOptionTextStyle}" />
+
+                    <Button Grid.Column="1"
+                            Margin="20,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="{x:Static res:Strings.Settings_CustomFileDownloadNewTaskButton}"
+                            Command="{Binding CustomFileDownload.OpenDialogCommand}"
+                            Style="{StaticResource LauncherDialogButtonStyle}" />
+                </Grid>
+            </Border>
+        </GroupBox>
     </StackPanel>
 </UserControl>

@@ -6,8 +6,6 @@
 
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using System.Collections.Concurrent;
 using Launcher.Application.Services;
@@ -152,39 +150,13 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal(["download.example", "edge.forgecdn.net"], handler.DownloadHosts);
     }
 
-    [Fact]
-    public async Task CurseForgeEdgeRangeFailureUsesMediafilezSegmentedCandidate()
-    {
-        var content = Enumerable.Range(0, 256 * 1024)
-            .Select(index => (byte)(index % 251))
-            .ToArray();
-        var handler = new SegmentedCurseForgeFallbackHandler(content);
-        var limiter = new ImportConcurrencyLimiter();
-        limiter.SetMaximumDownloadConcurrency(4);
-        var service = CreateService(new HttpClient(handler), apiKey: "test-key", limiter: limiter);
-        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
-        var prepared = CreateSingleCurseForgePreparedModpack();
-
-        var manualDownloads = await service.DownloadFilesAsync(prepared, instance, progress: null);
-
-        Assert.Empty(manualDownloads);
-        Assert.Equal(
-            content,
-            await File.ReadAllBytesAsync(Path.Combine(instance.InstanceDirectory, "mods", "direct.jar")));
-        Assert.True(handler.EdgeRangeRequestCount >= 1);
-        Assert.Equal(0, handler.EdgeFullRequestCount);
-        Assert.True(handler.MediafilezRangeRequestCount >= 1);
-        Assert.Equal(0, handler.MediafilezFullRequestCount);
-    }
-
     private LocalModpackPackageService CreateService(
         HttpClient? client = null,
         string? apiKey = null,
-        ILogger<LocalModpackPackageService>? logger = null,
-        IImportConcurrencyLimiter? limiter = null)
+        ILogger<LocalModpackPackageService>? logger = null)
     {
         var paths = new LauncherPathProvider(TempRoot);
-        return new LocalModpackPackageService(paths, httpClient: client, limiter: limiter,
+        return new LocalModpackPackageService(paths, httpClient: client,
             logger: logger,
             curseForgeApiKeyResolver: new CurseForgeApiKeyResolver(
                 paths,
@@ -278,81 +250,6 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             return Task.FromResult(string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase)
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("downloaded") }
                 : new HttpResponseMessage(HttpStatusCode.NotFound));
-        }
-    }
-
-    private sealed class SegmentedCurseForgeFallbackHandler(byte[] content) : HttpMessageHandler
-    {
-        private const int ProbeLength = 512 * 1024;
-        private readonly string sha1 = Convert.ToHexString(SHA1.HashData(content)).ToLowerInvariant();
-        private int edgeRangeRequestCount;
-        private int edgeFullRequestCount;
-        private int mediafilezRangeRequestCount;
-        private int mediafilezFullRequestCount;
-
-        public int EdgeRangeRequestCount => Volatile.Read(ref edgeRangeRequestCount);
-
-        public int EdgeFullRequestCount => Volatile.Read(ref edgeFullRequestCount);
-
-        public int MediafilezRangeRequestCount => Volatile.Read(ref mediafilezRangeRequestCount);
-
-        public int MediafilezFullRequestCount => Volatile.Read(ref mediafilezFullRequestCount);
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var uri = request.RequestUri!;
-            if (string.Equals(uri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase))
-            {
-                var edgeUrl = "https://edge.forgecdn.net/files/0/101/direct.jar";
-                var json = uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal)
-                    ? $"{{\"data\":\"{edgeUrl}\"}}"
-                    : $"{{\"data\":{{\"displayName\":\"Direct\",\"fileName\":\"direct.jar\",\"downloadUrl\":\"{edgeUrl}\",\"hashes\":[{{\"algo\":1,\"value\":\"{sha1}\"}}]}}}}";
-                return Task.FromResult(JsonResponse(json));
-            }
-
-            if (string.Equals(uri.Host, "edge.forgecdn.net", StringComparison.OrdinalIgnoreCase))
-            {
-                if (request.Headers.Range is null)
-                {
-                    Interlocked.Increment(ref edgeFullRequestCount);
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-                    {
-                        Content = new ByteArrayContent(content)
-                    });
-                }
-
-                Interlocked.Increment(ref edgeRangeRequestCount);
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-            }
-
-            if (!string.Equals(uri.Host, "mediafilez.forgecdn.net", StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-
-            if (request.Headers.Range is null)
-            {
-                Interlocked.Increment(ref mediafilezFullRequestCount);
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new ByteArrayContent(content)
-                });
-            }
-
-            Interlocked.Increment(ref mediafilezRangeRequestCount);
-            var requestedRange = Assert.Single(request.Headers.Range.Ranges);
-            var start = requestedRange.From ?? 0;
-            var end = requestedRange.To
-                ?? Math.Min(content.LongLength - 1, start + ProbeLength - 1);
-            var length = checked((int)(end - start + 1));
-            var responseContent = new ByteArrayContent(content, checked((int)start), length);
-            responseContent.Headers.ContentRange = new ContentRangeHeaderValue(start, end, content.LongLength);
-            var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
-            {
-                Content = responseContent
-            };
-            response.Headers.AcceptRanges.Add("bytes");
-            return Task.FromResult(response);
         }
     }
 

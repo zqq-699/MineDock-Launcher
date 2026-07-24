@@ -92,6 +92,103 @@ public sealed class ResourcesProjectInstallViewModelTests
         Assert.Equal(DownloadTaskState.Failed, tasks.Tasks.Single(task => task.Title == "Version second").State);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OrdinaryResourceRequestsRunConcurrentlyAndCreateVisibleTasks(bool localDownload)
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+        var target = localDownload
+            ? ResourcesModInstallTargetItemViewModel.CreateLocalDownload("save as")
+            : ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
+            {
+                Id = "instance",
+                Name = "Instance",
+                InstanceDirectory = "instance"
+            });
+        var kind = localDownload ? ResourceProjectKind.ResourcePack : ResourceProjectKind.Mod;
+
+        var first = viewModel.InstallAsync(CreateVersionItem(kind, "first"), target, null);
+        var second = viewModel.InstallAsync(CreateVersionItem(kind, "second"), target, null);
+        await installation.WaitForExecutionCountAsync(2);
+
+        Assert.True(viewModel.IsInstalling);
+        Assert.Equal(2, tasks.Tasks.Count);
+        Assert.All(tasks.Tasks, task => Assert.Equal(DownloadTaskState.Running, task.State));
+
+        installation.Complete("first", new ResourceProjectInstallationResult());
+        installation.Complete("second", new ResourceProjectInstallationResult());
+        await Task.WhenAll(first, second);
+
+        Assert.False(viewModel.IsInstalling);
+        Assert.All(tasks.Tasks, task => Assert.Equal(DownloadTaskState.Completed, task.State));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DuplicateResourceRequestForSameTargetReusesRunningTask(bool localDownload)
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var messages = new RecordingFloatingMessageService();
+        var viewModel = CreateViewModel(installation, tasks, _ => { }, messages);
+        var target = localDownload
+            ? ResourcesModInstallTargetItemViewModel.CreateLocalDownload("save as")
+            : ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
+            {
+                Id = "instance",
+                Name = "Instance",
+                InstanceDirectory = "instance"
+            });
+        var item = CreateVersionItem(
+            localDownload ? ResourceProjectKind.ResourcePack : ResourceProjectKind.Mod,
+            "same");
+
+        var first = viewModel.InstallAsync(item, target, null);
+        await installation.WaitForExecutionCountAsync(1);
+        await viewModel.InstallAsync(item, target, null);
+
+        Assert.Equal(1, installation.ExecutionCount);
+        Assert.Single(tasks.Tasks);
+        Assert.Contains(Strings.Status_ResourceProjectDownloadAlreadyRunning, messages.Messages);
+
+        installation.Complete("same", new ResourceProjectInstallationResult());
+        await first;
+    }
+
+    [Fact]
+    public async Task SameResourceCanInstallIntoDifferentInstancesConcurrently()
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+        var item = CreateVersionItem(ResourceProjectKind.Mod, "same");
+        var firstTarget = ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
+        {
+            Id = "first-instance",
+            Name = "First",
+            InstanceDirectory = "first"
+        });
+        var secondTarget = ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
+        {
+            Id = "second-instance",
+            Name = "Second",
+            InstanceDirectory = "second"
+        });
+
+        var first = viewModel.InstallAsync(item, firstTarget, null);
+        var second = viewModel.InstallAsync(item, secondTarget, null);
+        await installation.WaitForExecutionCountAsync(2);
+
+        Assert.Equal(2, tasks.Tasks.Count);
+        installation.Complete("same", new ResourceProjectInstallationResult());
+        installation.Complete("same", new ResourceProjectInstallationResult());
+        await Task.WhenAll(first, second);
+    }
+
     [Fact]
     public async Task CancelingServerParentDirectoryDoesNotCreateTask()
     {
@@ -260,8 +357,17 @@ public sealed class ResourcesProjectInstallViewModelTests
     private sealed class ControllableInstallationService : IResourceProjectInstallationService
     {
         private readonly object syncRoot = new();
-        private readonly Dictionary<string, TaskCompletionSource<ResourceProjectInstallationResult>> executions = [];
+        private readonly Dictionary<string, List<TaskCompletionSource<ResourceProjectInstallationResult>>> executions = [];
         private TaskCompletionSource<bool> executionCountChanged = CreateSignal();
+
+        public int ExecutionCount
+        {
+            get
+            {
+                lock (syncRoot)
+                    return executions.Values.Sum(values => values.Count);
+            }
+        }
 
         public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
             ResourceProjectInstallationRequest request,
@@ -278,7 +384,12 @@ public sealed class ResourcesProjectInstallViewModelTests
             {
                 completion = new TaskCompletionSource<ResourceProjectInstallationResult>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
-                executions.Add(request.Version.VersionId, completion);
+                if (!executions.TryGetValue(request.Version.VersionId, out var versionExecutions))
+                {
+                    versionExecutions = [];
+                    executions.Add(request.Version.VersionId, versionExecutions);
+                }
+                versionExecutions.Add(completion);
                 executionCountChanged.TrySetResult(true);
                 executionCountChanged = CreateSignal();
             }
@@ -293,7 +404,7 @@ public sealed class ResourcesProjectInstallViewModelTests
                 Task signal;
                 lock (syncRoot)
                 {
-                    if (executions.Count >= count)
+                    if (executions.Values.Sum(values => values.Count) >= count)
                         return;
                     signal = executionCountChanged.Task;
                 }
@@ -304,19 +415,19 @@ public sealed class ResourcesProjectInstallViewModelTests
         public void Complete(string versionId, ResourceProjectInstallationResult result)
         {
             lock (syncRoot)
-                executions[versionId].TrySetResult(result);
+                executions[versionId].First(execution => !execution.Task.IsCompleted).TrySetResult(result);
         }
 
         public void Fail(string versionId, Exception exception)
         {
             lock (syncRoot)
-                executions[versionId].TrySetException(exception);
+                executions[versionId].First(execution => !execution.Task.IsCompleted).TrySetException(exception);
         }
 
         public bool IsCompleted(string versionId)
         {
             lock (syncRoot)
-                return executions[versionId].Task.IsCompleted;
+                return executions[versionId].All(execution => execution.Task.IsCompleted);
         }
 
         private static TaskCompletionSource<bool> CreateSignal() =>
@@ -347,6 +458,7 @@ public sealed class ResourcesProjectInstallViewModelTests
         public string? PickShaderPackArchive() => null;
         public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind) => null;
         public string? PickLaunchDiagnosticExportArchive(string instanceName) => null;
+        public string? PickCustomDownloadDestination(string defaultFileName) => null;
         public string? PickFolder(string title, string? initialDirectory = null) => folder;
     }
 }

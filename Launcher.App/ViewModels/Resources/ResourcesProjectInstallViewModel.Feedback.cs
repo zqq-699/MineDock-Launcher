@@ -85,6 +85,7 @@ private void BeginUserFeedback(ResourcesModVersionItemViewModel item)
         public ResourcesModVersionItemViewModel Item { get; } = item;
         public ResourcesModInstallTargetItemViewModel Target { get; } = target;
         public ResourcesModProjectItemViewModel? Project { get; } = project;
+        public string? ActiveInstallKey { get; set; }
         public ResourceInstallTaskSession? Session { get; set; }
     }
 }

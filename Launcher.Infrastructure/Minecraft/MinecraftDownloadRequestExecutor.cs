@@ -372,6 +372,29 @@ internal sealed class MinecraftDownloadRequestExecutor
         }
     }
 
+    public Task<ResolvedDownloadRequest> DownloadUnverifiedFileAsync(
+        string originalUrl,
+        string destinationPath,
+        CancellationToken cancellationToken,
+        Action<int, long, long?>? reportAttemptProgress = null,
+        SpeedMeter? speedMeter = null,
+        Action<long>? reportTransferredBytes = null)
+    {
+        return DownloadFileAsync(
+            originalUrl,
+            DownloadSourcePreference.Official,
+            "ThirdParty",
+            destinationPath,
+            DownloadIntegrityExpectation.Unverified(),
+            cancellationToken,
+            reportAttemptProgress: reportAttemptProgress,
+            options: new DownloadFileOptions(
+                AllowUnverifiedSegmentedDownload: true,
+                UseHiddenTemporaryFile: false),
+            speedMeter: speedMeter,
+            reportTransferredBytes: reportTransferredBytes);
+    }
+
     private async Task<SegmentedDownloadAttemptResult> TryDownloadSegmentedAsync(
         IReadOnlyList<ResolvedDownloadRequest> candidates,
         DownloadIntegrityExpectation integrity,
@@ -489,10 +512,18 @@ internal sealed class MinecraftDownloadRequestExecutor
                 }
 
                 var validated = ValidateSegmentResponse(context.Response, probeRange, strongETag);
+                var responseStrongETag = GetStrongETag(context.Response);
+                if (!integrity.IsVerifiable
+                    && (validated.TotalLength < MinimumSegmentedDownloadSize
+                        || string.IsNullOrWhiteSpace(responseStrongETag)))
+                {
+                    throw new SegmentedDownloadNotSupportedException(
+                        "An unverified segmented download requires a sufficiently large response with a strong ETag.");
+                }
                 if (Interlocked.CompareExchange(ref prepared, 1, 0) == 0)
                 {
                     session.PrepareSegmentedDownload(validated.TotalLength);
-                    strongETag = GetStrongETag(context.Response);
+                    strongETag = responseStrongETag;
                     probeAccepted.TrySetResult(new SegmentedProbeResult(
                         false,
                         validated,
@@ -1095,6 +1126,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadFileOptions? options)
     {
         if (!integrity.HasStrongHash
+            && !(options?.AllowUnverifiedSegmentedDownload == true && !integrity.IsVerifiable)
             || integrity.ExpectedSize.HasValue && integrity.ExpectedSize.Value < MinimumSegmentedDownloadSize)
             return false;
         if ((options?.PersistenceMode ?? DownloadPersistenceMode.TaskScopedResumable)
@@ -1170,7 +1202,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         }
 
         var responseETag = GetStrongETag(response);
-        if (strongETag is not null && responseETag is not null
+        if (strongETag is not null
             && !string.Equals(strongETag, responseETag, StringComparison.Ordinal))
         {
             throw new SegmentedDownloadNotSupportedException("The source representation changed during segmented download.");

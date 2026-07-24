@@ -3546,4 +3546,21 @@
   <data name="Settings_UserAgreementDescription" xml:space="preserve"><value>本ソフトウェアの利用に適用される条件と重要な通知を確認します</value></data>
   <data name="Settings_ViewLegalDocumentButton" xml:space="preserve"><value>表示</value></data>
   <data name="Status_OpenLegalDocumentFailed" xml:space="preserve"><value>法的文書を開けません。システムのブラウザー設定を確認して、もう一度お試しください。</value></data>
+  <data name="Status_ResourceProjectDownloadAlreadyRunning" xml:space="preserve">
+    <value>このリソースのダウンロードタスクは既に実行中です。</value>
+  </data>
+  <data name="Settings_CustomFileDownloadSection" xml:space="preserve"><value>カスタムファイルのダウンロード</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskLabel" xml:space="preserve"><value>新しいダウンロードタスク</value></data>
+  <data name="Settings_CustomFileDownloadNewTaskButton" xml:space="preserve"><value>新規タスク</value></data>
+  <data name="Dialog_CustomFileDownloadTitle" xml:space="preserve"><value>新しいダウンロードタスク</value></data>
+  <data name="Dialog_CustomFileDownloadAddressLabel" xml:space="preserve"><value>アドレス：</value></data>
+  <data name="Dialog_CustomFileDownloadAddressValidation" xml:space="preserve"><value>有効な HTTP または HTTPS のファイルアドレスを入力してください。</value></data>
+  <data name="Dialog_CustomFileDownloadDownloadButton" xml:space="preserve"><value>ダウンロード</value></data>
+  <data name="FilePicker_CustomFileDownloadTitle" xml:space="preserve"><value>カスタムダウンロードを保存</value></data>
+  <data name="FilePicker_CustomFileDownloadFilter" xml:space="preserve"><value>すべてのファイル (*.*)|*.*</value></data>
+  <data name="Status_CustomFileDownloadPreparing" xml:space="preserve"><value>ダウンロードを準備しています...</value></data>
+  <data name="Status_CustomFileDownloadStartedFormat" xml:space="preserve"><value>{0} のダウンロードを開始しました</value></data>
+  <data name="Status_CustomFileDownloading" xml:space="preserve"><value>ダウンロード中...</value></data>
+  <data name="Status_CustomFileDownloadCompleted" xml:space="preserve"><value>ダウンロードが完了しました</value></data>
+  <data name="Status_CustomFileDownloadFailed" xml:space="preserve"><value>ダウンロードに失敗しました。ネットワークまたは保存先を確認して、もう一度お試しください。</value></data>
 </root>

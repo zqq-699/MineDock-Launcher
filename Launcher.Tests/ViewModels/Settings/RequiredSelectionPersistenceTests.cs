@@ -130,6 +130,7 @@ public sealed class RequiredSelectionPersistenceTests
             Stub<ISystemMemoryService>(),
             Stub<IJavaRuntimeDiscoveryService>(),
             Stub<IFilePickerService>(),
+            Stub<ICustomFileDownloadService>(),
             Stub<IInstanceFolderService>(),
             Stub<IFloatingMessageService>(),
             themeService ?? Stub<IThemeService>(),

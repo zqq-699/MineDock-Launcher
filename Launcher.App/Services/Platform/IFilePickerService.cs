@@ -32,5 +32,6 @@ public interface IFilePickerService
     string? PickShaderPackArchive();
     string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind);
     string? PickLaunchDiagnosticExportArchive(string instanceName);
+    string? PickCustomDownloadDestination(string defaultFileName);
     string? PickFolder(string title, string? initialDirectory = null);
 }

@@ -27,9 +27,12 @@ namespace Launcher.App.ViewModels.Settings;
 
 public sealed partial class DownloadSettingsViewModel : SettingsSectionViewModelBase
 {
-    internal DownloadSettingsViewModel(SettingsPersistenceCoordinator persistence)
+    internal DownloadSettingsViewModel(
+        SettingsPersistenceCoordinator persistence,
+        CustomFileDownloadViewModel customFileDownload)
         : base(persistence)
     {
+        CustomFileDownload = customFileDownload;
         DownloadSourceOptions =
         [
             new(DownloadSourcePreference.Official, Strings.Settings_DownloadSourceOfficial),
@@ -43,6 +46,7 @@ public sealed partial class DownloadSettingsViewModel : SettingsSectionViewModel
     public event EventHandler<SettingsDownloadSpeedLimitChangedEventArgs>? DownloadSpeedLimitChanged;
 
     public ObservableCollection<SettingsDownloadSourceOption> DownloadSourceOptions { get; }
+    public CustomFileDownloadViewModel CustomFileDownload { get; }
 
     [ObservableProperty]
     private SettingsDownloadSourceOption? selectedDownloadSourceOption;

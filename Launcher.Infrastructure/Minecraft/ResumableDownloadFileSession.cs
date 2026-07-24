@@ -26,6 +26,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private readonly DownloadPersistenceMode persistenceMode;
     private readonly MinecraftDownloadOperationContext? operationContext;
     private readonly string? managedRoot;
+    private readonly bool allowUnverifiedSegmentedDownload;
+    private readonly bool useHiddenTemporaryFile;
     private readonly PartFileCapacityManager.CapacityLease? capacityLease;
     private readonly IDisposable? assetLock;
     private string? sourceCandidateKey;
@@ -45,6 +47,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         DownloadPersistenceMode persistenceMode,
         MinecraftDownloadOperationContext? operationContext,
         string? managedRoot,
+        bool allowUnverifiedSegmentedDownload,
+        bool useHiddenTemporaryFile,
         PartFileCapacityManager.CapacityLease? capacityLease,
         IDisposable? assetLock)
     {
@@ -54,6 +58,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         this.persistenceMode = persistenceMode;
         this.operationContext = operationContext;
         this.managedRoot = managedRoot;
+        this.allowUnverifiedSegmentedDownload = allowUnverifiedSegmentedDownload;
+        this.useHiddenTemporaryFile = useHiddenTemporaryFile;
         this.capacityLease = capacityLease;
         this.assetLock = assetLock;
     }
@@ -133,23 +139,27 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     options.OperationContext?.MarkVerified(normalizedDestination, integrity);
                     return new ResumableDownloadFileSession(
                         normalizedDestination, string.Empty, integrity, options.PersistenceMode,
-                        options.OperationContext, managedRoot, null, assetLock) { IsComplete = true };
+                        options.OperationContext, managedRoot, options.AllowUnverifiedSegmentedDownload,
+                        options.UseHiddenTemporaryFile, null, assetLock) { IsComplete = true };
                 }
             }
 
             DeleteAbandonedTemporaryFiles(
                 destinationDirectory,
                 Path.GetFileName(normalizedDestination),
-                managedRoot);
-            var temporaryPath = Path.Combine(
-                destinationDirectory,
-                $".{Path.GetFileName(normalizedDestination)}.bhl-pending-{Guid.NewGuid():N}.tmp");
+                managedRoot,
+                options.UseHiddenTemporaryFile);
+            var temporaryFileName = options.UseHiddenTemporaryFile
+                ? $".{Path.GetFileName(normalizedDestination)}.bhl-pending-{Guid.NewGuid():N}.tmp"
+                : $"{Path.GetFileName(normalizedDestination)}.bhl-pending-{Guid.NewGuid():N}.tmp";
+            var temporaryPath = Path.Combine(destinationDirectory, temporaryFileName);
             if (options.PersistenceMode is DownloadPersistenceMode.TaskScopedResumable)
                 capacityLease = PartFileCapacityManager.Reserve(integrity.ExpectedSize);
 
             return new ResumableDownloadFileSession(
                 normalizedDestination, temporaryPath, integrity, options.PersistenceMode,
-                options.OperationContext, managedRoot, capacityLease, assetLock);
+                options.OperationContext, managedRoot, options.AllowUnverifiedSegmentedDownload,
+                options.UseHiddenTemporaryFile, capacityLease, assetLock);
         }
         catch
         {
@@ -193,7 +203,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         {
             throw new InvalidDataException("The segmented download total length did not match the trusted size.");
         }
-        if (!integrity.HasStrongHash)
+        if (!integrity.HasStrongHash
+            && !(allowUnverifiedSegmentedDownload && !integrity.IsVerifiable))
             throw new InvalidDataException("Segmented downloads require a strong expected hash.");
 
         ResetSegmentedDownload();
@@ -209,7 +220,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 BufferSize,
                 FileOptions.Asynchronous | FileOptions.RandomAccess);
             segmentedDestination.SetLength(totalLength);
-            TryMarkTemporaryHidden(temporaryPath);
+            if (useHiddenTemporaryFile)
+                TryMarkTemporaryHidden(temporaryPath);
             knownTotalLength = totalLength;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -328,7 +340,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
         if (knownTotalLength is null || Interlocked.Read(ref segmentedBytes) != knownTotalLength.Value)
             throw new DownloadBodyInterruptedException("The segmented download did not write the expected number of bytes.");
-        if (!await VerifyTemporaryAsync(cancellationToken).ConfigureAwait(false))
+        if (integrity.IsVerifiable
+            && !await VerifyTemporaryAsync(cancellationToken).ConfigureAwait(false))
             throw new DownloadHashMismatchException("The segmented download did not match its expected hash.");
 
         Publish(cancellationToken);
@@ -432,7 +445,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             EnsureManagedDestinationIsSafe();
             await using var destination = OpenTemporaryFile(resumed);
-            TryMarkTemporaryHidden(temporaryPath);
+            if (useHiddenTemporaryFile)
+                TryMarkTemporaryHidden(temporaryPath);
             var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             var persisted = existingLength;
             try
@@ -458,7 +472,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
             await FlushLocalAsync(destination, cancellationToken).ConfigureAwait(false);
             ValidateCompletedLength(persisted, totalLength);
-            if (!integrity.Verify(hashers))
+            if (integrity.IsVerifiable && !integrity.Verify(hashers))
             {
                 DeleteTemporary();
                 throw new DownloadHashMismatchException("The downloaded file did not match its expected hash.");
@@ -568,7 +582,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 IsComplete = true;
                 return;
             }
-            ClearTemporaryHiddenAttribute();
+            if (useHiddenTemporaryFile)
+                ClearTemporaryHiddenAttribute();
             File.Move(temporaryPath, destinationPath, overwrite: true);
             operationContext?.MarkVerified(destinationPath, integrity);
             IsComplete = true;
@@ -676,11 +691,14 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private static void DeleteAbandonedTemporaryFiles(
         string directory,
         string destinationFileName,
-        string? managedRoot)
+        string? managedRoot,
+        bool useHiddenTemporaryFile)
     {
         if (managedRoot is not null)
             MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, directory, "Managed download cleanup directory");
-        var pattern = $".{destinationFileName}.bhl-pending-*.tmp";
+        var pattern = useHiddenTemporaryFile
+            ? $".{destinationFileName}.bhl-pending-*.tmp"
+            : $"{destinationFileName}.bhl-pending-*.tmp";
         foreach (var candidate in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
         {
             try

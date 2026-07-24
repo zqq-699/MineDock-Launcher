@@ -60,9 +60,7 @@ internal sealed class ResourceInstallTaskSession
         string initialMessage)
     {
         var task = owner?.BeginTask(title, subtitle);
-        var session = new ResourceInstallTaskSession(owner, task, initialMessage);
-        session.Report(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage));
-        return session;
+        return new ResourceInstallTaskSession(owner, task, initialMessage);
     }
 
     public void BeginDependencies(int count)
@@ -151,6 +149,12 @@ internal sealed class ResourceInstallTaskSession
     public void Complete(string message) => Task?.Complete(message);
 
     public void Fail(string message) => Task?.Fail(message);
+
+    public void Dismiss()
+    {
+        if (Task is not null)
+            owner?.CancelTask(Task);
+    }
 
     public bool CompleteCancellation()
     {

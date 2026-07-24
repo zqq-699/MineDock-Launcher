@@ -46,8 +46,9 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
     private readonly ILogger? logger;
     private readonly Action<string> reportStatus;
     private readonly object installStateLock = new();
+    private readonly SemaphoreSlim dependencyDialogGate = new(1, 1);
+    private readonly HashSet<string> activeInstallKeys = new(StringComparer.OrdinalIgnoreCase);
     private int activeInstallCount;
-    private bool hasExclusiveInstall;
     private TaskCompletionSource<RequiredDependenciesDialogChoice>? pendingDependenciesChoice;
 
     [ObservableProperty]

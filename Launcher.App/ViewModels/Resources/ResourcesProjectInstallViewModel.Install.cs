@@ -18,6 +18,7 @@
  */
 
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -41,8 +42,6 @@ internal async Task InstallAsync(
         if (item is null || target is null || installationService is null)
             return;
 
-        if (!TryBeginInstall(target.IsNewInstanceInstall || target.IsServerInstall))
-            return;
         var context = new InstallOperationContext(item, target, selectedProject);
         try
         {
@@ -108,34 +107,78 @@ internal async Task InstallAsync(
         }
         finally
         {
-            EndInstall();
+            EndInstall(context);
         }
     }
 
-    private bool TryBeginInstall(bool supportsParallelInstall)
+    private bool TryBeginInstall(
+        InstallOperationContext context,
+        string targetKind,
+        string targetIdentity)
     {
-        // 新实例整合包拥有独立任务会话和临时工作区，只与同类任务并行。
-        // 其他资源路径继续独占安装器，避免共享依赖确认对话框出现并发竞争。
+        var version = context.Item.Version;
+        var project = context.Project?.Project;
+        var versionIdentity = string.IsNullOrWhiteSpace(version.VersionId)
+            ? $"{version.FileName}\u001f{version.PrimaryDownloadUrl}"
+            : version.VersionId;
+        var key = string.Join(
+            '\u001f',
+            options.Kind,
+            project?.Source,
+            project?.ProjectId,
+            versionIdentity,
+            targetKind,
+            targetIdentity);
         lock (installStateLock)
         {
-            if (supportsParallelInstall ? hasExclusiveInstall : activeInstallCount > 0)
+            if (!activeInstallKeys.Add(key))
                 return false;
 
+            context.ActiveInstallKey = key;
             activeInstallCount++;
-            hasExclusiveInstall = !supportsParallelInstall;
             IsInstalling = true;
             return true;
         }
     }
 
-    private void EndInstall()
+    private void EndInstall(InstallOperationContext context)
     {
+        var key = context.ActiveInstallKey;
+        if (key is null)
+            return;
+
         lock (installStateLock)
         {
+            if (!activeInstallKeys.Remove(key))
+                return;
+
+            context.ActiveInstallKey = null;
             activeInstallCount = Math.Max(0, activeInstallCount - 1);
-            if (activeInstallCount == 0)
-                hasExclusiveInstall = false;
             IsInstalling = activeInstallCount > 0;
+        }
+    }
+
+    private void ReportDuplicateInstall(InstallOperationContext context)
+    {
+        floatingMessageService?.Show(Strings.Status_ResourceProjectDownloadAlreadyRunning);
+        reportStatus(Strings.Status_ResourceProjectDownloadAlreadyRunning);
+        logger?.LogInformation(
+            "Duplicate resource project installation request ignored. Kind={Kind} ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+            options.Kind,
+            context.Project?.Project.ProjectId,
+            context.Item.Version.VersionId,
+            context.Target.Instance?.Id);
+    }
+
+    private static string NormalizeTargetPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path.Trim();
         }
     }
 
@@ -145,16 +188,27 @@ internal async Task InstallAsync(
         var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
         if (string.IsNullOrWhiteSpace(targetDirectory))
             return;
+        if (!TryBeginInstall(
+                context,
+                nameof(ResourceProjectInstallationTargetKind.LocalDirectory),
+                Path.Combine(NormalizeTargetPath(targetDirectory), ResolveFileName(context.Item))))
+        {
+            ReportDuplicateInstall(context);
+            return;
+        }
+        BeginSession(context, targetDirectory);
         var request = new ResourceProjectInstallationRequest(
             context.Item.Version,
             ResourceProjectInstallationTargetKind.LocalDirectory,
             TargetDirectory: targetDirectory);
-        if ((await installationService!.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
+        if ((await installationService!.PrepareAsync(
+                request,
+                context.Session!.CancellationToken).ConfigureAwait(false)).TargetExists)
         {
+            context.Session.Dismiss();
             ShowFileExists(context.Item);
             return;
         }
-        BeginSession(context, targetDirectory);
         BeginUserFeedback(context.Item);
         context.Session!.BeginPrimaryDownload(hasDependencies: false);
         await installationService.ExecuteAsync(request, context.Session.Progress, context.Session.CancellationToken)
@@ -169,6 +223,14 @@ internal async Task InstallAsync(
     private async Task InstallModpackAsNewInstanceAsync(InstallOperationContext context)
     {
         // 整合包导入拥有独立的安装、清理和手动下载结果，本层只映射页面事件与反馈。
+        if (!TryBeginInstall(
+                context,
+                nameof(ResourceProjectInstallationTargetKind.NewModpackInstance),
+                string.Empty))
+        {
+            ReportDuplicateInstall(context);
+            return;
+        }
         BeginSession(context, context.Target.Title);
         BeginUserFeedback(context.Item);
         context.Session!.BeginModpackImport();
@@ -195,19 +257,30 @@ internal async Task InstallAsync(
         var parentDirectory = filePickerService?.PickFolder(Strings.FilePicker_ServerInstallDirectoryTitle);
         if (string.IsNullOrWhiteSpace(parentDirectory))
             return;
+        if (!TryBeginInstall(
+                context,
+                nameof(ResourceProjectInstallationTargetKind.NewServerDirectory),
+                NormalizeTargetPath(parentDirectory)))
+        {
+            ReportDuplicateInstall(context);
+            return;
+        }
+        BeginSession(context, parentDirectory);
         var request = new ResourceProjectInstallationRequest(
             context.Item.Version,
             ResourceProjectInstallationTargetKind.NewServerDirectory,
             TargetDirectory: parentDirectory,
             Project: context.Project?.Project);
-        var preparation = await installationService!.PrepareAsync(request).ConfigureAwait(false);
+        var preparation = await installationService!.PrepareAsync(
+            request,
+            context.Session!.CancellationToken).ConfigureAwait(false);
         if (preparation.TargetExists)
         {
+            context.Session.Dismiss();
             ShowServerDirectoryExists(preparation.TargetPath ?? parentDirectory);
             return;
         }
 
-        BeginSession(context, parentDirectory);
         floatingMessageService?.Show(Strings.Status_ServerDeploying);
         reportStatus(Strings.Status_ServerDeploying);
         context.Session!.BeginModpackImport();
@@ -234,12 +307,27 @@ internal async Task InstallAsync(
         var instance = context.Target.Instance;
         if (instance is null)
             return;
+        var instanceIdentity = string.IsNullOrWhiteSpace(instance.Id)
+            ? NormalizeTargetPath(instance.InstanceDirectory)
+            : instance.Id;
+        if (!TryBeginInstall(
+                context,
+                nameof(ResourceProjectInstallationTargetKind.ExistingInstance),
+                instanceIdentity))
+        {
+            ReportDuplicateInstall(context);
+            return;
+        }
+        BeginSession(context, context.Target.Title);
         var request = new ResourceProjectInstallationRequest(
             context.Item.Version,
             ResourceProjectInstallationTargetKind.ExistingInstance,
             Instance: instance);
-        if ((await installationService!.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
+        if ((await installationService!.PrepareAsync(
+                request,
+                context.Session!.CancellationToken).ConfigureAwait(false)).TargetExists)
         {
+            context.Session.Dismiss();
             ShowFileExists(context.Item);
             return;
         }
@@ -247,12 +335,14 @@ internal async Task InstallAsync(
             context.Item,
             instance,
             context.Project?.Project.ProjectId,
-            RequestDependenciesDialogAsync,
-            CancellationToken.None).ConfigureAwait(false);
+            items => RequestDependenciesDialogAsync(items, context.Session.CancellationToken),
+            context.Session.CancellationToken).ConfigureAwait(false);
         if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
+        {
+            context.Session.Dismiss();
             return;
+        }
 
-        BeginSession(context, context.Target.Title);
         floatingMessageService?.Show(options.DownloadingText);
         if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies
             && !await InstallDependenciesAsync(context, dependencyPlan, instance).ConfigureAwait(false))
