@@ -2,29 +2,29 @@
   "schemaVersion": 1,
   "appId": "BlockHelm-Launcher",
   "channel": "release",
-  "versionName": "0.9.8",
-  "versionCode": 90899,
-  "publishedAt": "2026-07-22T17:09:00Z",
+  "versionName": "0.9.9",
+  "versionCode": 90999,
+  "publishedAt": "2026-07-24T08:34:36Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# 正式版 0.9.8\r\n\r\n* 扩展 Java 自动发现范围，支持系统注册表、官方启动器运行时、常见 Java 发行版目录及第三方启动器运行时。\r\n* 改进 Java 路径识别和目录扫描，在带引号路径、重复安装及无权限目录等场景下提供更稳定的发现结果。\r\n* 修复下拉列表打开时滚轮事件传递到背景页面的问题，优化下拉选择与页面滚动体验。\r\n* 在关于页面新增版权声明、开源协议和用户协议入口，并完善多语言文案与链接管理。\r\n* 重写项目说明，完整介绍游戏下载、实例、账户、资源、整合包、服务器和联机等功能。",
+  "releaseNotes": "# 正式版 0.9.9\r\n\r\n* 新增自定义文件下载功能，可输入 HTTP 或 HTTPS 文件地址并选择本地保存位置。\r\n* 升级游戏下载引擎，为大型 Minecraft 文件提供自适应分段下载，并改进断点续传、失败重试、完整性校验和同源并发控制。\r\n* 优化下载速度统计、限速和并发调度，提高资源依赖项与整合包文件的批量下载效率。\r\n* 新增启动后自动加入服务器设置，支持全局默认配置和实例独立配置，并根据游戏版本使用兼容的启动参数。\r\n* 改进 Java 运行时导入与发现，手动导入的有效路径可在刷新和重启后保留，失效路径会在重新扫描时清理。\r\n* 改进本地整合包识别，扩展名为 `.zip` 的 Modrinth 整合包也可根据包内清单正常导入。\r\n* 在资源详情页新增相关网站入口，并完善资源关联信息的获取与展示。\r\n* 完善关于页面中的引用项目与许可信息展示，并补充多语言文案。\r\n* 修复亚克力背景不透明度为 `100%` 时数值换行的问题。",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
-      "size": 10788232,
-      "sha256": "5564cbea3eb5c6d5d908695e1d07702c43e3ed74d91b335134f7796c0e895575",
+      "size": 10983304,
+      "sha256": "a91314d20ab88208b8781f5fc1cf6907a5f1590c05f1306636477f82d9414e0d",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.8/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.9/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.8/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.9/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
